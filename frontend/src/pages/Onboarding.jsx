@@ -193,7 +193,120 @@ function Onboarding() {
     loadProfile();
   }, [navigate]);
 
-  const nextStep = () => setStep((s) => Math.min(s + 1, 6));
+  const validateStep = (s) => {
+    // Clear any previous error before re-validating
+    setError("");
+
+    // Step 1: Body metrics
+    if (s === 1) {
+      const heightCm = parseHeightToCm();
+      const startingWeightKg = parseWeightToKg(startingWeightInput);
+      const goalWeightKg = parseWeightToKg(goalWeightInput);
+
+      if (!heightCm || !startingWeightKg || !goalWeightKg) {
+        setError("Please fill in height, starting weight, and goal weight.");
+        return false;
+      }
+      return true;
+    }
+
+    // Step 2: Goal & calories
+    if (s === 2) {
+      const weeklyChangeKgRaw = parseWeeklyChangeToKg();
+      const weeklyChangeKg = safeWeeklyChangeKg(goalType, weeklyChangeKgRaw);
+
+      if ((goalType === "lose" || goalType === "gain") && !weeklyChangeKg) {
+        setError("Please choose a weekly rate of change.");
+        return false;
+      }
+
+      if (calorieMode === "custom") {
+        const cc = Number(customCalories);
+        if (!Number.isFinite(cc) || cc < 1200) {
+          setError("Custom calories must be at least 1200.");
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    // Step 3: Training setup
+    if (s === 3) {
+      if (splitMode === "fixed" && trainingDaysSelected.length === 0) {
+        setError("Please select at least one training day.");
+        return false;
+      }
+
+      if (splitMode === "rolling") {
+        const d = rollingStartDate || new Date().toISOString().slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          setError("Please choose a valid rolling split start date.");
+          return false;
+        }
+
+        if (!trainingFrequencyRange) {
+          setError("Please choose a training frequency range.");
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    // Step 4: Activity baseline (only lifestyle required; others optional)
+    if (s === 4) {
+      if (!activityLevel) {
+        setError("Please choose your lifestyle activity level.");
+        return false;
+      }
+
+      // Optional fields: steps/cardio/minutes/hr — allow empty
+      // If provided, must be valid non-negative integers
+      const baselineSteps = parseOptionalInt(baselineStepsInput);
+      const baselineCardioMinutes = parseOptionalInt(baselineCardioMinutesInput);
+      const baselineCardioHr = parseOptionalInt(baselineCardioHrInput);
+
+      if (baselineStepsInput.trim() && baselineSteps === null) {
+        setError("Average steps per day must be a non-negative number.");
+        return false;
+      }
+      if (baselineCardioMinutesInput.trim() && baselineCardioMinutes === null) {
+        setError("Cardio minutes per week must be a non-negative number.");
+        return false;
+      }
+      if (baselineCardioHrInput.trim() && baselineCardioHr === null) {
+        setError("Typical cardio heart rate must be a non-negative number.");
+        return false;
+      }
+
+      return true;
+    }
+
+    // Step 5: Nutrition preferences (all optional; always valid)
+    if (s === 5) {
+      return true;
+    }
+
+    // Step 6: Safety
+    if (s === 6) {
+      if (!disclaimerAccepted) {
+        setError("You must confirm the disclaimer to continue.");
+        return false;
+      }
+      return true;
+    }
+
+    return true;
+  };
+
+  const nextStep = () => {
+    if (saving) return;
+    // Validate current step before moving forward
+    const ok = validateStep(step);
+    if (!ok) return;
+    setStep((s) => Math.min(s + 1, 6));
+  };
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
   const toggleTrainingDay = (day) => {
@@ -257,10 +370,7 @@ function Onboarding() {
   const handleSubmit = async () => {
     if (!profile) return;
 
-    if (!disclaimerAccepted) {
-      setError("You must confirm the disclaimer to continue.");
-      return;
-    }
+    if (!validateStep(6)) return;
 
     setSaving(true);
     setError("");
@@ -270,42 +380,6 @@ function Onboarding() {
     const goalWeightKg = parseWeightToKg(goalWeightInput);
     const weeklyChangeKgRaw = parseWeeklyChangeToKg();
     const weeklyChangeKg = safeWeeklyChangeKg(goalType, weeklyChangeKgRaw);
-
-    if (!heightCm || !startingWeightKg || !goalWeightKg) {
-      setSaving(false);
-      setError("Please fill in height, starting weight, and goal weight.");
-      return;
-    }
-
-    if ((goalType === "lose" || goalType === "gain") && !weeklyChangeKg) {
-      setSaving(false);
-      setError("Please choose a weekly rate of change.");
-      return;
-    }
-
-    if (splitMode === "fixed" && trainingDaysSelected.length === 0) {
-      setSaving(false);
-      setError("Please select at least one training day.");
-      return;
-    }
-
-    if (splitMode === "rolling") {
-      const d = rollingStartDate || new Date().toISOString().slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-        setSaving(false);
-        setError("Please choose a valid rolling split start date.");
-        return;
-      }
-    }
-
-    if (calorieMode === "custom") {
-      const cc = Number(customCalories);
-      if (!Number.isFinite(cc) || cc < 1200) {
-        setSaving(false);
-        setError("Custom calories must be at least 1200.");
-        return;
-      }
-    }
 
     const baselineSteps = parseOptionalInt(baselineStepsInput);
     const baselineCardioMinutes = parseOptionalInt(baselineCardioMinutesInput);
