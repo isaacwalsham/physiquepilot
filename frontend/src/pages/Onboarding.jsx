@@ -348,7 +348,7 @@ function Onboarding() {
     const num = Number(weeklyChangeInput);
     if (!Number.isFinite(num) || num <= 0) return null;
     if (unitSystem === "metric") return num;
-    return num / 2.20462;
+    return num / 2.20462; 
   };
 
   const safeWeeklyChangeKg = (goal, kg) => {
@@ -467,6 +467,113 @@ function Onboarding() {
       setError(String(initErr));
       return;
     }
+
+    // --- Post-init nutrition logic: enforce sensible day-type differences ---
+    // Rest day: lower calories, higher fats, lower carbs, protein unchanged
+    // High day: slightly higher calories, more carbs than training day, protein unchanged
+    try {
+      const { data: tRows, error: tErr } = await supabase
+        .from("nutrition_day_targets")
+        .select("day_type, calories, protein_g, carbs_g, fats_g")
+        .eq("user_id", profile.user_id)
+        .in("day_type", ["training", "rest", "high"]);
+
+      if (tErr) throw tErr;
+
+      const byType = { training: null, rest: null, high: null };
+      (tRows || []).forEach((r) => {
+        byType[r.day_type] = r;
+      });
+
+      const kgToLb = (kg) => Number(kg) * 2.2046226218;
+      const clamp0 = (n) => Math.max(0, Math.round(Number(n) || 0));
+
+      // Build a reasonable training baseline if it doesn't exist
+      let training = byType.training;
+      if (!training) {
+        const trainingCalories = calorieMode === "custom" ? Math.round(Number(customCalories) || 0) : 0;
+        // Fallback if neither AI init nor custom calories produced a base
+        const safeCalories = trainingCalories >= 1200 ? trainingCalories : 2500;
+
+        const bwLb = kgToLb(startingWeightKg || 0);
+        const protein = clamp0(bwLb * 1.0); // default 1.0 g/lb
+
+        // Baseline fat, carbs fill
+        const fats = clamp0(bwLb * 0.30);
+        const carbs = clamp0((safeCalories - protein * 4 - fats * 9) / 4);
+
+        training = {
+          user_id: profile.user_id,
+          day_type: "training",
+          calories: safeCalories,
+          protein_g: protein,
+          fats_g: fats,
+          carbs_g: carbs
+        };
+
+        await supabase
+          .from("nutrition_day_targets")
+          .upsert(training, { onConflict: "user_id,day_type" });
+      }
+
+      const trainingCalories = clamp0(training.calories);
+      const proteinG = clamp0(training.protein_g);
+      const trainingFats = clamp0(training.fats_g);
+      const trainingCarbs = clamp0(training.carbs_g);
+
+      // Rest day: -10% calories, +10% fats (carbs fill), protein same
+      const restCalories = clamp0(trainingCalories * 0.90);
+      let restFats = clamp0(trainingFats * 1.10);
+      let restCarbs = clamp0((restCalories - proteinG * 4 - restFats * 9) / 4);
+
+      // If carbs hit 0 because fats too high, cap fats to keep carbs >= 25g
+      if (restCarbs < 25) {
+        restCarbs = 25;
+        const remaining = restCalories - proteinG * 4 - restCarbs * 4;
+        restFats = clamp0(remaining / 9);
+      }
+
+      // High day: +5% calories, slightly lower fats, carbs fill (ensure > training carbs)
+      const highCalories = clamp0(trainingCalories * 1.05);
+      let highFats = clamp0(trainingFats * 0.95);
+      let highCarbs = clamp0((highCalories - proteinG * 4 - highFats * 9) / 4);
+
+      // Ensure high day carbs are meaningfully higher than training day
+      if (highCarbs <= trainingCarbs) {
+        highCarbs = clamp0(trainingCarbs * 1.10);
+        const remaining = highCalories - proteinG * 4 - highCarbs * 4;
+        highFats = clamp0(remaining / 9);
+      }
+
+      const upserts = [
+        {
+          user_id: profile.user_id,
+          day_type: "rest",
+          calories: restCalories,
+          protein_g: proteinG,
+          carbs_g: restCarbs,
+          fats_g: restFats
+        },
+        {
+          user_id: profile.user_id,
+          day_type: "high",
+          calories: highCalories,
+          protein_g: proteinG,
+          carbs_g: highCarbs,
+          fats_g: highFats
+        }
+      ];
+
+      await supabase
+        .from("nutrition_day_targets")
+        .upsert(upserts, { onConflict: "user_id,day_type" });
+    } catch (e) {
+      // Don't block onboarding if targets can't be tuned yet (schema/RLS/etc).
+      console.warn("Post-init day-target tuning skipped:", e);
+    }
+
+    // Training days selected in onboarding are already persisted to profiles.training_days.
+    // The Training page can build the schedule from that baseline.
 
     setSaving(false);
     navigate("/app/dashboard", { replace: true });
