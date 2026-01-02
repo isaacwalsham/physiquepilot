@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import { supabase } from "../supabaseClient";
+
+const API_URL = (() => {
+  const raw =
+    import.meta?.env?.VITE_API_URL ||
+    import.meta?.env?.VITE_API_BASE_URL ||
+    (import.meta?.env?.PROD ? "https://physiquepilot.onrender.com" : "http://localhost:4000");
+  return String(raw || "").replace(/\/+$/, "");
+})();
 
 const round1 = (n) => Math.round(n * 10) / 10;
 
@@ -76,11 +85,11 @@ function Dashboard() {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       const user = userData?.user;
       if (userErr || !user) {
-        setLoading(false);
+        navigate("/", { replace: true });
         return;
       }
 
-      const todayIso = new Date().toISOString().slice(0, 10);
+      const todayIso = todayLocalISO();
 
       const { data: profile, error: profileErr } = await supabase
         .from("profiles")
@@ -143,23 +152,36 @@ function Dashboard() {
       }
 
       if (!tRow) {
-        const r = await fetch(`${API_URL}/api/nutrition/init`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: user.id })
-        });
-
-        if (r.ok) {
-          const { data: tRow2 } = await supabase
-            .from("nutrition_day_targets")
-            .select("day_type, calories, protein_g, carbs_g, fats_g")
-            .eq("user_id", user.id)
-            .eq("day_type", inferredType)
-            .maybeSingle();
-          setTodayTargets(tRow2 || null);
+        if (!API_URL) {
+          setError((e) =>
+            e
+              ? `${e}\nMissing VITE_API_URL (or VITE_API_BASE_URL). Add it in Netlify env vars.`
+              : "Missing VITE_API_URL (or VITE_API_BASE_URL). Add it in Netlify env vars."
+          );
+          setTodayTargets(null);
         } else {
-          const j = await r.json().catch(() => ({}));
-          setError((e) => (e ? `${e}\n${j?.error || "Failed to initialize nutrition."}` : j?.error || "Failed to initialize nutrition."));
+          const r = await fetch(`${API_URL}/api/nutrition/init`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: user.id })
+          });
+
+          if (r.ok) {
+            const { data: tRow2 } = await supabase
+              .from("nutrition_day_targets")
+              .select("day_type, calories, protein_g, carbs_g, fats_g")
+              .eq("user_id", user.id)
+              .eq("day_type", inferredType)
+              .maybeSingle();
+            setTodayTargets(tRow2 || null);
+          } else {
+            const j = await r.json().catch(() => ({}));
+            setError((e) =>
+              e
+                ? `${e}\n${j?.error || "Failed to initialize nutrition."}`
+                : j?.error || "Failed to initialize nutrition."
+            );
+          }
         }
       } else {
         setTodayTargets(tRow);

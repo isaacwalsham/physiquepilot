@@ -7,10 +7,30 @@ dotenv.config();
 
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://physiquepilot.com",
+  "https://www.physiquepilot.com",
+  /\.netlify\.app$/
+];
+
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+
+    const allowed = allowedOrigins.some(o =>
+      typeof o === "string" ? o === origin : o.test(origin)
+    );
+
+    if (allowed) return callback(null, true);
+
+    callback(new Error("Not allowed by CORS"));
+  },
   credentials: true
 }));
+
+app.options("*", cors());
 
 app.use(express.json());
 

@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "../supabaseClient";
 
-const API_URL =
-    import.meta.env.VITE_API_URL ||
-    (import.meta.env.PROD ? "https://physiquepilot.onrender.com" : "http://localhost:4000");
+const API_URL = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "") ||
+  (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com");
 
 const dayLabel = {
     training: "Training day",
@@ -95,12 +94,6 @@ function Nutrition() {
             }
 
             if (!fData) {
-                if (!API_URL) {
-                    setError("Missing VITE_API_URL. Set it in your .env (local) and Netlify env vars (prod). Example: VITE_API_URL=https://your-backend-domain");
-                    setLoading(false);
-                    return;
-                }
-
                 const r = await fetch(`${API_URL}/api/nutrition/init`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

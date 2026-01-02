@@ -318,37 +318,69 @@ function Onboarding() {
     const baselineCardioMinutes = parseOptionalInt(baselineCardioMinutesInput);
     const baselineCardioHr = parseOptionalInt(baselineCardioHrInput);
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        unit_system: unitSystem,
-        height_cm: heightCm,
-        starting_weight_kg: startingWeightKg,
-        current_weight_kg: startingWeightKg,
-        goal_weight_kg: goalWeightKg,
-        goal_type: goalType,
-        weekly_weight_change_target_kg: goalType === "maintain" ? null : weeklyChangeKg,
-        split_mode: splitMode,
-        training_frequency_range: splitMode === "rolling" ? trainingFrequencyRange : null,
-        rolling_start_date: splitMode === "rolling" ? (rollingStartDate || new Date().toISOString().slice(0, 10)) : null,
-        training_days: splitMode === "fixed" ? trainingDaysSelected : null,
-        training_days_per_week: splitMode === "fixed" ? trainingDaysSelected.length : null,
-        experience_level: experienceLevel,
-        gym_type: gymType,
-        gym_chain: gymChain,
-        activity_level: activityLevel,
-        baseline_steps_per_day: baselineSteps,
-        baseline_cardio_minutes_per_week: baselineCardioMinutes,
-        baseline_cardio_avg_hr: baselineCardioHr,
-        dietary_preference: dietaryPreference,
-        dietary_additional: dietaryAdditional,
-        food_allergies: foodAllergies,
-        dislikes,
-        calorie_mode: calorieMode,
-        custom_calories: calorieMode === "custom" ? Number(customCalories) || null : null,
-        onboarding_complete: true
-      })
-      .eq("user_id", profile.user_id);
+    const basePayload = {
+      unit_system: unitSystem,
+      height_cm: heightCm,
+      starting_weight_kg: startingWeightKg,
+      current_weight_kg: startingWeightKg,
+      goal_weight_kg: goalWeightKg,
+      goal_type: goalType,
+      weekly_weight_change_target_kg: goalType === "maintain" ? null : weeklyChangeKg,
+      split_mode: splitMode,
+      training_frequency_range: splitMode === "rolling" ? trainingFrequencyRange : null,
+      rolling_start_date:
+        splitMode === "rolling"
+          ? (rollingStartDate || new Date().toISOString().slice(0, 10))
+          : null,
+      training_days: splitMode === "fixed" ? trainingDaysSelected : null,
+      training_days_per_week: splitMode === "fixed" ? trainingDaysSelected.length : null,
+      experience_level: experienceLevel,
+      gym_type: gymType,
+      gym_chain: gymChain,
+      dietary_preference: dietaryPreference,
+      dietary_additional: dietaryAdditional,
+      food_allergies: foodAllergies,
+      dislikes,
+      calorie_mode: calorieMode,
+      custom_calories: calorieMode === "custom" ? Number(customCalories) || null : null,
+      onboarding_complete: true
+    };
+
+    const activityPayload = {
+      activity_level: activityLevel,
+      baseline_steps_per_day: baselineSteps,
+      baseline_cardio_minutes_per_week: baselineCardioMinutes,
+      baseline_cardio_avg_hr: baselineCardioHr
+    };
+
+    // Try update with activity fields first. If the DB schema doesn't have them yet,
+    // retry without them so onboarding can still complete.
+    let updateError = null;
+    {
+      const { error: e1 } = await supabase
+        .from("profiles")
+        .update({ ...basePayload, ...activityPayload })
+        .eq("user_id", profile.user_id);
+      updateError = e1;
+    }
+
+    if (updateError) {
+      const msg = String(updateError.message || "");
+      const looksLikeMissingColumn =
+        msg.includes("Could not find") &&
+        (msg.includes("activity_level") ||
+          msg.includes("baseline_steps_per_day") ||
+          msg.includes("baseline_cardio_minutes_per_week") ||
+          msg.includes("baseline_cardio_avg_hr"));
+
+      if (looksLikeMissingColumn) {
+        const { error: e2 } = await supabase
+          .from("profiles")
+          .update(basePayload)
+          .eq("user_id", profile.user_id);
+        updateError = e2;
+      }
+    }
 
     if (updateError) {
       setSaving(false);
@@ -356,13 +388,11 @@ function Onboarding() {
       return;
     }
 
-    const API_URL =
+    const API_URL = (
       import.meta.env.VITE_API_URL ||
-      (import.meta.env.DEV ? "http://localhost:4000" : null);
-
-    if (!API_URL) {
-      throw new Error("Missing VITE_API_URL in production");
-    }
+      import.meta.env.VITE_API_BASE_URL ||
+      (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
+    ).replace(/\/$/, "");
 
     const { error: initErr } = await fetch(`${API_URL}/api/nutrition/init`, {
       method: "POST",
@@ -380,7 +410,7 @@ function Onboarding() {
     }
 
     setSaving(false);
-    navigate("/app/dashboard");
+    navigate("/app/dashboard", { replace: true });
   };
 
   if (loading) {
