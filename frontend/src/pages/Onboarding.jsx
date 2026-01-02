@@ -399,36 +399,42 @@ function Onboarding() {
   };
 
   // ---- nicer centered UI styles ----
+  c  // ---- nicer centered UI styles ----
   const pageWrap = {
-    width: "100%",
-    minHeight: "calc(100vh - 4rem)",
+    width: "100vw",
+    minHeight: "100vh",
     display: "flex",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "center",
-    paddingTop: "2rem",
-    paddingBottom: "2rem"
+    background: "#0f0f0f",
+    padding: "2.5rem"
   };
 
+  // No container feel: no boxed card, just a centered content column
   const card = {
     width: "100%",
-    maxWidth: "760px",
-    background: "#141414",
-    border: "1px solid #222",
-    borderRadius: "14px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-    overflow: "hidden"
+    maxWidth: "1100px",
+    background: "transparent",
+    border: "none",
+    borderRadius: 0,
+    boxShadow: "none",
+    overflow: "visible"
   };
 
   const header = {
-    padding: "1.5rem 1.5rem 1rem",
-    borderBottom: "1px solid #222",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0))"
+    paddingBottom: "1.5rem",
+    marginBottom: "1.5rem",
+    borderBottom: "1px solid #222"
   };
 
-  const body = { padding: "1.25rem 1.5rem 1.5rem" };
+  const body = {
+    padding: 0,
+    display: "grid",
+    gap: "1.5rem"
+  };
 
-  const h1 = { margin: 0, fontSize: "1.6rem", letterSpacing: "0.2px" };
-  const sub = { marginTop: "0.45rem", color: "#aaa", lineHeight: 1.4 };
+  const h1 = { margin: 0, fontSize: "2.2rem", letterSpacing: "0.3px" };
+  const sub = { marginTop: "0.55rem", color: "#aaa", lineHeight: 1.55, fontSize: "1.02rem" };
 
   const stepRow = {
     marginTop: "1rem",
@@ -448,65 +454,69 @@ function Onboarding() {
     border: "1px solid #2a2a2a"
   });
 
-  const stepText = { color: "#666", fontSize: "0.9rem" };
-  const sectionTitle = { margin: 0, fontSize: "1.1rem" };
+  const stepText = { color: "#666", fontSize: "0.95rem" };
+  const sectionTitle = { margin: 0, fontSize: "1.4rem" };
 
   const label = {
     display: "block",
     color: "#aaa",
-    fontSize: "0.9rem",
+    fontSize: "0.95rem",
     marginBottom: "0.35rem"
   };
 
   const field = {
     width: "100%",
-    padding: "0.7rem",
+    padding: "0.85rem",
     background: "#0f0f0f",
     color: "#fff",
     border: "1px solid #333",
-    borderRadius: "10px",
-    outline: "none"
+    borderRadius: "12px",
+    outline: "none",
+    fontSize: "1rem"
   };
 
-  const help = { color: "#666", fontSize: "0.9rem", marginTop: "0.5rem", lineHeight: 1.35 };
+  const help = { color: "#666", fontSize: "0.95rem", marginTop: "0.5rem", lineHeight: 1.45 };
 
   const segmentedWrap = { display: "flex", gap: "0.5rem", marginTop: "0.35rem" };
 
   const segBtn = (active) => ({
-    padding: "0.55rem 0.9rem",
-    borderRadius: "10px",
+    padding: "0.75rem 1.1rem",
+    borderRadius: "12px",
     border: "1px solid #333",
     background: active ? "#2a2a2a" : "transparent",
     color: active ? "#fff" : "#aaa",
-    cursor: "pointer"
+    cursor: "pointer",
+    fontSize: "1rem"
   });
 
   const dayBtn = (active) => ({
-    padding: "0.45rem 0.7rem",
+    padding: "0.55rem 0.9rem",
     borderRadius: "999px",
     border: "1px solid #333",
     background: active ? "#2a2a2a" : "transparent",
     color: active ? "#fff" : "#aaa",
-    cursor: "pointer"
+    cursor: "pointer",
+    fontSize: "0.98rem"
   });
 
   const footer = {
-    padding: "1rem 1.5rem",
+    marginTop: "2rem",
+    paddingTop: "1.5rem",
     borderTop: "1px solid #222",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: "0.75rem",
-    background: "#121212"
+    gap: "1rem"
   };
 
   const btn = (variant, disabled) => {
     const base = {
-      padding: "0.7rem 1rem",
-      borderRadius: "10px",
+      padding: "0.85rem 1.15rem",
+      borderRadius: "12px",
       border: "1px solid #333",
       cursor: disabled ? "default" : "pointer",
-      opacity: disabled ? 0.6 : 1
+      opacity: disabled ? 0.6 : 1,
+      fontSize: "1rem"
     };
     if (variant === "primary") return { ...base, background: "#2a2a2a", color: "#fff" };
     return { ...base, background: "transparent", color: "#fff" };
@@ -514,7 +524,7 @@ function Onboarding() {
 
   const errorBox = {
     marginTop: "1rem",
-    padding: "0.75rem 1rem",
+    padding: "0.9rem 1.1rem",
     borderRadius: "12px",
     border: "1px solid #3a1b1b",
     background: "rgba(255, 107, 107, 0.08)",
@@ -524,13 +534,13 @@ function Onboarding() {
   const grid2 = {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: "0.75rem"
+    gap: "0.9rem"
   };
 
   if (loading) {
     return (
       <div style={pageWrap}>
-        <div style={{ ...card, maxWidth: "640px" }}>
+        <div style={card}>
           <div style={header}>
             <h1 style={h1}>Onboarding</h1>
             <div style={sub}>Loading your profile…</div>
@@ -574,7 +584,7 @@ function Onboarding() {
                 <div key={i} style={dot(i + 1 === step)} />
               ))}
             </div>
-            <div style={{ color: "#666", fontSize: "0.9rem" }}>{saving ? "Saving…" : " "}</div>
+            <div style={{ color: "#666", fontSize: "0.9rem" }}>{saving ? "Saving…" : ""}</div>
           </div>
 
           {error && <div style={errorBox}>{error}</div>}
