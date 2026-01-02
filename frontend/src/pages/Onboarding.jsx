@@ -399,7 +399,7 @@ function Onboarding() {
   };
 
   // ---- nicer centered UI styles ----
-  c  // ---- nicer centered UI styles ----
+
   const pageWrap = {
     width: "100vw",
     minHeight: "100vh",
