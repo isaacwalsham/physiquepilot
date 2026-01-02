@@ -728,6 +728,17 @@ function Onboarding() {
     return { ...base, background: "transparent", color: "#fff" };
   };
 
+  const linkBtn = (disabled) => ({
+    padding: "0.55rem 0.85rem",
+    borderRadius: "12px",
+    border: "1px solid #333",
+    background: "transparent",
+    color: "#aaa",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+    fontSize: "0.95rem"
+  });
+
   const errorBox = {
     marginTop: "1rem",
     padding: "0.9rem 1.1rem",
@@ -781,7 +792,21 @@ function Onboarding() {
               <h1 style={h1}>Onboarding</h1>
               <div style={sub}>Set your baseline so PhysiquePilot can guide training, nutrition, steps and cardio.</div>
             </div>
-            <div style={stepText}>Step {step} of 7</div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (saving) return;
+                  navigate("/", { replace: true });
+                }}
+                disabled={saving}
+                style={linkBtn(saving)}
+              >
+                Back to home
+              </button>
+              <div style={stepText}>Step {step} of 7</div>
+            </div>
           </div>
 
           <div style={stepRow}>
