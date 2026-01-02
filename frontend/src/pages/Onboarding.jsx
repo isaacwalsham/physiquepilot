@@ -172,11 +172,15 @@ function Onboarding() {
       if (existingProfile.dietary_additional) setDietaryAdditional(existingProfile.dietary_additional);
       if (existingProfile.food_allergies) setFoodAllergies(existingProfile.food_allergies);
       if (existingProfile.dislikes) setDislikes(existingProfile.dislikes);
+
       if (existingProfile.activity_level) setActivityLevel(existingProfile.activity_level);
       if (existingProfile.baseline_steps_per_day !== null && existingProfile.baseline_steps_per_day !== undefined) {
         setBaselineStepsInput(String(existingProfile.baseline_steps_per_day));
       }
-      if (existingProfile.baseline_cardio_minutes_per_week !== null && existingProfile.baseline_cardio_minutes_per_week !== undefined) {
+      if (
+        existingProfile.baseline_cardio_minutes_per_week !== null &&
+        existingProfile.baseline_cardio_minutes_per_week !== undefined
+      ) {
         setBaselineCardioMinutesInput(String(existingProfile.baseline_cardio_minutes_per_week));
       }
       if (existingProfile.baseline_cardio_avg_hr !== null && existingProfile.baseline_cardio_avg_hr !== undefined) {
@@ -193,9 +197,7 @@ function Onboarding() {
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
   const toggleTrainingDay = (day) => {
-    setTrainingDaysSelected((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
+    setTrainingDaysSelected((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
   };
 
   const parseHeightToCm = () => {
@@ -248,15 +250,6 @@ function Onboarding() {
     const s = String(v).trim();
     if (!s) return null;
     const n = Math.round(Number(s));
-    if (!Number.isFinite(n) || n < 0) return null;
-    return n;
-  };
-
-  const parseOptionalFloat = (v) => {
-    if (v === null || v === undefined) return null;
-    const s = String(v).trim();
-    if (!s) return null;
-    const n = Number(s);
     if (!Number.isFinite(n) || n < 0) return null;
     return n;
   };
@@ -328,10 +321,7 @@ function Onboarding() {
       weekly_weight_change_target_kg: goalType === "maintain" ? null : weeklyChangeKg,
       split_mode: splitMode,
       training_frequency_range: splitMode === "rolling" ? trainingFrequencyRange : null,
-      rolling_start_date:
-        splitMode === "rolling"
-          ? (rollingStartDate || new Date().toISOString().slice(0, 10))
-          : null,
+      rolling_start_date: splitMode === "rolling" ? rollingStartDate || new Date().toISOString().slice(0, 10) : null,
       training_days: splitMode === "fixed" ? trainingDaysSelected : null,
       training_days_per_week: splitMode === "fixed" ? trainingDaysSelected.length : null,
       experience_level: experienceLevel,
@@ -353,8 +343,6 @@ function Onboarding() {
       baseline_cardio_avg_hr: baselineCardioHr
     };
 
-    // Try update with activity fields first. If the DB schema doesn't have them yet,
-    // retry without them so onboarding can still complete.
     let updateError = null;
     {
       const { error: e1 } = await supabase
@@ -374,10 +362,7 @@ function Onboarding() {
           msg.includes("baseline_cardio_avg_hr"));
 
       if (looksLikeMissingColumn) {
-        const { error: e2 } = await supabase
-          .from("profiles")
-          .update(basePayload)
-          .eq("user_id", profile.user_id);
+        const { error: e2 } = await supabase.from("profiles").update(basePayload).eq("user_id", profile.user_id);
         updateError = e2;
       }
     }
@@ -413,380 +398,513 @@ function Onboarding() {
     navigate("/app/dashboard", { replace: true });
   };
 
+  // ---- nicer centered UI styles ----
+  const pageWrap = {
+    width: "100%",
+    minHeight: "calc(100vh - 4rem)",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    paddingTop: "2rem",
+    paddingBottom: "2rem"
+  };
+
+  const card = {
+    width: "100%",
+    maxWidth: "760px",
+    background: "#141414",
+    border: "1px solid #222",
+    borderRadius: "14px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+    overflow: "hidden"
+  };
+
+  const header = {
+    padding: "1.5rem 1.5rem 1rem",
+    borderBottom: "1px solid #222",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0))"
+  };
+
+  const body = { padding: "1.25rem 1.5rem 1.5rem" };
+
+  const h1 = { margin: 0, fontSize: "1.6rem", letterSpacing: "0.2px" };
+  const sub = { marginTop: "0.45rem", color: "#aaa", lineHeight: 1.4 };
+
+  const stepRow = {
+    marginTop: "1rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "1rem"
+  };
+
+  const dots = { display: "flex", gap: "0.35rem", flexWrap: "wrap" };
+
+  const dot = (active) => ({
+    width: "10px",
+    height: "10px",
+    borderRadius: "999px",
+    background: active ? "#fff" : "#3a3a3a",
+    border: "1px solid #2a2a2a"
+  });
+
+  const stepText = { color: "#666", fontSize: "0.9rem" };
+  const sectionTitle = { margin: 0, fontSize: "1.1rem" };
+
+  const label = {
+    display: "block",
+    color: "#aaa",
+    fontSize: "0.9rem",
+    marginBottom: "0.35rem"
+  };
+
+  const field = {
+    width: "100%",
+    padding: "0.7rem",
+    background: "#0f0f0f",
+    color: "#fff",
+    border: "1px solid #333",
+    borderRadius: "10px",
+    outline: "none"
+  };
+
+  const help = { color: "#666", fontSize: "0.9rem", marginTop: "0.5rem", lineHeight: 1.35 };
+
+  const segmentedWrap = { display: "flex", gap: "0.5rem", marginTop: "0.35rem" };
+
+  const segBtn = (active) => ({
+    padding: "0.55rem 0.9rem",
+    borderRadius: "10px",
+    border: "1px solid #333",
+    background: active ? "#2a2a2a" : "transparent",
+    color: active ? "#fff" : "#aaa",
+    cursor: "pointer"
+  });
+
+  const dayBtn = (active) => ({
+    padding: "0.45rem 0.7rem",
+    borderRadius: "999px",
+    border: "1px solid #333",
+    background: active ? "#2a2a2a" : "transparent",
+    color: active ? "#fff" : "#aaa",
+    cursor: "pointer"
+  });
+
+  const footer = {
+    padding: "1rem 1.5rem",
+    borderTop: "1px solid #222",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "0.75rem",
+    background: "#121212"
+  };
+
+  const btn = (variant, disabled) => {
+    const base = {
+      padding: "0.7rem 1rem",
+      borderRadius: "10px",
+      border: "1px solid #333",
+      cursor: disabled ? "default" : "pointer",
+      opacity: disabled ? 0.6 : 1
+    };
+    if (variant === "primary") return { ...base, background: "#2a2a2a", color: "#fff" };
+    return { ...base, background: "transparent", color: "#fff" };
+  };
+
+  const errorBox = {
+    marginTop: "1rem",
+    padding: "0.75rem 1rem",
+    borderRadius: "12px",
+    border: "1px solid #3a1b1b",
+    background: "rgba(255, 107, 107, 0.08)",
+    color: "#ff6b6b"
+  };
+
+  const grid2 = {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "0.75rem"
+  };
+
   if (loading) {
     return (
-      <div style={{ padding: "2rem" }}>
-        <h1>Onboarding</h1>
-        <p>Loading...</p>
+      <div style={pageWrap}>
+        <div style={{ ...card, maxWidth: "640px" }}>
+          <div style={header}>
+            <h1 style={h1}>Onboarding</h1>
+            <div style={sub}>Loading your profile…</div>
+          </div>
+          <div style={body} />
+        </div>
       </div>
     );
   }
 
   if (error && !saving && step === 1 && !profile) {
     return (
-      <div style={{ padding: "2rem" }}>
-        <h1>Onboarding</h1>
-        <p style={{ color: "red" }}>{error}</p>
+      <div style={pageWrap}>
+        <div style={{ ...card, maxWidth: "640px" }}>
+          <div style={header}>
+            <h1 style={h1}>Onboarding</h1>
+            <div style={sub}>Something went wrong.</div>
+            <div style={errorBox}>{error}</div>
+          </div>
+          <div style={body} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "600px" }}>
-      <h1>Onboarding</h1>
-      <p>Step {step} of 6</p>
-
-      {step === 1 && (
-        <div style={{ marginTop: "1rem" }}>
-          <h2>Body metrics</h2>
-
-          <label>Unit system</label>
-          <div style={{ marginBottom: "1rem", marginTop: "0.25rem" }}>
-            <button
-              type="button"
-              onClick={() => setUnitSystem("metric")}
-              style={{
-                marginRight: "0.5rem",
-                padding: "0.25rem 0.75rem",
-                background: unitSystem === "metric" ? "#ddd" : "transparent"
-              }}
-            >
-              Metric
-            </button>
-            <button
-              type="button"
-              onClick={() => setUnitSystem("imperial")}
-              style={{
-                padding: "0.25rem 0.75rem",
-                background: unitSystem === "imperial" ? "#ddd" : "transparent"
-              }}
-            >
-              Imperial
-            </button>
+    <div style={pageWrap}>
+      <div style={card}>
+        <div style={header}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "1rem" }}>
+            <div>
+              <h1 style={h1}>Onboarding</h1>
+              <div style={sub}>Set your baseline so PhysiquePilot can guide training, nutrition, steps and cardio.</div>
+            </div>
+            <div style={stepText}>Step {step} of 6</div>
           </div>
 
-          <label>Height ({unitSystem === "metric" ? "cm" : `e.g. 5'10"`})</label>
-          <input
-            type="text"
-            value={heightInput}
-            onChange={(e) => setHeightInput(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
+          <div style={stepRow}>
+            <div style={dots}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} style={dot(i + 1 === step)} />
+              ))}
+            </div>
+            <div style={{ color: "#666", fontSize: "0.9rem" }}>{saving ? "Saving…" : " "}</div>
+          </div>
 
-          <label>Starting weight ({unitSystem === "metric" ? "kg" : "lbs"})</label>
-          <input
-            type="number"
-            value={startingWeightInput}
-            onChange={(e) => setStartingWeightInput(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
-
-          <label>Goal weight ({unitSystem === "metric" ? "kg" : "lbs"})</label>
-          <input
-            type="number"
-            value={goalWeightInput}
-            onChange={(e) => setGoalWeightInput(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
+          {error && <div style={errorBox}>{error}</div>}
         </div>
-      )}
 
-      {step === 2 && (
-        <div style={{ marginTop: "1rem" }}>
-          <h2>Goal and rate of change</h2>
+        <div style={body}>
+          {step === 1 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>Body metrics</h2>
 
-          <label>Main goal</label>
-          <select
-            value={goalType}
-            onChange={(e) => setGoalType(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
-            <option value="maintain">Maintain weight</option>
-            <option value="lose">Lose weight</option>
-            <option value="gain">Gain weight</option>
-          </select>
-
-          {goalType !== "maintain" && (
-            <>
-              <label>Target rate per week ({unitSystem === "metric" ? "kg/week" : "lbs/week"})</label>
-              <input
-                type="number"
-                step="0.1"
-                value={weeklyChangeInput}
-                onChange={(e) => setWeeklyChangeInput(e.target.value)}
-                style={{ width: "100%", marginBottom: "0.25rem" }}
-              />
-              <p style={{ fontSize: "0.9rem", color: "#555", marginBottom: "1rem" }}>
-                Safe defaults: cutting capped at 1kg/week, gaining capped at 0.2kg/week.
-              </p>
-            </>
-          )}
-
-          <label>Calories</label>
-          <select
-            value={calorieMode}
-            onChange={(e) => setCalorieMode(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
-            <option value="ai">Let PhysiquePilot calculate for me</option>
-            <option value="custom">I want to enter my own calorie target</option>
-          </select>
-
-          {calorieMode === "custom" && (
-            <>
-              <label>Daily calorie target</label>
-              <input
-                type="number"
-                value={customCalories}
-                onChange={(e) => setCustomCalories(e.target.value)}
-                style={{ width: "100%", marginBottom: "1rem" }}
-              />
-            </>
-          )}
-
-          <p style={{ fontSize: "0.9rem", color: "#555" }}>
-            The more consistent your weight logs, the better the app can guide adjustments.
-          </p>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div style={{ marginTop: "1rem" }}>
-          <h2>Training setup</h2>
-
-          <label>Training split type</label>
-          <select
-            value={splitMode}
-            onChange={(e) => setSplitMode(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
-            <option value="fixed">Weekly (fixed days)</option>
-            <option value="rolling">Rolling (cycle repeats)</option>
-          </select>
-
-          {splitMode === "fixed" && (
-            <>
-              <label>Which days do you usually train?</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", margin: "0.5rem 0 1rem" }}>
-                {daysOfWeek.map((day) => (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => toggleTrainingDay(day)}
-                    style={{
-                      padding: "0.25rem 0.7rem",
-                      background: trainingDaysSelected.includes(day) ? "#ddd" : "transparent",
-                      border: "1px solid #ccc"
-                    }}
-                  >
-                    {day}
+              <div>
+                <div style={label}>Unit system</div>
+                <div style={segmentedWrap}>
+                  <button type="button" onClick={() => setUnitSystem("metric")} style={segBtn(unitSystem === "metric")}>
+                    Metric
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setUnitSystem("imperial")}
+                    style={segBtn(unitSystem === "imperial")}
+                  >
+                    Imperial
+                  </button>
+                </div>
               </div>
-            </>
+
+              <div style={grid2}>
+                <div>
+                  <div style={label}>Height ({unitSystem === "metric" ? "cm" : `e.g. 5'10"`})</div>
+                  <input type="text" value={heightInput} onChange={(e) => setHeightInput(e.target.value)} style={field} />
+                </div>
+
+                <div>
+                  <div style={label}>Starting weight ({unitSystem === "metric" ? "kg" : "lbs"})</div>
+                  <input
+                    type="number"
+                    value={startingWeightInput}
+                    onChange={(e) => setStartingWeightInput(e.target.value)}
+                    style={field}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={label}>Goal weight ({unitSystem === "metric" ? "kg" : "lbs"})</div>
+                <input
+                  type="number"
+                  value={goalWeightInput}
+                  onChange={(e) => setGoalWeightInput(e.target.value)}
+                  style={field}
+                />
+              </div>
+            </div>
           )}
 
-          {splitMode === "rolling" && (
-            <>
-              <label>How many days per week do you want to train?</label>
-              <select
-                value={trainingFrequencyRange}
-                onChange={(e) => setTrainingFrequencyRange(e.target.value)}
-                style={{ width: "100%", marginBottom: "1rem" }}
-              >
-                <option value="1-2">1–2 days</option>
-                <option value="2-4">2–4 days</option>
-                <option value="5-6">5–6 days</option>
-                <option value="7">7 days</option>
-              </select>
+          {step === 2 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>Goal & calories</h2>
 
-              <label>When did you start your current training block?</label>
-              <input
-                type="date"
-                value={rollingStartDate}
-                onChange={(e) => setRollingStartDate(e.target.value)}
-                style={{ width: "100%", marginBottom: "0.75rem" }}
-              />
-
-              <div style={{ color: "#555", fontSize: "0.9rem", marginBottom: "1rem" }}>
-                You’ll set the exact rolling split pattern (e.g. 8-day cycle) in the Training section.
+              <div>
+                <div style={label}>Main goal</div>
+                <select value={goalType} onChange={(e) => setGoalType(e.target.value)} style={field}>
+                  <option value="maintain">Maintain weight</option>
+                  <option value="lose">Lose weight</option>
+                  <option value="gain">Gain weight</option>
+                </select>
               </div>
-            </>
+
+              {goalType !== "maintain" && (
+                <div>
+                  <div style={label}>Target rate per week ({unitSystem === "metric" ? "kg/week" : "lbs/week"})</div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={weeklyChangeInput}
+                    onChange={(e) => setWeeklyChangeInput(e.target.value)}
+                    style={field}
+                  />
+                  <div style={help}>Safe defaults: cutting capped at 1kg/week, gaining capped at 0.2kg/week.</div>
+                </div>
+              )}
+
+              <div>
+                <div style={label}>Calories</div>
+                <select value={calorieMode} onChange={(e) => setCalorieMode(e.target.value)} style={field}>
+                  <option value="ai">Let PhysiquePilot calculate for me</option>
+                  <option value="custom">I want to enter my own calorie target</option>
+                </select>
+              </div>
+
+              {calorieMode === "custom" && (
+                <div>
+                  <div style={label}>Daily calorie target</div>
+                  <input
+                    type="number"
+                    value={customCalories}
+                    onChange={(e) => setCustomCalories(e.target.value)}
+                    style={field}
+                  />
+                  <div style={help}>Minimum 1200 kcal.</div>
+                </div>
+              )}
+
+              <div style={help}>The more consistent your weight logs, the better the app can guide adjustments.</div>
+            </div>
           )}
 
-          <label>Experience level</label>
-          <select
-            value={experienceLevel}
-            onChange={(e) => setExperienceLevel(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-          </select>
+          {step === 3 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>Training setup</h2>
 
-          <label>Gym type</label>
-          <select
-            value={gymType}
-            onChange={(e) => setGymType(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
-            <option value="home">Home gym</option>
-            <option value="commercial">Commercial gym</option>
-            <option value="independent">Independent gym</option>
-            <option value="other">Other</option>
-          </select>
+              <div>
+                <div style={label}>Training split type</div>
+                <select value={splitMode} onChange={(e) => setSplitMode(e.target.value)} style={field}>
+                  <option value="fixed">Weekly (fixed days)</option>
+                  <option value="rolling">Rolling (cycle repeats)</option>
+                </select>
+              </div>
 
-          <label>Gym chain or name (optional)</label>
-          <input
-            type="text"
-            value={gymChain}
-            onChange={(e) => setGymChain(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-            placeholder="PureGym, JD, The Gym Group, etc."
-          />
+              {splitMode === "fixed" && (
+                <div>
+                  <div style={label}>Which days do you usually train?</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.5rem" }}>
+                    {daysOfWeek.map((d) => (
+                      <button key={d} type="button" onClick={() => toggleTrainingDay(d)} style={dayBtn(trainingDaysSelected.includes(d))}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={help}>You can refine the split inside Training later.</div>
+                </div>
+              )}
+
+              {splitMode === "rolling" && (
+                <div style={{ display: "grid", gap: "0.75rem" }}>
+                  <div>
+                    <div style={label}>How many days per week do you want to train?</div>
+                    <select value={trainingFrequencyRange} onChange={(e) => setTrainingFrequencyRange(e.target.value)} style={field}>
+                      <option value="1-2">1–2 days</option>
+                      <option value="2-4">2–4 days</option>
+                      <option value="5-6">5–6 days</option>
+                      <option value="7">7 days</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <div style={label}>When did you start your current training block?</div>
+                    <input type="date" value={rollingStartDate} onChange={(e) => setRollingStartDate(e.target.value)} style={field} />
+                  </div>
+
+                  <div style={help}>You’ll set the exact rolling split pattern (e.g. 8-day cycle) in the Training section.</div>
+                </div>
+              )}
+
+              <div style={grid2}>
+                <div>
+                  <div style={label}>Experience level</div>
+                  <select value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)} style={field}>
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div style={label}>Gym type</div>
+                  <select value={gymType} onChange={(e) => setGymType(e.target.value)} style={field}>
+                    <option value="home">Home gym</option>
+                    <option value="commercial">Commercial gym</option>
+                    <option value="independent">Independent gym</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div style={label}>Gym chain or name (optional)</div>
+                <input type="text" value={gymChain} onChange={(e) => setGymChain(e.target.value)} style={field} placeholder="PureGym, JD, The Gym Group, etc." />
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>Activity baseline</h2>
+
+              <div>
+                <div style={label}>Lifestyle (excluding weight training)</div>
+                <select value={activityLevel} onChange={(e) => setActivityLevel(e.target.value)} style={field}>
+                  <option value="inactive">Inactive</option>
+                  <option value="light">Lightly active</option>
+                  <option value="moderate">Moderately active</option>
+                  <option value="heavy">Highly active</option>
+                  <option value="extreme">Extreme</option>
+                </select>
+                <div style={help}>This is used as your baseline for steps/cardio planning later.</div>
+              </div>
+
+              <div style={grid2}>
+                <div>
+                  <div style={label}>Average steps per day (optional)</div>
+                  <input
+                    type="number"
+                    min="0"
+                    value={baselineStepsInput}
+                    onChange={(e) => setBaselineStepsInput(e.target.value)}
+                    style={field}
+                    placeholder="e.g. 8000"
+                  />
+                </div>
+
+                <div>
+                  <div style={label}>Cardio minutes per week (optional)</div>
+                  <input
+                    type="number"
+                    min="0"
+                    value={baselineCardioMinutesInput}
+                    onChange={(e) => setBaselineCardioMinutesInput(e.target.value)}
+                    style={field}
+                    placeholder="e.g. 60"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={label}>Typical cardio heart rate (optional)</div>
+                <input
+                  type="number"
+                  min="0"
+                  value={baselineCardioHrInput}
+                  onChange={(e) => setBaselineCardioHrInput(e.target.value)}
+                  style={field}
+                  placeholder="e.g. 120"
+                />
+                <div style={help}>We’ll encourage LISS later (incline walk, stairmaster), but for now we just record baseline.</div>
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>Nutrition preferences</h2>
+
+              <div>
+                <div style={label}>Dietary preference</div>
+                <select value={dietaryPreference} onChange={(e) => setDietaryPreference(e.target.value)} style={field}>
+                  <option value="omnivore">Omnivore</option>
+                  <option value="vegetarian">Vegetarian</option>
+                  <option value="vegan">Vegan</option>
+                  <option value="pescatarian">Pescatarian</option>
+                  <option value="halal">Halal</option>
+                  <option value="gluten_free">Gluten free</option>
+                  <option value="lactose_free">Lactose free</option>
+                </select>
+              </div>
+
+              <div>
+                <div style={label}>Additional dietary notes</div>
+                <textarea
+                  value={dietaryAdditional}
+                  onChange={(e) => setDietaryAdditional(e.target.value)}
+                  style={{ ...field, minHeight: "110px" }}
+                  placeholder="Any extra preferences you want the app to consider."
+                />
+              </div>
+
+              <div>
+                <div style={label}>Food dislikes</div>
+                <textarea
+                  value={dislikes}
+                  onChange={(e) => setDislikes(e.target.value)}
+                  style={{ ...field, minHeight: "110px" }}
+                  placeholder="Foods you strongly prefer to avoid."
+                />
+              </div>
+            </div>
+          )}
+
+          {step === 6 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>Safety</h2>
+
+              <div>
+                <div style={label}>Food allergies</div>
+                <textarea
+                  value={foodAllergies}
+                  onChange={(e) => setFoodAllergies(e.target.value)}
+                  style={{ ...field, minHeight: "110px" }}
+                  placeholder="List any food allergies."
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start" }}>
+                <input
+                  type="checkbox"
+                  checked={disclaimerAccepted}
+                  onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                  style={{ marginTop: "0.15rem" }}
+                />
+                <div style={{ color: "#aaa", lineHeight: 1.35 }}>
+                  I confirm I am healthy enough for exercise and nutrition changes and understand this is not medical advice or an emergency service.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
-      {step === 4 && (
-        <div style={{ marginTop: "1rem" }}>
-          <h2>Activity (steps & cardio)</h2>
+        <div style={footer}>
+          <div style={{ color: "#666", fontSize: "0.9rem" }}>{step === 1 ? "" : "You can change these later in Settings."}</div>
 
-          <label>Day-to-day activity level (excluding weight training)</label>
-          <select
-            value={activityLevel}
-            onChange={(e) => setActivityLevel(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
-            <option value="inactive">Inactive</option>
-            <option value="light">Lightly active</option>
-            <option value="moderate">Moderately active</option>
-            <option value="heavy">Highly active</option>
-            <option value="extreme">Extreme</option>
-          </select>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            {step > 1 && (
+              <button onClick={prevStep} disabled={saving} style={btn("secondary", saving)}>
+                Back
+              </button>
+            )}
 
-          <label>Average steps per day (optional)</label>
-          <input
-            type="number"
-            min="0"
-            value={baselineStepsInput}
-            onChange={(e) => setBaselineStepsInput(e.target.value)}
-            style={{ width: "100%", marginBottom: "0.75rem" }}
-            placeholder="e.g. 8000"
-          />
+            {step < 6 && (
+              <button onClick={nextStep} disabled={saving} style={btn("primary", saving)}>
+                Next
+              </button>
+            )}
 
-          <div style={{ color: "#555", fontSize: "0.9rem", marginBottom: "1rem" }}>
-            This helps the app set a sensible starting point. You’ll be able to track daily steps in the Steps page.
+            {step === 6 && (
+              <button onClick={handleSubmit} disabled={saving} style={btn("primary", saving)}>
+                {saving ? "Saving…" : "Finish"}
+              </button>
+            )}
           </div>
-
-          <label>Current cardio minutes per week (optional)</label>
-          <input
-            type="number"
-            min="0"
-            value={baselineCardioMinutesInput}
-            onChange={(e) => setBaselineCardioMinutesInput(e.target.value)}
-            style={{ width: "100%", marginBottom: "0.75rem" }}
-            placeholder="e.g. 60"
-          />
-
-          <label>Typical cardio heart rate (optional)</label>
-          <input
-            type="number"
-            min="0"
-            value={baselineCardioHrInput}
-            onChange={(e) => setBaselineCardioHrInput(e.target.value)}
-            style={{ width: "100%", marginBottom: "0.75rem" }}
-            placeholder="e.g. 120"
-          />
-
-          <div style={{ color: "#555", fontSize: "0.9rem" }}>
-            We won’t prescribe cardio here. This is just baseline info so the training plan can be adjusted intelligently later.
-          </div>
         </div>
-      )}
-
-      {step === 5 && (
-        <div style={{ marginTop: "1rem" }}>
-          <h2>Nutrition preferences</h2>
-
-          <label>Dietary preference</label>
-          <select
-            value={dietaryPreference}
-            onChange={(e) => setDietaryPreference(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
-            <option value="omnivore">Omnivore</option>
-            <option value="vegetarian">Vegetarian</option>
-            <option value="vegan">Vegan</option>
-            <option value="pescatarian">Pescatarian</option>
-            <option value="halal">Halal</option>
-            <option value="gluten_free">Gluten free</option>
-            <option value="lactose_free">Lactose free</option>
-          </select>
-
-          <label>Additional dietary notes</label>
-          <textarea
-            value={dietaryAdditional}
-            onChange={(e) => setDietaryAdditional(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem", minHeight: "70px" }}
-            placeholder="Any extra preferences you want the app to consider."
-          />
-
-          <label>Food dislikes</label>
-          <textarea
-            value={dislikes}
-            onChange={(e) => setDislikes(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem", minHeight: "70px" }}
-            placeholder="Foods you strongly prefer to avoid."
-          />
-        </div>
-      )}
-
-      {step === 6 && (
-        <div style={{ marginTop: "1rem" }}>
-          <h2>Safety and preferences</h2>
-
-          <label>Food allergies</label>
-          <textarea
-            value={foodAllergies}
-            onChange={(e) => setFoodAllergies(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem", minHeight: "60px" }}
-            placeholder="List any food allergies."
-          />
-
-          <div style={{ marginTop: "0.5rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <input
-                type="checkbox"
-                checked={disclaimerAccepted}
-                onChange={(e) => setDisclaimerAccepted(e.target.checked)}
-              />
-              <span>
-                I confirm I am healthy enough for exercise and nutrition changes and understand this is not medical advice or an emergency service.
-              </span>
-            </label>
-          </div>
-        </div>
-      )}
-
-      {error && <p style={{ color: "red", marginTop: "1rem" }}>{error}</p>}
-
-      <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.5rem" }}>
-        {step > 1 && (
-          <button onClick={prevStep} disabled={saving}>
-            Back
-          </button>
-        )}
-        {step < 6 && (
-          <button onClick={nextStep} disabled={saving}>
-            Next
-          </button>
-        )}
-        {step === 6 && (
-          <button onClick={handleSubmit} disabled={saving}>
-            {saving ? "Saving..." : "Finish"}
-          </button>
-        )}
       </div>
     </div>
   );
