@@ -356,7 +356,13 @@ function Onboarding() {
       return;
     }
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+    const API_URL =
+      import.meta.env.VITE_API_URL ||
+      (import.meta.env.DEV ? "http://localhost:4000" : null);
+
+    if (!API_URL) {
+      throw new Error("Missing VITE_API_URL in production");
+    }
 
     const { error: initErr } = await fetch(`${API_URL}/api/nutrition/init`, {
       method: "POST",
