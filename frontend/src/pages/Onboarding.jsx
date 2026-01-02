@@ -858,7 +858,7 @@ function Onboarding() {
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     style={field}
-                    placeholder="e.g. Isaac"
+                    placeholder="e.g. Chris"
                   />
                 </div>
 
@@ -869,7 +869,7 @@ function Onboarding() {
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     style={field}
-                    placeholder="e.g. Walsh"
+                    placeholder="e.g. Bumstead"
                   />
                 </div>
               </div>
