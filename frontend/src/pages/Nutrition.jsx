@@ -11,6 +11,11 @@ const dayLabel = {
     high: "High day"
 };
 
+// --- Macro ratio helpers ---
+const round0 = (n) => Math.max(0, Math.round(Number(n) || 0));
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const kgToLb = (kg) => Number(kg) * 2.2046226218;
+
 function Nutrition() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -30,6 +35,27 @@ function Nutrition() {
 
     const [savingTarget, setSavingTarget] = useState(false);
     const [savingFlex, setSavingFlex] = useState(false);
+
+    // --- Bodyweight and macro ratios state ---
+    const [weightKg, setWeightKg] = useState(null);
+
+    // Macro ratios are grams per lb bodyweight. Stored per day type.
+    // Defaults: protein 1.00 g/lb, carbs 1.00 g/lb, fats 0.30 g/lb
+    const [macroRatios, setMacroRatios] = useState(() => {
+        const read = (k, fallback) => {
+            try {
+                const v = localStorage.getItem(k);
+                return v ? JSON.parse(v) : fallback;
+            } catch {
+                return fallback;
+            }
+        };
+        return {
+            training: read("pp_macro_ratios_training", { protein: 1.0, carbs: 1.0, fats: 0.3 }),
+            rest: read("pp_macro_ratios_rest", { protein: 1.0, carbs: 0.8, fats: 0.3 }),
+            high: read("pp_macro_ratios_high", { protein: 1.0, carbs: 1.2, fats: 0.3 })
+        };
+    });
 
     useEffect(() => {
         const load = async () => {
@@ -68,7 +94,7 @@ function Nutrition() {
 
             const { data: pData } = await supabase
                 .from("profiles")
-                .select("training_days, today_day_type, today_day_type_date")
+                .select("training_days, today_day_type, today_day_type_date, current_weight_kg")
                 .eq("user_id", user.id)
                 .maybeSingle();
 
@@ -79,6 +105,7 @@ function Nutrition() {
 
             const storedType = pData?.today_day_type_date === todayIso ? pData?.today_day_type : null;
             setTodayType(storedType || inferred);
+            if (pData?.current_weight_kg) setWeightKg(pData.current_weight_kg);
             // --- End Insert for todayType and profiles ---
 
             const { data: fData, error: fErr } = await supabase
@@ -139,6 +166,17 @@ function Nutrition() {
         localStorage.setItem("pp_mealplan_macro_display", macroDisplay);
     }, [macroDisplay]);
 
+    // Persist macro ratios to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem("pp_macro_ratios_training", JSON.stringify(macroRatios.training));
+            localStorage.setItem("pp_macro_ratios_rest", JSON.stringify(macroRatios.rest));
+            localStorage.setItem("pp_macro_ratios_high", JSON.stringify(macroRatios.high));
+        } catch {
+            // ignore
+        }
+    }, [macroRatios]);
+
     const totalCheatsAllowed = useMemo(() => {
         if (!flex) return 0;
         return Number(flex.base_cheat_meals || 0) + Number(flex.banked_cheat_meals || 0);
@@ -148,6 +186,59 @@ function Nutrition() {
         if (!flex) return 0;
         return Math.max(0, totalCheatsAllowed - Number(flex.used_cheat_meals || 0));
     }, [flex, totalCheatsAllowed]);
+
+    // --- Bodyweight in lb and ratio application ---
+    const weightLb = useMemo(() => {
+        if (!weightKg) return null;
+        const lb = kgToLb(weightKg);
+        return Number.isFinite(lb) && lb > 0 ? lb : null;
+    }, [weightKg]);
+
+    const applyRatiosToDay = async (dayType, nextRatios) => {
+        if (!userId) return;
+        if (!weightLb) {
+            setError("Set a current weight to use ratio sliders.");
+            return;
+        }
+
+        const p = round0(nextRatios.protein * weightLb);
+        const c = round0(nextRatios.carbs * weightLb);
+        const f = round0(nextRatios.fats * weightLb);
+        const calories = round0(p * 4 + c * 4 + f * 9);
+
+        const current = targets[dayType] || {
+            day_type: dayType,
+            calories: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fats_g: 0
+        };
+
+        const nextRow = { ...current, calories, protein_g: p, carbs_g: c, fats_g: f };
+        setTargets((prev) => ({ ...prev, [dayType]: nextRow }));
+
+        setSavingTarget(true);
+        const payload = {
+            user_id: userId,
+            day_type: dayType,
+            calories: nextRow.calories,
+            protein_g: nextRow.protein_g,
+            carbs_g: nextRow.carbs_g,
+            fats_g: nextRow.fats_g
+        };
+        const { error: e } = await supabase
+            .from("nutrition_day_targets")
+            .upsert(payload, { onConflict: "user_id,day_type" });
+        setSavingTarget(false);
+        if (e) setError(e.message);
+    };
+
+    const updateRatio = async (dayType, key, value) => {
+        const clean = round2(value);
+        const nextRatios = { ...macroRatios[dayType], [key]: clean };
+        setMacroRatios((prev) => ({ ...prev, [dayType]: nextRatios }));
+        await applyRatiosToDay(dayType, nextRatios);
+    };
 
     const updateTargetField = async (dayType, field, value) => {
         if (!userId) return;
@@ -435,6 +526,79 @@ function Nutrition() {
                                                     style={input}
                                                 />
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* --- Bodyweight macro ratio sliders --- */}
+                                    <div style={{ borderTop: "1px solid #222", marginTop: "0.9rem", paddingTop: "0.9rem" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                                            <div style={{ fontWeight: 700 }}>Ratios (g/lb)</div>
+                                            <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                                                {weightLb ? `Using ~${Math.round(weightLb)} lb` : "Set current weight"}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ color: "#aaa", marginTop: "0.4rem", fontSize: "0.9rem" }}>
+                                            Adjust in 0.05 g/lb steps. This updates grams + calories.
+                                        </div>
+
+                                        <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.7rem" }}>
+                                            <div>
+                                                <div style={{ display: "flex", justifyContent: "space-between", color: "#aaa", fontSize: "0.9rem" }}>
+                                                    <span>Protein</span>
+                                                    <span>{macroRatios[dayType].protein.toFixed(2)} g/lb</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="0.60"
+                                                    max="1.50"
+                                                    step="0.05"
+                                                    value={macroRatios[dayType].protein}
+                                                    onChange={(e) => updateRatio(dayType, "protein", e.target.value)}
+                                                    style={{ width: "100%" }}
+                                                    disabled={!weightLb}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <div style={{ display: "flex", justifyContent: "space-between", color: "#aaa", fontSize: "0.9rem" }}>
+                                                    <span>Carbs</span>
+                                                    <span>{macroRatios[dayType].carbs.toFixed(2)} g/lb</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="0.25"
+                                                    max="2.50"
+                                                    step="0.05"
+                                                    value={macroRatios[dayType].carbs}
+                                                    onChange={(e) => updateRatio(dayType, "carbs", e.target.value)}
+                                                    style={{ width: "100%" }}
+                                                    disabled={!weightLb}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <div style={{ display: "flex", justifyContent: "space-between", color: "#aaa", fontSize: "0.9rem" }}>
+                                                    <span>Fats</span>
+                                                    <span>{macroRatios[dayType].fats.toFixed(2)} g/lb</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="0.15"
+                                                    max="0.60"
+                                                    step="0.05"
+                                                    value={macroRatios[dayType].fats}
+                                                    onChange={(e) => updateRatio(dayType, "fats", e.target.value)}
+                                                    style={{ width: "100%" }}
+                                                    disabled={!weightLb}
+                                                />
+                                            </div>
+
+                                            {!weightLb && (
+                                                <div style={{ color: "#ffb86b", fontSize: "0.9rem" }}>
+                                                    Set your current weight (onboarding/weight logs) to enable ratio sliders.
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
