@@ -88,7 +88,7 @@ app.post("/api/nutrition/init", async (req, res) => {
     .from("profiles")
     .select("current_weight_kg, goal_type, weekly_weight_change_target_kg")
     .eq("user_id", user_id)
-    .single();
+    .maybeSingle();
 
   if (profileErr) {
     return res.status(400).json({ ok: false, error: profileErr.message });
