@@ -11,6 +11,9 @@ function Onboarding() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [sex, setSex] = useState("male");
 
   const [unitSystem, setUnitSystem] = useState("metric");
   const [heightInput, setHeightInput] = useState("");
@@ -173,6 +176,10 @@ function Onboarding() {
       if (existingProfile.food_allergies) setFoodAllergies(existingProfile.food_allergies);
       if (existingProfile.dislikes) setDislikes(existingProfile.dislikes);
 
+      if (existingProfile.first_name) setFirstName(existingProfile.first_name);
+      if (existingProfile.last_name) setLastName(existingProfile.last_name);
+      if (existingProfile.sex) setSex(existingProfile.sex);
+
       if (existingProfile.activity_level) setActivityLevel(existingProfile.activity_level);
       if (existingProfile.baseline_steps_per_day !== null && existingProfile.baseline_steps_per_day !== undefined) {
         setBaselineStepsInput(String(existingProfile.baseline_steps_per_day));
@@ -210,8 +217,21 @@ function Onboarding() {
       return true;
     }
 
-    // Step 2: Goal & calories
+    // Step 2: Account details
     if (s === 2) {
+      if (!firstName.trim() || !lastName.trim()) {
+        setError("Please enter your first and last name.");
+        return false;
+      }
+      if (!sex) {
+        setError("Please choose male or female.");
+        return false;
+      }
+      return true;
+    }
+
+    // Step 3: Goal & calories
+    if (s === 3) {
       const weeklyChangeKgRaw = parseWeeklyChangeToKg();
       const weeklyChangeKg = safeWeeklyChangeKg(goalType, weeklyChangeKgRaw);
 
@@ -231,8 +251,8 @@ function Onboarding() {
       return true;
     }
 
-    // Step 3: Training setup
-    if (s === 3) {
+    // Step 4: Training setup
+    if (s === 4) {
       if (splitMode === "fixed" && trainingDaysSelected.length === 0) {
         setError("Please select at least one training day.");
         return false;
@@ -254,8 +274,8 @@ function Onboarding() {
       return true;
     }
 
-    // Step 4: Activity baseline (only lifestyle required; others optional)
-    if (s === 4) {
+    // Step 5: Activity baseline (only lifestyle required; others optional)
+    if (s === 5) {
       if (!activityLevel) {
         setError("Please choose your lifestyle activity level.");
         return false;
@@ -283,13 +303,13 @@ function Onboarding() {
       return true;
     }
 
-    // Step 5: Nutrition preferences (all optional; always valid)
-    if (s === 5) {
+    // Step 6: Nutrition preferences (all optional; always valid)
+    if (s === 6) {
       return true;
     }
 
-    // Step 6: Safety
-    if (s === 6) {
+    // Step 7: Safety
+    if (s === 7) {
       if (!disclaimerAccepted) {
         setError("You must confirm the disclaimer to continue.");
         return false;
@@ -305,7 +325,7 @@ function Onboarding() {
     // Validate current step before moving forward
     const ok = validateStep(step);
     if (!ok) return;
-    setStep((s) => Math.min(s + 1, 6));
+    setStep((s) => Math.min(s + 1, 7));
   };
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
@@ -370,7 +390,7 @@ function Onboarding() {
   const handleSubmit = async () => {
     if (!profile) return;
 
-    if (!validateStep(6)) return;
+    if (!validateStep(7)) return;
 
     setSaving(true);
     setError("");
@@ -407,7 +427,10 @@ function Onboarding() {
       dislikes,
       calorie_mode: calorieMode,
       custom_calories: calorieMode === "custom" ? Number(customCalories) || null : null,
-      onboarding_complete: true
+      onboarding_complete: true,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      sex,
     };
 
     const activityPayload = {
@@ -493,13 +516,15 @@ function Onboarding() {
       if (!training) {
         const trainingCalories = calorieMode === "custom" ? Math.round(Number(customCalories) || 0) : 0;
         // Fallback if neither AI init nor custom calories produced a base
-        const safeCalories = trainingCalories >= 1200 ? trainingCalories : 2500;
+        const defaultCalories = sex === "female" ? 2300 : 2500;
+        const safeCalories = trainingCalories >= 1200 ? trainingCalories : defaultCalories;
 
         const bwLb = kgToLb(startingWeightKg || 0);
         const protein = clamp0(bwLb * 1.0); // default 1.0 g/lb
 
-        // Baseline fat, carbs fill
-        const fats = clamp0(bwLb * 0.30);
+        // Baseline fat, carbs fill (slightly higher fat default for females)
+        const fatPerLb = sex === "female" ? 0.35 : 0.30;
+        const fats = clamp0(bwLb * fatPerLb);
         const carbs = clamp0((safeCalories - protein * 4 - fats * 9) / 4);
 
         training = {
@@ -756,12 +781,12 @@ function Onboarding() {
               <h1 style={h1}>Onboarding</h1>
               <div style={sub}>Set your baseline so PhysiquePilot can guide training, nutrition, steps and cardio.</div>
             </div>
-            <div style={stepText}>Step {step} of 6</div>
+            <div style={stepText}>Step {step} of 7</div>
           </div>
 
           <div style={stepRow}>
             <div style={dots}>
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 7 }).map((_, i) => (
                 <div key={i} style={dot(i + 1 === step)} />
               ))}
             </div>
@@ -823,6 +848,48 @@ function Onboarding() {
 
           {step === 2 && (
             <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>About you</h2>
+
+              <div style={grid2}>
+                <div>
+                  <div style={label}>First name</div>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    style={field}
+                    placeholder="e.g. Isaac"
+                  />
+                </div>
+
+                <div>
+                  <div style={label}>Last name</div>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    style={field}
+                    placeholder="e.g. Walsh"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={label}>Sex</div>
+                <div style={segmentedWrap}>
+                  <button type="button" onClick={() => setSex("male")} style={segBtn(sex === "male")}>
+                    Male
+                  </button>
+                  <button type="button" onClick={() => setSex("female")} style={segBtn(sex === "female")}>
+                    Female
+                  </button>
+                </div>
+                <div style={help}>This helps set more realistic calorie and macro baselines.</div>
+              </div>
+            </div>
+          )}
+          {step === 3 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
               <h2 style={sectionTitle}>Goal & calories</h2>
 
               <div>
@@ -873,7 +940,7 @@ function Onboarding() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <h2 style={sectionTitle}>Training setup</h2>
 
@@ -948,7 +1015,7 @@ function Onboarding() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <h2 style={sectionTitle}>Activity baseline</h2>
 
@@ -1005,7 +1072,7 @@ function Onboarding() {
             </div>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <h2 style={sectionTitle}>Nutrition preferences</h2>
 
@@ -1044,7 +1111,7 @@ function Onboarding() {
             </div>
           )}
 
-          {step === 6 && (
+          {step === 7 && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <h2 style={sectionTitle}>Safety</h2>
 
@@ -1083,13 +1150,13 @@ function Onboarding() {
               </button>
             )}
 
-            {step < 6 && (
+            {step < 7 && (
               <button onClick={nextStep} disabled={saving} style={btn("primary", saving)}>
                 Next
               </button>
             )}
 
-            {step === 6 && (
+            {step === 7 && (
               <button onClick={handleSubmit} disabled={saving} style={btn("primary", saving)}>
                 {saving ? "Saving…" : "Finish"}
               </button>
