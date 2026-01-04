@@ -42,6 +42,7 @@ function Register() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            userId: user.id,
             user_id: user.id,
             email: user.email
           })

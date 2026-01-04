@@ -77,17 +77,20 @@ const suggestCalories = ({ goalType, weeklyRateKg, weightKg }) => {
 
 app.post("/api/profile/init", async (req, res) => {
   try {
-    const { userId, email } = req.body || {};
+    const body = req.body || {};
+    // Accept either userId (camelCase) or user_id (snake_case)
+    const user_id = body.user_id || body.userId;
+    const email = body.email;
 
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: "userId is required" });
+    if (!user_id) {
+      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
     }
 
     const { error } = await supabase
       .from("profiles")
       .upsert(
         {
-          user_id: userId,
+          user_id,
           email: email || null,
           subscription_status: "inactive",
           is_suspended: false,
