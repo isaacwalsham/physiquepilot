@@ -2,6 +2,13 @@ import { useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 
+const API_URL = (
+  String(import.meta.env.VITE_API_URL || "")
+    .trim()
+    .replace(/\/$/, "") ||
+  (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
+);
+
 function Register() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -31,24 +38,29 @@ function Register() {
 
     if (user) {
       try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL;
-
-        await fetch(`${backendUrl}/api/profile/init`, {
+        const r = await fetch(`${API_URL}/api/profile/init`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            userId: user.id,
+            user_id: user.id,
             email: user.email
           })
         });
-      } catch (err) {}
+
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j?.error || `Profile init failed (HTTP ${r.status})`);
+        }
+      } catch (err) {
+        setLoading(false);
+        setErrorMsg(String(err?.message || err || "Profile init failed."));
+        return;
+      }
     }
 
     setLoading(false);
     setSuccessMsg("Account created. Redirecting to login...");
-    setTimeout(() => navigate("/login"), 1500);
+    setTimeout(() => navigate("/login"), 1200);
   };
 
   return (
@@ -74,14 +86,10 @@ function Register() {
           boxSizing: "border-box"
         }}
       >
-        <h1 style={{ marginBottom: "1.5rem", textAlign: "center" }}>
-          Sign Up
-        </h1>
+        <h1 style={{ marginBottom: "1.5rem", textAlign: "center" }}>Sign Up</h1>
 
         <form onSubmit={handleRegister}>
-          <label style={{ display: "block", marginBottom: "0.4rem" }}>
-            Email
-          </label>
+          <label style={{ display: "block", marginBottom: "0.4rem" }}>Email</label>
           <input
             type="email"
             required
@@ -97,9 +105,7 @@ function Register() {
             }}
           />
 
-          <label style={{ display: "block", marginBottom: "0.4rem" }}>
-            Password
-          </label>
+          <label style={{ display: "block", marginBottom: "0.4rem" }}>Password</label>
           <input
             type="password"
             required
@@ -132,12 +138,8 @@ function Register() {
           </button>
         </form>
 
-        {errorMsg && (
-          <p style={{ color: "#ff6b6b", marginTop: "1rem" }}>{errorMsg}</p>
-        )}
-        {successMsg && (
-          <p style={{ color: "#6bff95", marginTop: "1rem" }}>{successMsg}</p>
-        )}
+        {errorMsg && <p style={{ color: "#ff6b6b", marginTop: "1rem" }}>{errorMsg}</p>}
+        {successMsg && <p style={{ color: "#6bff95", marginTop: "1rem" }}>{successMsg}</p>}
       </div>
     </div>
   );

@@ -222,7 +222,7 @@ function Dashboard() {
     };
 
     load();
-  }, []);
+  }, [navigate]);
 
   const loggedToday = useMemo(() => {
     if (!latest) return false;
@@ -265,7 +265,14 @@ function Dashboard() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem", whiteSpace: "pre-wrap" }}>{error}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginTop: "1.5rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: "1rem",
+          marginTop: "1.5rem"
+        }}
+      >
         <div style={card}>
           <div style={{ color: "#aaa" }}>Current weight</div>
           <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>

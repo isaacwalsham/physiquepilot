@@ -116,6 +116,7 @@ export default function Training() {
       setSession(null);
       setExercises([]);
       setSetsByExercise({});
+      await syncTodayDayTypeToProfile(null);
       return;
     }
 
@@ -193,7 +194,41 @@ export default function Training() {
     setSession(data);
     setExercises([]);
     setSetsByExercise({});
+    await syncTodayDayTypeToProfile(data);
     await fetchWeekSessions(userId);
+  };
+  // Sync today's day type (training/rest) to profiles table if editing today
+  const syncTodayDayTypeToProfile = async (nextSession) => {
+    // Only sync if we are editing today
+    const t = todayISO();
+    if (!userId) return;
+    if (selectedDate !== t) return;
+
+    // If no session exists for today, clear override
+    if (!nextSession) {
+      await supabase
+        .from("profiles")
+        .update({
+          today_day_type: null,
+          today_day_type_date: null,
+          training_day_type_override: false,
+          nutrition_day_type_override: false
+        })
+        .eq("user_id", userId);
+      return;
+    }
+
+    const dayType = nextSession.is_rest_day ? "rest" : "training";
+
+    await supabase
+      .from("profiles")
+      .update({
+        today_day_type: dayType,
+        today_day_type_date: t,
+        training_day_type_override: true,
+        nutrition_day_type_override: true
+      })
+      .eq("user_id", userId);
   };
 
   useEffect(() => {
@@ -246,6 +281,7 @@ export default function Training() {
     }
 
     setSession({ ...session, is_rest_day: next });
+    await syncTodayDayTypeToProfile({ ...session, is_rest_day: next });
     await fetchWeekSessions(userId);
   };
 
@@ -559,12 +595,14 @@ export default function Training() {
                 onBlur={async (e) => {
                   const val = e.target.value.trim();
                   setSession((s) => ({ ...s, name: val }));
-                  await supabase
+                  const { error: nameErr } = await supabase
                     .from("training_sessions")
                     .update({ name: val })
                     .eq("id", session.id)
                     .eq("user_id", userId);
-                  fetchWeekSessions(userId);
+
+                  if (nameErr) setError(nameErr.message);
+                  await fetchWeekSessions(userId);
                 }}
                 placeholder="e.g. Push, Pull, Legs"
                 style={input}

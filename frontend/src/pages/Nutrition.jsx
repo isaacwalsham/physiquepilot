@@ -10,9 +10,9 @@ const API_URL = (
 );
 
 const dayLabel = {
-    training: "Training day",
-    rest: "Rest day",
-    high: "High day"
+  training: "Training day",
+  rest: "Rest day",
+  high: "High day"
 };
 
 // --- Macro ratio helpers ---
@@ -185,6 +185,65 @@ function Nutrition() {
 
         load();
     }, []);
+
+    // Keep in sync if another page (e.g. Training calendar) overrides today's day type.
+    useEffect(() => {
+      if (!userId) return;
+
+      const channel = supabase
+        .channel(`pp-nutrition-profiles-${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `user_id=eq.${userId}`
+          },
+          (payload) => {
+            const next = payload?.new;
+            if (!next) return;
+
+            const todayIso = new Date().toISOString().slice(0, 10);
+
+            // Day type override for today
+            if (next.today_day_type_date === todayIso && next.today_day_type) {
+              setTodayType(next.today_day_type);
+            }
+
+            // Weight changes (e.g. after logging weight)
+            if (typeof next.current_weight_kg === "number" || typeof next.current_weight_kg === "string") {
+              const w = Number(next.current_weight_kg);
+              if (Number.isFinite(w) && w > 0) setWeightKg(w);
+            }
+
+            // UI prefs can be updated from Settings
+            if (next.nutrition_view_mode) {
+              setViewMode(next.nutrition_view_mode);
+              try {
+                localStorage.setItem("pp_nutrition_view_mode", next.nutrition_view_mode);
+              } catch {}
+            }
+
+            if (typeof next.show_meal_macros === "boolean" || typeof next.show_day_macros === "boolean") {
+              const perMeal = next.show_meal_macros === true;
+              const perDay = next.show_day_macros === true;
+              const nextDisplay = perMeal && perDay ? "both" : perMeal ? "per_meal" : perDay ? "per_day" : "none";
+              setMacroDisplay(nextDisplay);
+              try {
+                localStorage.setItem("pp_mealplan_macro_display", nextDisplay);
+              } catch {}
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        try {
+          supabase.removeChannel(channel);
+        } catch {}
+      };
+    }, [userId]);
 
     // Persist macro ratios to localStorage
 
@@ -393,10 +452,17 @@ function Nutrition() {
         if (!userId) return;
         const todayIso = new Date().toISOString().slice(0, 10);
         setTodayType(nextType);
+
         const { error: e } = await supabase
             .from("profiles")
-            .update({ today_day_type: nextType, today_day_type_date: todayIso })
+            .update({
+                today_day_type: nextType,
+                today_day_type_date: todayIso,
+                training_day_type_override: true,
+                nutrition_day_type_override: true
+            })
             .eq("user_id", userId);
+
         if (e) setError(e.message);
     };
 
