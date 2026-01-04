@@ -77,6 +77,37 @@ const suggestCalories = ({ goalType, weeklyRateKg, weightKg }) => {
   return maintenance;
 };
 
+app.post("/api/profile/init", async (req, res) => {
+  try {
+    const { userId, email } = req.body || {};
+
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: "userId is required" });
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          user_id: userId,
+          email: email || null,
+          subscription_status: "inactive",
+          is_suspended: false,
+          onboarding_complete: false
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (error) {
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 app.post("/api/nutrition/init", async (req, res) => {
   const { user_id } = req.body;
 
