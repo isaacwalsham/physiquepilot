@@ -34,7 +34,7 @@ export default function Training() {
 
   const week = useMemo(() => {
     const t = todayISO();
-    const start = addDaysISO(t, -3);
+    const start = t; // next 7 days starting today
     return Array.from({ length: 7 }).map((_, i) => {
       const iso = addDaysISO(start, i);
       const d = new Date(`${iso}T00:00:00`);
@@ -70,6 +70,137 @@ export default function Training() {
     borderRadius: "10px",
     minWidth: "58px"
   });
+
+  const daysBetweenISO = (aISO, bISO) => {
+    // b - a in whole days
+    const a = new Date(`${aISO}T00:00:00Z`);
+    const b = new Date(`${bISO}T00:00:00Z`);
+    const ms = b.getTime() - a.getTime();
+    return Math.floor(ms / (1000 * 60 * 60 * 24));
+  };
+
+  const normalizeRollingPattern = (raw) => {
+    // Accept a few shapes:
+    // - array: [true,false] or ["training","rest"]
+    // - object: { pattern: [...] } or { days: [...] } or { sequence: [...] }
+    const arr = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.pattern)
+        ? raw.pattern
+        : Array.isArray(raw?.days)
+          ? raw.days
+          : Array.isArray(raw?.sequence)
+            ? raw.sequence
+            : null;
+
+    if (!arr) return null;
+
+    const norm = arr
+      .map((v) => {
+        if (typeof v === "boolean") return v;
+        if (typeof v === "number") return v > 0;
+        const s = String(v || "").toLowerCase().trim();
+        if (!s) return false;
+        if (s === "t" || s === "train" || s === "training" || s === "workout" || s === "lift") return true;
+        if (s === "r" || s === "rest" || s === "off") return false;
+        // Fallback: treat unknown strings as false (rest)
+        return false;
+      })
+      .filter((x) => typeof x === "boolean");
+
+    return norm.length ? norm : null;
+  };
+
+  const preloadWeekFromProfile = async (uid) => {
+    // Pull schedule settings from onboarding
+    const { data: profile, error: pErr } = await supabase
+      .from("profiles")
+      .select(
+        "split_mode, training_days, rolling_start_date, rolling_pattern, rolling_cycle_length, training_frequency_range"
+      )
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (pErr && pErr.code !== "PGRST116") {
+      setError(pErr.message);
+      return;
+    }
+
+    const splitMode = profile?.split_mode || "fixed";
+    const fixedDays = Array.isArray(profile?.training_days) ? profile.training_days : [];
+
+    const rollingStart = profile?.rolling_start_date
+      ? String(profile.rolling_start_date)
+      : todayISO();
+
+    const rollingPattern = normalizeRollingPattern(profile?.rolling_pattern);
+
+    // If user chose rolling split but hasn't set a pattern yet, don't guess.
+    if (splitMode === "rolling" && !rollingPattern) {
+      // Not fatal: user can set it inside Training later.
+      return;
+    }
+
+    const cycleLen = (() => {
+      if (Array.isArray(rollingPattern)) return rollingPattern.length;
+      const n = Number(profile?.rolling_cycle_length);
+      return Number.isFinite(n) && n > 0 ? Math.round(n) : 7;
+    })();
+
+    const isTrainingForDate = (dateISO) => {
+      if (splitMode !== "rolling") {
+        const dow = isoToDow(dateISO); // e.g. "Mon"
+        return fixedDays.includes(dow);
+      }
+
+      const delta = daysBetweenISO(rollingStart, dateISO);
+      const idx = ((delta % cycleLen) + cycleLen) % cycleLen;
+      return Boolean(rollingPattern[idx]);
+    };
+
+    // Next 7 days (today + 6)
+    const dates = week.map((d) => d.iso);
+
+    // Check which sessions already exist
+    const { data: existing, error: exErr } = await supabase
+      .from("training_sessions")
+      .select("session_date")
+      .eq("user_id", uid)
+      .in("session_date", dates);
+
+    if (exErr) {
+      setError(exErr.message);
+      return;
+    }
+
+    const existingSet = new Set((existing || []).map((r) => r.session_date));
+
+    // Only insert TRAINING days by default (rest days can be left unassigned)
+    const rowsToInsert = dates
+      .filter((d) => !existingSet.has(d))
+      .filter((d) => isTrainingForDate(d))
+      .map((d) => ({
+        user_id: uid,
+        session_date: d,
+        is_rest_day: false,
+        name: "Training (Unassigned)",
+        notes: ""
+      }));
+
+    if (!rowsToInsert.length) return;
+
+    const { error: insErr } = await supabase.from("training_sessions").insert(rowsToInsert);
+    if (insErr) {
+      setError(insErr.message);
+      return;
+    }
+
+    await fetchWeekSessions(uid);
+
+    if (selectedDate === todayISO()) {
+      await loadDay(uid, selectedDate);
+    }
+  };
 
   const fetchWeekSessions = async (uid) => {
     const start = week[0].iso;
@@ -246,6 +377,8 @@ export default function Training() {
       const uid = data.user.id;
       setUserId(uid);
 
+      await fetchWeekSessions(uid);
+      await preloadWeekFromProfile(uid);
       await fetchWeekSessions(uid);
       await loadDay(uid, selectedDate);
 
@@ -531,7 +664,7 @@ export default function Training() {
         <div style={{ ...card, marginTop: "1rem" }}>
           <div style={{ fontWeight: 700 }}>No session assigned</div>
           <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            Create a training day or mark this as a rest day. Future days won’t appear as training until assigned.
+            Your onboarding schedule preloads the next 7 days. You can still create/edit a day manually here.
           </div>
 
           <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>

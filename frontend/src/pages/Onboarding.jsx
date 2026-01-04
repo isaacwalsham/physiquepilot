@@ -182,11 +182,11 @@ function Onboarding() {
       if (existingProfile.last_name) setLastName(existingProfile.last_name);
       if (existingProfile.sex) setSex(existingProfile.sex);
 
-      if (existingProfile.body_fat_pct !== null && existingProfile.body_fat_pct !== undefined) {
+      if (typeof existingProfile.body_fat_pct === "number") {
         setBodyFatPctInput(String(existingProfile.body_fat_pct));
       }
-      if (existingProfile.default_liss_opt_in !== null && existingProfile.default_liss_opt_in !== undefined) {
-        setDefaultLissOptIn(Boolean(existingProfile.default_liss_opt_in));
+      if (typeof existingProfile.default_liss_opt_in === "boolean") {
+        setDefaultLissOptIn(existingProfile.default_liss_opt_in);
       }
 
 
@@ -458,8 +458,12 @@ function Onboarding() {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       sex,
+      // body_fat_pct and default_liss_opt_in removed from core payload
+    };
+
+    const optionalPayload = {
       body_fat_pct: bodyFatPct,
-      default_liss_opt_in: defaultLissOptIn,
+      default_liss_opt_in: defaultLissOptIn
     };
 
     const activityPayload = {
@@ -469,36 +473,52 @@ function Onboarding() {
       baseline_cardio_avg_hr: baselineCardioHr
     };
 
-    let updateError = null;
-    {
+    const updateWithFallback = async (payload) => {
       const { error: e1 } = await supabase
         .from("profiles")
-        .update({ ...basePayload, ...activityPayload })
+        .update(payload)
         .eq("user_id", profile.user_id);
-      updateError = e1;
-    }
 
-    if (updateError) {
-      const msg = String(updateError.message || "");
-      const looksLikeMissingColumn =
-        msg.includes("Could not find") &&
-        (msg.includes("activity_level") ||
-          msg.includes("baseline_steps_per_day") ||
-          msg.includes("baseline_cardio_minutes_per_week") ||
-          msg.includes("baseline_cardio_avg_hr") ||
-          msg.includes("body_fat_pct") ||
-          msg.includes("default_liss_opt_in"));
+      if (!e1) return { error: null };
 
-      if (looksLikeMissingColumn) {
-        const { error: e2 } = await supabase.from("profiles").update(basePayload).eq("user_id", profile.user_id);
-        updateError = e2;
+      const msg = String(e1.message || "");
+      // If PostgREST schema cache is missing a column, retry without the unknown columns.
+      if (!msg.includes("Could not find")) return { error: e1 };
+
+      const cleaned = { ...payload };
+      for (const k of Object.keys(cleaned)) {
+        // Heuristic: remove the column mentioned in the error.
+        if (msg.includes(`'${k}'`)) delete cleaned[k];
       }
+
+      const { error: e2 } = await supabase
+        .from("profiles")
+        .update(cleaned)
+        .eq("user_id", profile.user_id);
+
+      return { error: e2 || null };
+    };
+
+    // 1) Always try to save the core onboarding fields first.
+    const coreRes = await updateWithFallback(basePayload);
+    if (coreRes.error) {
+      setSaving(false);
+      setError(coreRes.error.message);
+      return;
     }
 
-    if (updateError) {
-      setSaving(false);
-      setError(updateError.message);
-      return;
+    // 2) Try activity baseline fields (optional).
+    const actRes = await updateWithFallback(activityPayload);
+    if (actRes.error) {
+      // Don't block onboarding if activity columns aren't present yet.
+      console.warn("Activity baseline save skipped:", actRes.error.message);
+    }
+
+    // 3) Try optional fields (sex/bodyfat/LISS opt-in) (optional).
+    const optRes = await updateWithFallback(optionalPayload);
+    if (optRes.error) {
+      // Don't block onboarding if optional columns aren't present yet.
+      console.warn("Optional profile fields save skipped:", optRes.error.message);
     }
 
     const API_URL = (
