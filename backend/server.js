@@ -38,8 +38,6 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, message: "Backend is running" });
 });
 
-const round1 = (n) => Math.round(n * 10) / 10;
-
 const startOfWeekMonday = (d = new Date()) => {
   const date = new Date(d);
   const day = date.getDay();
@@ -109,10 +107,11 @@ app.post("/api/profile/init", async (req, res) => {
 });
 
 app.post("/api/nutrition/init", async (req, res) => {
-  const { user_id } = req.body;
+  const body = req.body || {};
+  const user_id = body.user_id || body.userId;
 
   if (!user_id) {
-    return res.status(400).json({ ok: false, error: "user_id is required" });
+    return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
   }
 
   const { data: profile, error: profileErr } = await supabase
@@ -163,27 +162,37 @@ app.post("/api/nutrition/init", async (req, res) => {
     .from("weekly_flex_rules")
     .select("id, week_start, base_cheat_meals, banked_cheat_meals, used_cheat_meals")
     .eq("user_id", user_id)
-    .single();
+    .maybeSingle();
 
   if (flexReadErr && flexReadErr.code !== "PGRST116") {
     return res.status(400).json({ ok: false, error: flexReadErr.message });
   }
 
+  // If there's no row yet, create one. If there is one, update it to the current week.
   if (!flexExisting) {
-    const { error: flexInsertErr } = await supabase.from("weekly_flex_rules").insert({
-      user_id,
-      base_cheat_meals: 1,
-      banked_cheat_meals: 0,
-      used_cheat_meals: 0,
-      alcohol_units_week: 0,
-      week_start: weekStart
-    });
+    const { error: flexUpsertErr } = await supabase
+      .from("weekly_flex_rules")
+      .upsert(
+        {
+          user_id,
+          base_cheat_meals: 1,
+          banked_cheat_meals: 0,
+          used_cheat_meals: 0,
+          alcohol_units_week: 0,
+          week_start: weekStart
+        },
+        { onConflict: "user_id" }
+      );
 
-    if (flexInsertErr) {
-      return res.status(400).json({ ok: false, error: flexInsertErr.message });
+    if (flexUpsertErr) {
+      return res.status(400).json({ ok: false, error: flexUpsertErr.message });
     }
   } else if (flexExisting.week_start !== weekStart) {
-    const unusedLastWeek = Math.max(0, (flexExisting.base_cheat_meals + flexExisting.banked_cheat_meals) - flexExisting.used_cheat_meals);
+    const unusedLastWeek = Math.max(
+      0,
+      (Number(flexExisting.base_cheat_meals || 0) + Number(flexExisting.banked_cheat_meals || 0)) -
+        Number(flexExisting.used_cheat_meals || 0)
+    );
     const newBank = Math.min(1, unusedLastWeek > 0 ? 1 : 0);
 
     const { error: flexUpdateErr } = await supabase

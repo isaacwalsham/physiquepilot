@@ -330,47 +330,103 @@ function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.8fr", gap: "1rem", marginTop: "1rem" }}>
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Today’s nutrition</div>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>Auto-selected by date (and your split), override in Nutrition.</div>
-          <div style={{ marginTop: "0.9rem", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <div style={{ color: "#aaa" }}>Day type</div>
-            <div style={{ color: "#fff" }}>{dayLabel[todayType] || todayType}</div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gap: "1rem",
+          marginTop: "1rem",
+          alignItems: "stretch"
+        }}
+      >
+        <div style={{ ...card, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div style={{ fontWeight: 700 }}>Today’s nutrition</div>
+            <div style={{ color: "#666" }}>{dayLabel[todayType] || todayType}</div>
           </div>
-          <div style={{ marginTop: "0.9rem", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
-            <div>
+
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Auto-selected by date (and your split). You can override in Nutrition.
+          </div>
+
+          <div
+            style={{
+              marginTop: "1rem",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: "0.75rem"
+            }}
+          >
+            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Calories</div>
-              <div style={{ marginTop: "0.35rem", fontSize: "1.2rem" }}>{todayTargets?.calories ?? "—"}</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.25rem", fontWeight: 700 }}>
+                {todayTargets?.calories ?? "—"}
+              </div>
             </div>
-            <div>
+
+            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Protein</div>
-              <div style={{ marginTop: "0.35rem", fontSize: "1.2rem" }}>{todayTargets ? `${todayTargets.protein_g}g` : "—"}</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
+                {todayTargets ? `${todayTargets.protein_g}g` : "—"}
+              </div>
             </div>
-            <div>
+
+            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Carbs</div>
-              <div style={{ marginTop: "0.35rem", fontSize: "1.2rem" }}>{todayTargets ? `${todayTargets.carbs_g}g` : "—"}</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
+                {todayTargets ? `${todayTargets.carbs_g}g` : "—"}
+              </div>
             </div>
-            <div>
+
+            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Fats</div>
-              <div style={{ marginTop: "0.35rem", fontSize: "1.2rem" }}>{todayTargets ? `${todayTargets.fats_g}g` : "—"}</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
+                {todayTargets ? `${todayTargets.fats_g}g` : "—"}
+              </div>
             </div>
           </div>
 
-          <button
-            onClick={() => navigate("/app/nutrition")}
-            style={{ marginTop: "0.9rem", padding: "0.6rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
-          >
-            Open nutrition
-          </button>
+          <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button
+              onClick={() => navigate("/app/nutrition")}
+              style={{
+                padding: "0.6rem 1rem",
+                background: "#2a2a2a",
+                color: "#fff",
+                border: "1px solid #333",
+                cursor: "pointer"
+              }}
+            >
+              Open nutrition
+            </button>
+
+            <button
+              onClick={() => navigate("/app/training")}
+              style={{
+                padding: "0.6rem 1rem",
+                background: "transparent",
+                color: "#fff",
+                border: "1px solid #333",
+                cursor: "pointer"
+              }}
+            >
+              Open training
+            </button>
+          </div>
         </div>
 
-        <div style={card}>
+        <div style={{ ...card, display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Weekly check-in</h2>
             <button
               onClick={() => navigate("/app/check-ins")}
-              style={{ padding: "0.5rem 0.8rem", background: "transparent", color: "#fff", border: "1px solid #333" }}
+              style={{
+                padding: "0.5rem 0.8rem",
+                background: "transparent",
+                color: "#fff",
+                border: "1px solid #333",
+                cursor: "pointer"
+              }}
             >
               Go to check-ins
             </button>
@@ -381,7 +437,14 @@ function Dashboard() {
             <select
               value={checkInDay}
               onChange={(e) => updateCheckInDay(e.target.value)}
-              style={{ marginTop: "0.5rem", background: "#111", color: "#fff", border: "1px solid #333", padding: "0.5rem 0.6rem" }}
+              style={{
+                marginTop: "0.5rem",
+                width: "100%",
+                background: "#111",
+                color: "#fff",
+                border: "1px solid #333",
+                padding: "0.6rem 0.6rem"
+              }}
             >
               <option>Monday</option>
               <option>Tuesday</option>
@@ -392,7 +455,30 @@ function Dashboard() {
               <option>Sunday</option>
             </select>
 
-            <div style={{ color: "#666", marginTop: "0.75rem" }}>
+            <div
+              style={{
+                marginTop: "0.9rem",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "0.75rem"
+              }}
+            >
+              <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+                <div style={{ color: "#aaa" }}>This week’s focus</div>
+                <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.95rem" }}>
+                  Log weight, steps and cardio. Then submit your weekly check-in for adjustments.
+                </div>
+              </div>
+
+              <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+                <div style={{ color: "#aaa" }}>What you’ll get</div>
+                <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.95rem" }}>
+                  A summary + insights (PDF later), and AI coaching once we wire it in.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ color: "#666", marginTop: "0.9rem" }}>
               Weekly check-ins will generate a PDF summary you can view anytime in the Check-ins tab.
             </div>
           </div>
@@ -414,7 +500,7 @@ function Dashboard() {
         </div>
       )}
 
-      <div style={{ marginTop: "1rem", display: "flex", gap: "1rem" }}>
+      <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
         <button
           onClick={() => navigate("/app/weight")}
           style={{ padding: "0.7rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
