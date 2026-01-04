@@ -76,6 +76,9 @@ function Dashboard() {
 
   const [todayType, setTodayType] = useState("rest");
   const [todayTargets, setTodayTargets] = useState(null);
+  const [stepsToday, setStepsToday] = useState(null);
+  const [stepsTarget, setStepsTarget] = useState(null);
+  const [cardioToday, setCardioToday] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -93,7 +96,7 @@ function Dashboard() {
 
       const { data: profile, error: profileErr } = await supabase
         .from("profiles")
-        .select("unit_system, check_in_day, training_days, today_day_type, today_day_type_date, split_mode, rolling_start_date, rolling_pattern")
+        .select("unit_system, check_in_day, training_days, today_day_type, today_day_type_date, split_mode, rolling_start_date, rolling_pattern, steps_target")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -107,6 +110,11 @@ function Dashboard() {
       else setUnit("kg");
 
       if (profile?.check_in_day) setCheckInDay(profile.check_in_day);
+      if (profile?.steps_target !== undefined && profile?.steps_target !== null) {
+        setStepsTarget(Number(profile.steps_target));
+      } else {
+        setStepsTarget(null);
+      }
 
       const inferredType = inferTodayType(profile, todayIso);
       setTodayType(inferredType);
@@ -140,6 +148,33 @@ function Dashboard() {
         setAvg7(null);
       }
 
+      // Steps today
+      const { data: sRow, error: sErr } = await supabase
+        .from("steps_logs")
+        .select("steps")
+        .eq("user_id", user.id)
+        .eq("log_date", todayIso)
+        .maybeSingle();
+
+      if (sErr && sErr.code !== "PGRST116") {
+        setError((e) => (e ? `${e}\n${sErr.message}` : sErr.message));
+      }
+      setStepsToday(sRow?.steps ?? null);
+
+      // Cardio today (show latest session logged today)
+      const { data: cRows, error: cErr } = await supabase
+        .from("cardio_logs")
+        .select("log_date, minutes, avg_hr")
+        .eq("user_id", user.id)
+        .eq("log_date", todayIso)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (cErr) {
+        setError((e) => (e ? `${e}\n${cErr.message}` : cErr.message));
+      }
+      setCardioToday(cRows && cRows.length ? cRows[0] : null);
+
       const { data: tRow, error: tErr } = await supabase
         .from("nutrition_day_targets")
         .select("day_type, calories, protein_g, carbs_g, fats_g")
@@ -152,35 +187,31 @@ function Dashboard() {
       }
 
       if (!tRow) {
+        // Dashboard should not block if nutrition hasn't been initialized yet.
+        // Onboarding/Nutrition page will initialize targets; here we just display what's available.
         if (!API_URL) {
-          setError((e) =>
-            e
-              ? `${e}\nMissing VITE_API_URL (or VITE_API_BASE_URL). Add it in Netlify env vars.`
-              : "Missing VITE_API_URL (or VITE_API_BASE_URL). Add it in Netlify env vars."
-          );
           setTodayTargets(null);
         } else {
-          const r = await fetch(`${API_URL}/api/nutrition/init`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: user.id })
-          });
+          try {
+            const r = await fetch(`${API_URL}/api/nutrition/init`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ user_id: user.id })
+            });
 
-          if (r.ok) {
-            const { data: tRow2 } = await supabase
-              .from("nutrition_day_targets")
-              .select("day_type, calories, protein_g, carbs_g, fats_g")
-              .eq("user_id", user.id)
-              .eq("day_type", inferredType)
-              .maybeSingle();
-            setTodayTargets(tRow2 || null);
-          } else {
-            const j = await r.json().catch(() => ({}));
-            setError((e) =>
-              e
-                ? `${e}\n${j?.error || "Failed to initialize nutrition."}`
-                : j?.error || "Failed to initialize nutrition."
-            );
+            if (r.ok) {
+              const { data: tRow2 } = await supabase
+                .from("nutrition_day_targets")
+                .select("day_type, calories, protein_g, carbs_g, fats_g")
+                .eq("user_id", user.id)
+                .eq("day_type", inferredType)
+                .maybeSingle();
+              setTodayTargets(tRow2 || null);
+            } else {
+              setTodayTargets(null);
+            }
+          } catch {
+            setTodayTargets(null);
           }
         }
       } else {
@@ -234,7 +265,7 @@ function Dashboard() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem", whiteSpace: "pre-wrap" }}>{error}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginTop: "1.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginTop: "1.5rem" }}>
         <div style={card}>
           <div style={{ color: "#aaa" }}>Current weight</div>
           <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>
@@ -257,6 +288,38 @@ function Dashboard() {
           <div style={{ color: "#666", marginTop: "0.4rem" }}>
             {loggedToday ? "Nice — keep the streak going." : "Log your weight first thing tomorrow morning."}
           </div>
+        </div>
+
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Steps</div>
+          <div style={{ fontSize: "1.2rem", marginTop: "0.4rem" }}>
+            {stepsToday !== null ? `${stepsToday}` : "—"}
+          </div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>
+            Target: {stepsTarget !== null ? stepsTarget : "—"}
+          </div>
+          <button
+            onClick={() => navigate("/app/cardio-steps")}
+            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #333" }}
+          >
+            Log steps
+          </button>
+        </div>
+
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Cardio</div>
+          <div style={{ fontSize: "1.2rem", marginTop: "0.4rem" }}>
+            {cardioToday ? `${cardioToday.minutes} min` : "—"}
+          </div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>
+            {cardioToday && cardioToday.avg_hr ? `Avg HR: ${cardioToday.avg_hr}` : "No session logged today"}
+          </div>
+          <button
+            onClick={() => navigate("/app/cardio-steps")}
+            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #333" }}
+          >
+            Log cardio
+          </button>
         </div>
       </div>
 

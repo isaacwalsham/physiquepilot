@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "../supabaseClient";
 
-const API_URL = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "") ||
-  (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com");
+const API_URL = (
+  String(import.meta.env.VITE_API_URL || "")
+    .trim()
+    .replace(/\/$/, "") ||
+  (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
+);
 
 const dayLabel = {
     training: "Training day",
@@ -35,6 +39,17 @@ function Nutrition() {
 
     const [savingTarget, setSavingTarget] = useState(false);
     const [savingFlex, setSavingFlex] = useState(false);
+
+    const ratioSaveTimersRef = useRef({});
+
+    useEffect(() => {
+        return () => {
+            // cleanup any pending timers on unmount
+            Object.values(ratioSaveTimersRef.current || {}).forEach((t) => {
+                if (t) clearTimeout(t);
+            });
+        };
+    }, []);
 
     // --- Bodyweight and macro ratios state ---
     const [weightKg, setWeightKg] = useState(null);
@@ -82,10 +97,13 @@ function Nutrition() {
                 setLoading(false);
                 return;
             }
-
-            const mapped = { training: null, rest: null, high: null };
+            const mapped = {
+                training: { day_type: "training", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
+                rest: { day_type: "rest", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
+                high: { day_type: "high", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 }
+            };
             (tData || []).forEach((row) => {
-                mapped[row.day_type] = row;
+                if (row?.day_type && mapped[row.day_type]) mapped[row.day_type] = row;
             });
             setTargets(mapped);
 
@@ -94,7 +112,7 @@ function Nutrition() {
 
             const { data: pData } = await supabase
                 .from("profiles")
-                .select("training_days, today_day_type, today_day_type_date, current_weight_kg")
+                .select("training_days, today_day_type, today_day_type_date, current_weight_kg, nutrition_view_mode, show_meal_macros, show_day_macros")
                 .eq("user_id", user.id)
                 .maybeSingle();
 
@@ -106,6 +124,16 @@ function Nutrition() {
             const storedType = pData?.today_day_type_date === todayIso ? pData?.today_day_type : null;
             setTodayType(storedType || inferred);
             if (pData?.current_weight_kg) setWeightKg(pData.current_weight_kg);
+            // Prefer profile-stored nutrition UI prefs when present
+            if (pData?.nutrition_view_mode) {
+                setViewMode(pData.nutrition_view_mode);
+            }
+            if (typeof pData?.show_meal_macros === "boolean" || typeof pData?.show_day_macros === "boolean") {
+                const perMeal = pData?.show_meal_macros === true;
+                const perDay = pData?.show_day_macros === true;
+                const nextDisplay = perMeal && perDay ? "both" : perMeal ? "per_meal" : perDay ? "per_day" : "none";
+                setMacroDisplay(nextDisplay);
+            }
             // --- End Insert for todayType and profiles ---
 
             const { data: fData, error: fErr } = await supabase
@@ -158,15 +186,8 @@ function Nutrition() {
         load();
     }, []);
 
-    useEffect(() => {
-        localStorage.setItem("pp_nutrition_view_mode", viewMode);
-    }, [viewMode]);
-
-    useEffect(() => {
-        localStorage.setItem("pp_mealplan_macro_display", macroDisplay);
-    }, [macroDisplay]);
-
     // Persist macro ratios to localStorage
+
     useEffect(() => {
         try {
             localStorage.setItem("pp_macro_ratios_training", JSON.stringify(macroRatios.training));
@@ -176,6 +197,36 @@ function Nutrition() {
             // ignore
         }
     }, [macroRatios]);
+
+    // --- Nutrition UI prefs persistence helpers ---
+    const persistNutritionPrefs = async (nextViewMode, nextMacroDisplay) => {
+        if (!userId) return;
+        const showMeal = nextMacroDisplay === "per_meal" || nextMacroDisplay === "both";
+        const showDay = nextMacroDisplay === "per_day" || nextMacroDisplay === "both";
+
+        const { error: e } = await supabase
+            .from("profiles")
+            .update({
+                nutrition_view_mode: nextViewMode,
+                show_meal_macros: showMeal,
+                show_day_macros: showDay
+            })
+            .eq("user_id", userId);
+
+        if (e) setError(e.message);
+    };
+
+    const setAndPersistViewMode = async (next) => {
+        setViewMode(next);
+        try { localStorage.setItem("pp_nutrition_view_mode", next); } catch {}
+        await persistNutritionPrefs(next, macroDisplay);
+    };
+
+    const setAndPersistMacroDisplay = async (next) => {
+        setMacroDisplay(next);
+        try { localStorage.setItem("pp_mealplan_macro_display", next); } catch {}
+        await persistNutritionPrefs(viewMode, next);
+    };
 
     const totalCheatsAllowed = useMemo(() => {
         if (!flex) return 0;
@@ -232,12 +283,21 @@ function Nutrition() {
         setSavingTarget(false);
         if (e) setError(e.message);
     };
-
-    const updateRatio = async (dayType, key, value) => {
+    const updateRatio = (dayType, key, value) => {
         const clean = round2(value);
         const nextRatios = { ...macroRatios[dayType], [key]: clean };
+
+        // Update UI immediately
         setMacroRatios((prev) => ({ ...prev, [dayType]: nextRatios }));
-        await applyRatiosToDay(dayType, nextRatios);
+
+        // Debounce DB write + recalculation so the slider feels smooth
+        const k = `${dayType}`;
+        const existingTimer = ratioSaveTimersRef.current[k];
+        if (existingTimer) clearTimeout(existingTimer);
+
+        ratioSaveTimersRef.current[k] = setTimeout(() => {
+            applyRatiosToDay(dayType, nextRatios);
+        }, 350);
     };
 
     const updateTargetField = async (dayType, field, value) => {
@@ -371,39 +431,39 @@ function Nutrition() {
                 </div>
 
                 <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                    <div style={{ display: "flex", border: "1px solid #222", background: "#111" }}>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("macros")}
-                            style={{
-                                padding: "0.55rem 0.85rem",
-                                background: viewMode === "macros" ? "#1e1e1e" : "transparent",
-                                color: viewMode === "macros" ? "#fff" : "#aaa",
-                                border: "none",
-                                cursor: "pointer"
-                            }}
-                        >
-                            Macros
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("meal_plan")}
-                            style={{
-                                padding: "0.55rem 0.85rem",
-                                background: viewMode === "meal_plan" ? "#1e1e1e" : "transparent",
-                                color: viewMode === "meal_plan" ? "#fff" : "#aaa",
-                                border: "none",
-                                cursor: "pointer"
-                            }}
-                        >
-                            Meal plan
-                        </button>
-                    </div>
+                <div style={{ display: "flex", border: "1px solid #222", background: "#111" }}>
+                    <button
+                        type="button"
+                        onClick={() => setAndPersistViewMode("macros")}
+                        style={{
+                            padding: "0.55rem 0.85rem",
+                            background: viewMode === "macros" ? "#1e1e1e" : "transparent",
+                            color: viewMode === "macros" ? "#fff" : "#aaa",
+                            border: "none",
+                            cursor: "pointer"
+                        }}
+                    >
+                        Macros
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setAndPersistViewMode("meal_plan")}
+                        style={{
+                            padding: "0.55rem 0.85rem",
+                            background: viewMode === "meal_plan" ? "#1e1e1e" : "transparent",
+                            color: viewMode === "meal_plan" ? "#fff" : "#aaa",
+                            border: "none",
+                            cursor: "pointer"
+                        }}
+                    >
+                        Meal plan
+                    </button>
+                </div>
 
                     {viewMode === "meal_plan" && (
                         <select
                             value={macroDisplay}
-                            onChange={(e) => setMacroDisplay(e.target.value)}
+                            onChange={(e) => setAndPersistMacroDisplay(e.target.value)}
                             style={{
                                 background: "#111",
                                 color: "#fff",
@@ -554,7 +614,7 @@ function Nutrition() {
                                                     max="1.50"
                                                     step="0.05"
                                                     value={macroRatios[dayType].protein}
-                                                    onChange={(e) => updateRatio(dayType, "protein", e.target.value)}
+                                                    onChange={(e) => updateRatio(dayType, "protein", Number(e.target.value))}
                                                     style={{ width: "100%" }}
                                                     disabled={!weightLb}
                                                 />
@@ -571,7 +631,7 @@ function Nutrition() {
                                                     max="2.50"
                                                     step="0.05"
                                                     value={macroRatios[dayType].carbs}
-                                                    onChange={(e) => updateRatio(dayType, "carbs", e.target.value)}
+                                                    onChange={(e) => updateRatio(dayType, "carbs", Number(e.target.value))}
                                                     style={{ width: "100%" }}
                                                     disabled={!weightLb}
                                                 />
@@ -588,7 +648,7 @@ function Nutrition() {
                                                     max="0.60"
                                                     step="0.05"
                                                     value={macroRatios[dayType].fats}
-                                                    onChange={(e) => updateRatio(dayType, "fats", e.target.value)}
+                                                    onChange={(e) => updateRatio(dayType, "fats", Number(e.target.value))}
                                                     style={{ width: "100%" }}
                                                     disabled={!weightLb}
                                                 />

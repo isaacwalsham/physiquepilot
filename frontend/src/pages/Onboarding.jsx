@@ -14,6 +14,8 @@ function Onboarding() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [sex, setSex] = useState("male");
+  const [bodyFatPctInput, setBodyFatPctInput] = useState("");
+  const [defaultLissOptIn, setDefaultLissOptIn] = useState(true);
 
   const [unitSystem, setUnitSystem] = useState("metric");
   const [heightInput, setHeightInput] = useState("");
@@ -180,6 +182,14 @@ function Onboarding() {
       if (existingProfile.last_name) setLastName(existingProfile.last_name);
       if (existingProfile.sex) setSex(existingProfile.sex);
 
+      if (existingProfile.body_fat_pct !== null && existingProfile.body_fat_pct !== undefined) {
+        setBodyFatPctInput(String(existingProfile.body_fat_pct));
+      }
+      if (existingProfile.default_liss_opt_in !== null && existingProfile.default_liss_opt_in !== undefined) {
+        setDefaultLissOptIn(Boolean(existingProfile.default_liss_opt_in));
+      }
+
+
       if (existingProfile.activity_level) setActivityLevel(existingProfile.activity_level);
       if (existingProfile.baseline_steps_per_day !== null && existingProfile.baseline_steps_per_day !== undefined) {
         setBaselineStepsInput(String(existingProfile.baseline_steps_per_day));
@@ -209,11 +219,18 @@ function Onboarding() {
       const heightCm = parseHeightToCm();
       const startingWeightKg = parseWeightToKg(startingWeightInput);
       const goalWeightKg = parseWeightToKg(goalWeightInput);
+      const bf = parseBodyFatPct();
 
       if (!heightCm || !startingWeightKg || !goalWeightKg) {
         setError("Please fill in height, starting weight, and goal weight.");
         return false;
       }
+
+      if (bf === null) {
+        setError("Please enter an estimated body fat percentage (3–60%).");
+        return false;
+      }
+
       return true;
     }
 
@@ -368,7 +385,7 @@ function Onboarding() {
     const num = Number(weeklyChangeInput);
     if (!Number.isFinite(num) || num <= 0) return null;
     if (unitSystem === "metric") return num;
-    return num / 2.20462; 
+    return num / 2.20462;
   };
 
   const safeWeeklyChangeKg = (goal, kg) => {
@@ -387,6 +404,15 @@ function Onboarding() {
     return n;
   };
 
+  const parseBodyFatPct = () => {
+    const s = String(bodyFatPctInput || "").trim();
+    if (!s) return null;
+    const n = Number(s);
+    if (!Number.isFinite(n)) return null;
+    if (n < 3 || n > 60) return null;
+    return Math.round(n * 10) / 10;
+  };
+
   const handleSubmit = async () => {
     if (!profile) return;
 
@@ -400,6 +426,7 @@ function Onboarding() {
     const goalWeightKg = parseWeightToKg(goalWeightInput);
     const weeklyChangeKgRaw = parseWeeklyChangeToKg();
     const weeklyChangeKg = safeWeeklyChangeKg(goalType, weeklyChangeKgRaw);
+    const bodyFatPct = parseBodyFatPct();
 
     const baselineSteps = parseOptionalInt(baselineStepsInput);
     const baselineCardioMinutes = parseOptionalInt(baselineCardioMinutesInput);
@@ -431,6 +458,8 @@ function Onboarding() {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       sex,
+      body_fat_pct: bodyFatPct,
+      default_liss_opt_in: defaultLissOptIn,
     };
 
     const activityPayload = {
@@ -456,7 +485,9 @@ function Onboarding() {
         (msg.includes("activity_level") ||
           msg.includes("baseline_steps_per_day") ||
           msg.includes("baseline_cardio_minutes_per_week") ||
-          msg.includes("baseline_cardio_avg_hr"));
+          msg.includes("baseline_cardio_avg_hr") ||
+          msg.includes("body_fat_pct") ||
+          msg.includes("default_liss_opt_in"));
 
       if (looksLikeMissingColumn) {
         const { error: e2 } = await supabase.from("profiles").update(basePayload).eq("user_id", profile.user_id);
@@ -868,7 +899,29 @@ function Onboarding() {
                   style={field}
                 />
               </div>
+
+              <div>
+                <div style={label}>Body fat % (estimate)</div>
+                <input
+                  type="number"
+                  min="3"
+                  max="60"
+                  step="0.5"
+                  value={bodyFatPctInput}
+                  onChange={(e) => setBodyFatPctInput(e.target.value)}
+                  style={field}
+                  placeholder="e.g. 15"
+                />
+                <div style={help}>
+                  If you’re unsure, use reference photos to estimate.{" "}
+                  {sex === "female"
+                    ? "Women typically carry higher essential body fat than men — your estimate may be higher than you’d guess from male reference images."
+                    : ""}
+                </div>
+              </div>
             </div>
+
+
           )}
 
           {step === 2 && (
@@ -1054,6 +1107,29 @@ function Onboarding() {
                   <option value="extreme">Extreme</option>
                 </select>
                 <div style={help}>This is used as your baseline for steps/cardio planning later.</div>
+              </div>
+
+              <div>
+                <div style={label}>Default LISS cardio on training days</div>
+                <div style={segmentedWrap}>
+                  <button
+                    type="button"
+                    onClick={() => setDefaultLissOptIn(true)}
+                    style={segBtn(defaultLissOptIn === true)}
+                  >
+                    Include 15 min LISS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDefaultLissOptIn(false)}
+                    style={segBtn(defaultLissOptIn === false)}
+                  >
+                    Opt out
+                  </button>
+                </div>
+                <div style={help}>
+                  Recommended for bodybuilding (incline walk, stairmaster). If you opt out, calories will be adjusted later to keep progress consistent.
+                </div>
               </div>
 
               <div style={grid2}>
