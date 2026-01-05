@@ -155,7 +155,7 @@ function Coach() {
       .maybeSingle();
 
     const { data: n } = await supabase
-      .from("daily_nutrition")
+      .from("daily_nutrition_targets")
       .select("calories")
       .eq("user_id", uid)
       .eq("log_date", todayIso)
