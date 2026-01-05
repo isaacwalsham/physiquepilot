@@ -142,8 +142,29 @@ function Settings() {
     cursor: "pointer"
   });
 
+  const responsiveStyle = `
+    @media (max-width: 980px) {
+      .pp-settings-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .pp-toggle-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .pp-toggle-row input[type="checkbox"] {
+        margin-left: auto;
+      }
+    }
+    @media (max-width: 520px) {
+      .pp-settings-page h1 {
+        font-size: 1.9rem;
+      }
+    }
+  `;
+
   return (
-    <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto" }}>
+    <div className="pp-settings-page" style={{ width: "100%", maxWidth: "1400px", margin: "0 auto" }}>
+      <style>{responsiveStyle}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
           <h1 style={{ margin: 0 }}>Settings</h1>
@@ -156,7 +177,7 @@ function Settings() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
+      <div className="pp-settings-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
         <div style={card}>
           <div style={{ fontWeight: 700 }}>General</div>
 
@@ -240,7 +261,7 @@ function Settings() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
+      <div className="pp-settings-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
         <div style={card}>
           <div style={{ fontWeight: 700 }}>Nutrition display</div>
           <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
@@ -272,7 +293,7 @@ function Settings() {
               </button>
             </div>
 
-            <div style={toggleRow}>
+            <div className="pp-toggle-row" style={toggleRow}>
               <div>
                 <div style={{ fontWeight: 600 }}>Show meal macros</div>
                 <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.2rem" }}>
@@ -289,7 +310,7 @@ function Settings() {
               />
             </div>
 
-            <div style={toggleRow}>
+            <div className="pp-toggle-row" style={toggleRow}>
               <div>
                 <div style={{ fontWeight: 600 }}>Show full-day macros</div>
                 <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.2rem" }}>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -31,6 +32,14 @@ export default function Training() {
   const [setsByExercise, setSetsByExercise] = useState({});
 
   const [newExerciseName, setNewExerciseName] = useState("");
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 900);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const week = useMemo(() => {
     const t = todayISO();
@@ -628,7 +637,7 @@ export default function Training() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div style={{ maxWidth: "1250px" }}>
+    <div style={{ maxWidth: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
           <h1 style={{ margin: 0 }}>Training</h1>
@@ -644,21 +653,50 @@ export default function Training() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
-        {week.map((d) => (
-          <button
-            key={d.iso}
-            onClick={() => setSelectedDate(d.iso)}
-            style={smallBtn(d.iso === selectedDate)}
+      {isMobile ? (
+        <div style={{ marginTop: "1rem" }}>
+          <select
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.75rem",
+              background: "#111",
+              color: "#fff",
+              border: "1px solid #333",
+              borderRadius: "10px"
+            }}
           >
-            <div style={{ fontSize: "0.75rem" }}>{d.label}</div>
-            <div style={{ fontWeight: 700 }}>{d.day}</div>
-            <div style={{ fontSize: "0.7rem", color: d.iso === selectedDate ? "#aaa" : "#666", marginTop: "0.25rem" }}>
-              {dayBadge(d.iso)}
-            </div>
-          </button>
-        ))}
-      </div>
+            {week.map((d) => (
+              <option key={d.iso} value={d.iso}>
+                {d.label} {d.day} — {dayBadge(d.iso)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
+          {week.map((d) => (
+            <button
+              key={d.iso}
+              onClick={() => setSelectedDate(d.iso)}
+              style={smallBtn(d.iso === selectedDate)}
+            >
+              <div style={{ fontSize: "0.75rem" }}>{d.label}</div>
+              <div style={{ fontWeight: 700 }}>{d.day}</div>
+              <div
+                style={{
+                  fontSize: "0.7rem",
+                  color: d.iso === selectedDate ? "#aaa" : "#666",
+                  marginTop: "0.25rem"
+                }}
+              >
+                {dayBadge(d.iso)}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {!session && (
         <div style={{ ...card, marginTop: "1rem" }}>

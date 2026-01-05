@@ -435,6 +435,20 @@ function CheckIns() {
 
   if (loading) return <div>Loading...</div>;
 
+    const responsiveCss = `
+    @media (max-width: 980px) {
+      .pp-grid-2col {
+        grid-template-columns: 1fr !important;
+      }
+      .pp-grid-3col {
+        grid-template-columns: 1fr !important;
+      }
+      .pp-photo-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+      }
+    }
+  `;
+
   const card = {
     background: "#1e1e1e",
     border: "1px solid #222",
@@ -460,7 +474,8 @@ function CheckIns() {
   });
 
   return (
-    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
+  <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <style>{responsiveCss}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
           <h1 style={{ margin: 0 }}>Check-ins</h1>
@@ -475,7 +490,7 @@ function CheckIns() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "1rem", marginTop: "1rem" }}>
+      <div className="pp-grid-2col" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "1rem", marginTop: "1rem" }}>
         <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <div style={{ fontWeight: 700 }}>This week</div>
@@ -602,7 +617,7 @@ function CheckIns() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "0.9fr 1.1fr", gap: "1rem", marginTop: "1rem" }}>
+      <div className="pp-grid-2col" style={{ display: "grid", gridTemplateColumns: "0.9fr 1.1fr", gap: "1rem", marginTop: "1rem" }}>
         <div style={card}>
           <div style={{ fontWeight: 700 }}>Past check-ins</div>
 
@@ -689,7 +704,7 @@ function CheckIns() {
           )}
         </div>
       </div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
+    <div className="pp-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
         <div style={card}>
           <div style={{ fontWeight: 700 }}>Progress photo upload</div>
           <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
@@ -753,7 +768,7 @@ function CheckIns() {
               style={{
                 marginTop: "1rem",
                 display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
                 gap: "0.75rem"
               }}
             >
