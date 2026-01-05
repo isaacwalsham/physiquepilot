@@ -12,6 +12,7 @@ import Training from "./pages/Training";
 import CheckIns from "./pages/CheckIns";
 import Coach from "./pages/Coach";
 import Settings from "./pages/Settings";
+import "./styles/responsive.css";
 
 function App() {
   return (
