@@ -205,7 +205,39 @@ function Landing() {
 
   return (
     <div className="public-page" style={wrap}>
-      <style>{responsiveStyle}</style>
+      <style>{`
+  ${responsiveStyle}
+
+  @keyframes ppFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes ppGlow {
+    0%, 100% { opacity: 0.35; transform: translate(-10%, -10%) scale(1); }
+    50%      { opacity: 0.55; transform: translate(-10%, -10%) scale(1.06); }
+  }
+
+  @keyframes ppFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  .pp-anim-1 { animation: ppFadeUp 520ms ease both; }
+  .pp-anim-2 { animation: ppFadeUp 520ms ease both; animation-delay: 80ms; }
+  .pp-anim-3 { animation: ppFadeUp 520ms ease both; animation-delay: 160ms; }
+  .pp-anim-4 { animation: ppFadeUp 520ms ease both; animation-delay: 240ms; }
+
+  .pp-panel-float { animation: ppFloat 6s ease-in-out infinite; }
+  .pp-card-hover { will-change: transform; }
+  .pp-card-hover:hover { transform: translateY(-6px); }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .pp-anim-1,.pp-anim-2,.pp-anim-3,.pp-anim-4 { animation: none !important; }
+    .pp-panel-float { animation: none !important; }
+  }
+`}</style>
 
       <div className="public-inner">
         <header style={header}>
@@ -233,7 +265,7 @@ function Landing() {
           {/* HERO */}
           <section className="pp-section pp-hero-pad" style={{ ...section, paddingTop: "4rem" }}>
             <div className="pp-hero-grid" style={heroGrid}>
-              <div>
+              <div className="pp-anim-1">
                 <h1 className="pp-hero-title" style={heroTitle}>
                   A connected training, nutrition, and progress system.
                 </h1>
@@ -260,7 +292,7 @@ function Landing() {
               </div>
 
               <div
-                className="pp-panel"
+                className="pp-panel pp-anim-2 pp-panel-float"
                 style={panel}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)";
@@ -284,7 +316,7 @@ function Landing() {
           </section>
 
           {/* 3 CORE PILLARS */}
-          <section className="pp-section" style={{ ...sectionDivider, ...section }}>
+          <section className="pp-section pp-anim-3" style={{ ...sectionDivider, ...section }}>
             <div className="pp-cards-3" style={gridCards}>
               {[
                 {
@@ -300,7 +332,13 @@ function Landing() {
                   text: "See long-term trends across weight, check-ins, photos, steps, and cardio so progress is always visible."
                 }
               ].map((c) => (
-                <div key={c.title} style={card} onMouseEnter={hoverLift} onMouseLeave={hoverReset}>
+                <div
+                  key={c.title}
+                  className="pp-card-hover"
+                  style={card}
+                  onMouseEnter={hoverLift}
+                  onMouseLeave={hoverReset}
+                >
                   <h3 style={cardTitle}>{c.title}</h3>
                   <p style={cardText}>{c.text}</p>
                 </div>
@@ -309,7 +347,7 @@ function Landing() {
           </section>
 
           {/* HOW IT WORKS */}
-          <section className="pp-section" style={{ ...sectionDivider, ...section }}>
+          <section className="pp-section pp-anim-4" style={{ ...sectionDivider, ...section }}>
             <h2 style={{ marginTop: 0, marginBottom: "1.25rem" }}>How it works</h2>
 
             <div
@@ -336,6 +374,7 @@ function Landing() {
               ].map((c) => (
                 <div
                   key={c.title}
+                  className="pp-card-hover"
                   style={{ ...card, padding: "1.75rem" }}
                   onMouseEnter={hoverLift}
                   onMouseLeave={hoverReset}
