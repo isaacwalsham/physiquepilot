@@ -163,10 +163,9 @@ function Coach() {
 
     const { data: c, error: cErr } = await supabase
       .from("cardio_logs")
-      .select("duration_min, avg_hr")
+      .select("*")
       .eq("user_id", uid)
       .eq("log_date", todayIso)
-      .order("created_at", { ascending: false })
       .limit(1);
 
     if (cErr) {
@@ -242,10 +241,17 @@ function Coach() {
 
     if (e) {
       const msg = String(e.message || "");
-      if (msg.includes("Could not find") && msg.includes("coach_messages")) {
+      const status = e.status || e.statusCode;
+
+      // If the table doesn't exist yet, don't hard-fail the whole page.
+      if (
+        (msg.includes("coach_messages") && (msg.includes("Could not find") || msg.includes("schema cache"))) ||
+        status === 404
+      ) {
         setMessages([]);
         return;
       }
+
       setError(e.message);
       setMessages([]);
       return;
@@ -288,6 +294,23 @@ function Coach() {
   const targetCalories = targets?.[dayType]?.calories ?? null;
   const eaten = null; // no nutrition log table yet
   const remaining = null;
+
+  const cardioMinutes =
+    cardio?.duration_min ??
+    cardio?.duration_minutes ??
+    cardio?.duration_mins ??
+    cardio?.duration ??
+    cardio?.minutes ??
+    cardio?.mins ??
+    null;
+
+  const cardioAvgHr =
+    cardio?.avg_hr ??
+    cardio?.average_hr ??
+    cardio?.avg_heart_rate ??
+    cardio?.heart_rate_avg ??
+    cardio?.hr_avg ??
+    null;
 
   const insights = buildInsights(weekStats);
 
@@ -405,10 +428,10 @@ function Coach() {
           <div style={card}>
             <div style={{ fontWeight: 700 }}>Cardio</div>
             <div style={{ marginTop: "0.35rem", color: "#aaa" }}>
-              {cardio ? `${cardio.duration_min} min` : "None"}
+              {cardioMinutes ? `${cardioMinutes} min` : "None"}
             </div>
-            {cardio?.avg_hr ? (
-              <div style={{ marginTop: "0.15rem", color: "#666", fontSize: "0.9rem" }}>Avg HR: {cardio.avg_hr}</div>
+            {cardioAvgHr ? (
+              <div style={{ marginTop: "0.15rem", color: "#666", fontSize: "0.9rem" }}>Avg HR: {cardioAvgHr}</div>
             ) : null}
           </div>
         </div>
