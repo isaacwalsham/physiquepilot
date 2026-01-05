@@ -193,3 +193,57 @@ canvas {
     display: none; /* Chrome/Safari */
   }
 }
+
+/* Public pages (Landing, Login, Register, Onboarding) */
+.public-page {
+  min-height: 100vh;
+  width: 100%;
+  background: #0f0f0f;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+}
+
+.public-inner {
+  width: 100%;
+  max-width: 1100px;
+}
+
+@media (max-width: 900px) {
+  .public-page {
+    padding: 1.25rem;
+    align-items: flex-start; /* better on mobile */
+  }
+
+  .public-inner {
+    max-width: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .public-page {
+    padding: 0.85rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .ob-grid2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .ob-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .ob-footer {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+}

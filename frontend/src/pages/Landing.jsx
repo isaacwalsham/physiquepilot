@@ -1,26 +1,30 @@
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 function Landing() {
   const navigate = useNavigate();
-  const slides = [
-    {
-      title: "Structured training, not random workouts",
-      text: "Build training blocks, follow weekly or rolling splits, and log sets and reps. Your training stays organised and progressive."
-    },
-    {
-      title: "Nutrition that adapts to your workload",
-      text: "Calories and macros adjust based on training days, rest days, steps, and cardio — so intake matches output."
-    },
-    {
-      title: "Everything connected in one system",
-      text: "Training, nutrition, weight, steps, cardio, check-ins, and photos all live together. Nothing is tracked in isolation."
-    },
-    {
-      title: "AI coaching that learns from your data",
-      text: "PhysiquePilot analyses your logs over time and applies coaching logic to guide adjustments as you progress."
-    }
-  ];
+
+  const slides = useMemo(
+    () => [
+      {
+        title: "Structured training, not random workouts",
+        text: "Build training blocks, follow weekly or rolling splits, and log sets and reps. Your training stays organised and progressive."
+      },
+      {
+        title: "Nutrition that adapts to your workload",
+        text: "Calories and macros adjust based on training days, rest days, steps, and cardio — so intake matches output."
+      },
+      {
+        title: "Everything connected in one system",
+        text: "Training, nutrition, weight, steps, cardio, check-ins, and photos all live together. Nothing is tracked in isolation."
+      },
+      {
+        title: "AI coaching that learns from your data",
+        text: "PhysiquePilot analyses your logs over time and applies coaching logic to guide adjustments as you progress."
+      }
+    ],
+    []
+  );
 
   const [index, setIndex] = useState(0);
 
@@ -29,291 +33,320 @@ function Landing() {
       setIndex((v) => (v + 1) % slides.length);
     }, 4500);
     return () => clearInterval(i);
-  }, []);
+  }, [slides.length]);
+
+  const wrap = {
+    minHeight: "100vh"
+  };
+
+  const header = {
+    borderBottom: "1px solid #1e1e1e",
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    backdropFilter: "blur(10px)",
+    background: "rgba(15,15,15,0.85)"
+  };
+
+  const headerInner = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "1rem 0"
+  };
+
+  const brand = { fontWeight: 750, fontSize: "1.15rem", letterSpacing: "0.2px" };
+
+  const btnBase = {
+    padding: "0.55rem 1rem",
+    border: "1px solid #333",
+    cursor: "pointer",
+    transition: "transform 0.18s ease, border-color 0.18s ease, background 0.18s ease",
+    borderRadius: "12px"
+  };
+
+  const btnGhost = {
+    ...btnBase,
+    background: "transparent",
+    color: "#fff"
+  };
+
+  const btnPrimary = {
+    ...btnBase,
+    background: "#2a2a2a",
+    color: "#fff"
+  };
+
+  const section = {
+    padding: "4.5rem 0"
+  };
+
+  const heroGrid = {
+    display: "grid",
+    gridTemplateColumns: "1.1fr 0.9fr",
+    gap: "2.25rem",
+    alignItems: "center"
+  };
+
+  const heroTitle = {
+    fontSize: "clamp(2rem, 3vw, 3rem)",
+    margin: 0,
+    lineHeight: 1.12,
+    letterSpacing: "0.2px"
+  };
+
+  const heroText = {
+    marginTop: "1.1rem",
+    fontSize: "1.08rem",
+    lineHeight: 1.7,
+    color: "#aaa",
+    maxWidth: "60ch"
+  };
+
+  const ctas = {
+    display: "flex",
+    gap: "0.8rem",
+    marginTop: "1.6rem",
+    flexWrap: "wrap"
+  };
+
+  const panel = {
+    border: "1px solid #222",
+    background: "#111",
+    padding: "2rem",
+    borderRadius: "16px",
+    minHeight: "240px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    transition: "transform 0.2s ease, border-color 0.2s ease"
+  };
+
+  const dots = {
+    marginTop: "1.25rem",
+    display: "flex",
+    gap: "0.4rem"
+  };
+
+  const dot = (active) => ({
+    width: "8px",
+    height: "8px",
+    borderRadius: "999px",
+    background: active ? "#fff" : "#333"
+  });
+
+  const sectionDivider = {
+    borderTop: "1px solid #1e1e1e"
+  };
+
+  const gridCards = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "1.25rem"
+  };
+
+  const card = {
+    border: "1px solid #222",
+    background: "#111",
+    padding: "1.5rem",
+    borderRadius: "16px",
+    transition: "transform 0.18s ease, border-color 0.18s ease"
+  };
+
+  const cardTitle = { marginTop: 0, marginBottom: "0.5rem" };
+  const cardText = { color: "#aaa", lineHeight: 1.7, margin: 0 };
+
+  // Responsive tweaks without needing more CSS files
+  const responsiveStyle = `
+    @media (max-width: 980px) {
+      .pp-hero-grid { grid-template-columns: 1fr; }
+      .pp-cards { grid-template-columns: 1fr; }
+      .pp-cards-3 { grid-template-columns: 1fr; }
+    }
+  `;
+
+  const hoverLift = (e) => {
+    e.currentTarget.style.transform = "translateY(-4px)";
+    e.currentTarget.style.borderColor = "#333";
+  };
+
+  const hoverReset = (e) => {
+    e.currentTarget.style.transform = "translateY(0)";
+    e.currentTarget.style.borderColor = "#222";
+  };
+
+  const btnLift = (e) => (e.currentTarget.style.transform = "translateY(-1px)");
+  const btnReset = (e) => (e.currentTarget.style.transform = "translateY(0)");
 
   return (
-    <div style={{ minHeight: "100vh", width: "100vw", background: "#0f0f0f", color: "#fff" }}>
-      <header style={{ borderBottom: "1px solid #1e1e1e" }}>
-        <div
-          style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "1.25rem 2rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}
-        >
-          <div style={{ fontWeight: 700, fontSize: "1.25rem" }}>PhysiquePilot</div>
-          <div style={{ display: "flex", gap: "0.75rem" }}>
-            <button
-              onClick={() => navigate("/login")}
-              style={{
-                padding: "0.5rem 1rem",
-                background: "transparent",
-                color: "#fff",
-                border: "1px solid #333",
-                cursor: "pointer",
-                transition: "all 0.2s ease"
-              }}
-            >
-              Log in
-            </button>
-            <button
-              onClick={() => navigate("/register")}
-              style={{
-                padding: "0.5rem 1rem",
-                background: "#2a2a2a",
-                color: "#fff",
-                border: "1px solid #333",
-                cursor: "pointer",
-                transition: "all 0.2s ease"
-              }}
-              onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-1px)")}
-              onMouseLeave={e => (e.currentTarget.style.transform = "translateY(0)")}
-            >
-              Get started
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="public-page" style={wrap}>
+      <style>{responsiveStyle}</style>
 
-      <main>
-        <section>
-          <div
-            style={{
-              maxWidth: "1280px",
-              margin: "0 auto",
-              padding: "6rem 2rem 4rem",
-              display: "grid",
-              gridTemplateColumns: "1.1fr 0.9fr",
-              gap: "3rem",
-              alignItems: "center"
-            }}
-          >
-            <div>
-              <h1 style={{ fontSize: "2.8rem", margin: 0, lineHeight: 1.15 }}>
-                A connected training, nutrition, and progress system.
-              </h1>
-              <p style={{ marginTop: "1.25rem", fontSize: "1.1rem", lineHeight: 1.7, color: "#aaa" }}>
-                PhysiquePilot brings training, nutrition, and progress tracking into one system. As you log data, the platform learns and applies coaching logic to help guide smarter decisions over time.
-              </p>
+      <div className="public-inner">
+        <header style={header}>
+          <div style={headerInner}>
+            <div style={brand}>PhysiquePilot</div>
 
-              <div style={{ display: "flex", gap: "1rem", marginTop: "1.75rem", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => navigate("/register")}
-                  style={{
-                    padding: "0.9rem 1.6rem",
-                    fontSize: "1rem",
-                    background: "#2a2a2a",
-                    color: "#fff",
-                    border: "1px solid #333",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease"
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-1px)")}
-                  onMouseLeave={e => (e.currentTarget.style.transform = "translateY(0)")}
-                >
-                  Create account
-                </button>
-                <button
-                  onClick={() => navigate("/login")}
-                  style={{
-                    padding: "0.9rem 1.6rem",
-                    fontSize: "1rem",
-                    background: "transparent",
-                    color: "#fff",
-                    border: "1px solid #333",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease"
-                  }}
-                >
-                  Log in
-                </button>
-              </div>
-            </div>
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button onClick={() => navigate("/login")} style={btnGhost}>
+                Log in
+              </button>
 
-            <div
-              style={{
-                border: "1px solid #222",
-                background: "#111",
-                padding: "2rem",
-                borderRadius: "10px",
-                minHeight: "220px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                transition: "all 0.3s ease"
-              }}
-            >
-              <div style={{ fontSize: "1.25rem", fontWeight: 700 }}>
-                {slides[index].title}
-              </div>
-              <div style={{ marginTop: "0.75rem", color: "#aaa", lineHeight: 1.7 }}>
-                {slides[index].text}
-              </div>
-              <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.4rem" }}>
-                {slides.map((_, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: i === index ? "#fff" : "#333"
-                    }}
-                  />
-                ))}
-              </div>
+              <button
+                onClick={() => navigate("/register")}
+                style={btnPrimary}
+                onMouseEnter={btnLift}
+                onMouseLeave={btnReset}
+              >
+                Get started
+              </button>
             </div>
           </div>
-        </section>
+        </header>
 
-        <section style={{ borderTop: "1px solid #1e1e1e" }}>
-          <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "4rem 2rem" }}>
+        <main>
+          {/* HERO */}
+          <section style={{ ...section, paddingTop: "4rem" }}>
+            <div className="pp-hero-grid" style={heroGrid}>
+              <div>
+                <h1 style={heroTitle}>A connected training, nutrition, and progress system.</h1>
+
+                <p style={heroText}>
+                  PhysiquePilot brings training, nutrition, and progress tracking into one system. As you log data,
+                  the platform learns and applies coaching logic to help guide smarter decisions over time.
+                </p>
+
+                <div style={ctas}>
+                  <button
+                    onClick={() => navigate("/register")}
+                    style={btnPrimary}
+                    onMouseEnter={btnLift}
+                    onMouseLeave={btnReset}
+                  >
+                    Create account
+                  </button>
+
+                  <button onClick={() => navigate("/login")} style={btnGhost}>
+                    Log in
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={panel}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.borderColor = "#2f2f2f";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.borderColor = "#222";
+                }}
+              >
+                <div style={{ fontSize: "1.25rem", fontWeight: 750 }}>{slides[index].title}</div>
+                <div style={{ marginTop: "0.8rem", color: "#aaa", lineHeight: 1.7 }}>
+                  {slides[index].text}
+                </div>
+
+                <div style={dots}>
+                  {slides.map((_, i) => (
+                    <div key={i} style={dot(i === index)} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 3 CORE PILLARS */}
+          <section style={{ ...sectionDivider, ...section }}>
+            <div className="pp-cards-3" style={gridCards}>
+              {[
+                {
+                  title: "Training",
+                  text: "Plan training blocks, follow structured splits, log sessions, and review performance trends over time."
+                },
+                {
+                  title: "Nutrition",
+                  text: "Daily calorie and macro targets that adapt to training load, activity, and recovery — without rigid plans."
+                },
+                {
+                  title: "Progress",
+                  text: "See long-term trends across weight, check-ins, photos, steps, and cardio so progress is always visible."
+                }
+              ].map((c) => (
+                <div key={c.title} style={card} onMouseEnter={hoverLift} onMouseLeave={hoverReset}>
+                  <h3 style={cardTitle}>{c.title}</h3>
+                  <p style={cardText}>{c.text}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* HOW IT WORKS */}
+          <section style={{ ...sectionDivider, ...section }}>
+            <h2 style={{ marginTop: 0, marginBottom: "1.25rem" }}>How it works</h2>
+
             <div
+              className="pp-cards"
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                gap: "1.5rem"
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: "1.25rem"
               }}
             >
-              <div
-                style={{
-                  border: "1px solid #222",
-                  background: "#111",
-                  padding: "1.5rem",
-                  borderRadius: "10px",
-                  transition: "transform 0.2s ease, border-color 0.2s ease"
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "#333";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#222";
-                }}
+              {[
+                {
+                  title: "1. Log your data",
+                  text: "Track training, nutrition, weight, steps, cardio, and check-ins. Everything feeds into one system."
+                },
+                {
+                  title: "2. The system learns",
+                  text: "PhysiquePilot analyses trends across workload, recovery, and progress — not just single data points."
+                },
+                {
+                  title: "3. Get guided adjustments",
+                  text: "Training, nutrition, and recovery decisions are guided by coaching logic that adapts as you progress."
+                }
+              ].map((c) => (
+                <div
+                  key={c.title}
+                  style={{ ...card, padding: "1.75rem" }}
+                  onMouseEnter={hoverLift}
+                  onMouseLeave={hoverReset}
+                >
+                  <div style={{ fontWeight: 750, fontSize: "1.05rem" }}>{c.title}</div>
+                  <p style={{ ...cardText, marginTop: "0.75rem" }}>{c.text}</p>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: "2rem", display: "flex", gap: "0.8rem", flexWrap: "wrap" }}>
+              <button
+                onClick={() => navigate("/register")}
+                style={btnPrimary}
+                onMouseEnter={btnLift}
+                onMouseLeave={btnReset}
               >
-                <h3 style={{ marginTop: 0 }}>Training</h3>
-                <p style={{ color: "#aaa", lineHeight: 1.7 }}>
-                  Plan training blocks, follow structured splits, log sessions, and review performance trends over time.
-                </p>
-              </div>
-              <div
-                style={{
-                  border: "1px solid #222",
-                  background: "#111",
-                  padding: "1.5rem",
-                  borderRadius: "10px",
-                  transition: "transform 0.2s ease, border-color 0.2s ease"
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "#333";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#222";
-                }}
-              >
-                <h3 style={{ marginTop: 0 }}>Nutrition</h3>
-                <p style={{ color: "#aaa", lineHeight: 1.7 }}>
-                  Daily calorie and macro targets that adapt to training load, activity, and recovery — without rigid plans.
-                </p>
-              </div>
-              <div
-                style={{
-                  border: "1px solid #222",
-                  background: "#111",
-                  padding: "1.5rem",
-                  borderRadius: "10px",
-                  transition: "transform 0.2s ease, border-color 0.2s ease"
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "#333";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#222";
-                }}
-              >
-                <h3 style={{ marginTop: 0 }}>Progress</h3>
-                <p style={{ color: "#aaa", lineHeight: 1.7 }}>
-                  See long-term trends across weight, check-ins, photos, steps, and cardio so progress is always visible.
-                </p>
+                Start onboarding
+              </button>
+              <button onClick={() => navigate("/login")} style={btnGhost}>
+                I already have an account
+              </button>
+            </div>
+          </section>
+
+          <footer style={{ borderTop: "1px solid #1e1e1e", padding: "2rem 0", color: "#777" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+              <div>© {new Date().getFullYear()} PhysiquePilot</div>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                <span style={{ color: "#777" }}>Training</span>
+                <span style={{ color: "#777" }}>Nutrition</span>
+                <span style={{ color: "#777" }}>Progress</span>
               </div>
             </div>
-          </div>
-        </section>
-        {/* How it works section */}
-        <section style={{ borderTop: "1px solid #1e1e1e" }}>
-          <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "4rem 2rem" }}>
-            <h2 style={{ marginTop: 0 }}>How it works</h2>
-
-            <div
-              style={{
-                marginTop: "2rem",
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                gap: "1.5rem"
-              }}
-            >
-              <div
-                style={{ border: "1px solid #222", background: "#111", padding: "1.75rem", borderRadius: "10px", transition: "transform 0.2s ease, border-color 0.2s ease" }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "#333";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#222";
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>1. Log your data</div>
-                <p style={{ marginTop: "0.75rem", color: "#aaa", lineHeight: 1.7 }}>
-                  Track training, nutrition, weight, steps, cardio, and check-ins. Everything feeds into one system.
-                </p>
-              </div>
-
-              <div
-                style={{ border: "1px solid #222", background: "#111", padding: "1.75rem", borderRadius: "10px", transition: "transform 0.2s ease, border-color 0.2s ease" }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "#333";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#222";
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>2. The system learns</div>
-                <p style={{ marginTop: "0.75rem", color: "#aaa", lineHeight: 1.7 }}>
-                  PhysiquePilot analyses trends across workload, recovery, and progress — not just single data points.
-                </p>
-              </div>
-
-              <div
-                style={{ border: "1px solid #222", background: "#111", padding: "1.75rem", borderRadius: "10px", transition: "transform 0.2s ease, border-color 0.2s ease" }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "#333";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#222";
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>3. Get guided adjustments</div>
-                <p style={{ marginTop: "0.75rem", color: "#aaa", lineHeight: 1.7 }}>
-                  Training, nutrition, and recovery decisions are guided by coaching logic that adapts as you progress.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }

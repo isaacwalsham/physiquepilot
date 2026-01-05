@@ -658,13 +658,13 @@ function Onboarding() {
   // ---- nicer centered UI styles ----
 
   const pageWrap = {
-    width: "100vw",
+    width: "100%",
     minHeight: "100vh",
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "center",
     background: "#0f0f0f",
-    padding: "2.5rem"
+    padding: "1.25rem"
   };
 
   // No container feel: no boxed card, just a centered content column
@@ -734,7 +734,7 @@ function Onboarding() {
 
   const help = { color: "#666", fontSize: "0.95rem", marginTop: "0.5rem", lineHeight: 1.45 };
 
-  const segmentedWrap = { display: "flex", gap: "0.5rem", marginTop: "0.35rem" };
+  const segmentedWrap = { display: "flex", gap: "0.5rem", marginTop: "0.35rem", flexWrap: "wrap" };
 
   const segBtn = (active) => ({
     padding: "0.75rem 1.1rem",
@@ -838,7 +838,7 @@ function Onboarding() {
     <div style={pageWrap}>
       <div style={card}>
         <div style={header}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "1rem" }}>
+          <div className="ob-header-row" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "1rem" }}>
             <div>
               <h1 style={h1}>Onboarding</h1>
               <div style={sub}>Set your baseline so PhysiquePilot can guide training, nutrition, steps and cardio.</div>
@@ -893,7 +893,7 @@ function Onboarding() {
                 </div>
               </div>
 
-              <div style={grid2}>
+              <div className="ob-grid2" style={grid2}>
                 <div>
                   <div style={label}>Height ({unitSystem === "metric" ? "cm" : `e.g. 5'10"`})</div>
                   <input type="text" value={heightInput} onChange={(e) => setHeightInput(e.target.value)} style={field} />
@@ -1261,7 +1261,7 @@ function Onboarding() {
           )}
         </div>
 
-        <div style={footer}>
+        <div className="ob-footer" style={footer}>
           <div style={{ color: "#666", fontSize: "0.9rem" }}>{step === 1 ? "" : "You can change these later in Settings."}</div>
 
           <div style={{ display: "flex", gap: "0.5rem" }}>
