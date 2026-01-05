@@ -75,3 +75,83 @@
     font-size: 15px;
   }
 }
+
+/* ===============================
+   App shell responsiveness
+   (Requires: AppLayout uses .app-shell, .app-sidebar, .app-content)
+   =============================== */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-sidebar {
+  width: 280px;
+  flex: 0 0 280px;
+}
+
+.app-content {
+  flex: 1;
+  min-width: 0; /* prevents overflow causing horizontal scroll */
+}
+
+/* Common page spacing helper */
+.page {
+  width: 100%;
+}
+
+/* Tighten big headings a bit on smaller screens */
+@media (max-width: 900px) {
+  h1 {
+    font-size: clamp(1.8rem, 6vw, 3.2rem);
+    line-height: 1.05;
+  }
+}
+
+/* Tablet/mobile: sidebar becomes top nav (stacks above content) */
+@media (max-width: 768px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  /* If your sidebar has a vertical list, this makes it scrollable horizontally */
+  .app-sidebar nav,
+  .app-sidebar .nav,
+  .app-sidebar .sidebar-nav {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+
+  /* Make nav items compact if they exist as buttons/links */
+  .app-sidebar a,
+  .app-sidebar button {
+    white-space: nowrap;
+  }
+
+  /* Reduce excessive page padding on small screens */
+  .app-content {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Small mobile: even tighter spacing */
+@media (max-width: 480px) {
+  .app-content {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .card-stack {
+    gap: 0.85rem;
+  }
+}

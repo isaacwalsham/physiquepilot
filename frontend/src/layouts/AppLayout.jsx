@@ -39,35 +39,31 @@ function AppLayout() {
     run();
   }, [navigate]);
 
-  if (loading) return <div style={{ padding: "2rem" }}>Loading...</div>;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        width: "100vw",
-        background: "#0f0f0f",
-        color: "#fff"
-      }}
-    >
-      <Sidebar />
-
-      <main
+  if (loading) {
+    return (
+      <div
         style={{
-          flex: 1,
-          padding: "2rem",
-          overflowX: "hidden"
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#0f0f0f",
+          color: "#fff"
         }}
       >
-        {/* THIS is the only width constraint in the entire app */}
-        <div
-          style={{
-            width: "100%",
-            maxWidth: "1920px",
-            margin: "0 auto"
-          }}
-        >
+        Loading…
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <Sidebar />
+      </aside>
+
+      <main className="app-content">
+        <div className="app-content-inner">
           <Outlet />
         </div>
       </main>

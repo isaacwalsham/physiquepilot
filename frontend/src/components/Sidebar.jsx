@@ -10,40 +10,38 @@ function Sidebar() {
   };
 
   const linkStyle = ({ isActive }) => ({
-    padding: "0.75rem 1rem",
+    padding: "0.7rem 0.9rem",
     textDecoration: "none",
     color: isActive ? "#fff" : "#aaa",
-    background: isActive ? "#1e1e1e" : "transparent"
+    background: isActive ? "#1e1e1e" : "transparent",
+    borderRadius: "10px",
+    whiteSpace: "nowrap"
   });
 
   return (
-    <aside style={{ width: "220px", borderRight: "1px solid #1e1e1e" }}>
-      <div style={{ padding: "1.5rem", fontWeight: "bold", fontSize: "1.1rem" }}>
-        PhysiquePilot
+    <aside className="pp-sidebar">
+      <div className="pp-sidebar-header">
+        <div className="pp-sidebar-brand">PhysiquePilot</div>
+
+        <button
+          onClick={logout}
+          className="pp-logout-btn"
+          type="button"
+          aria-label="Logout"
+        >
+          Logout
+        </button>
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column" }}>
+      <nav className="pp-sidebar-nav">
         <NavLink to="/app/dashboard" style={linkStyle}>Dashboard</NavLink>
-        <NavLink to="/app/weight" style={linkStyle}>Weight Tracking</NavLink>
+        <NavLink to="/app/weight" style={linkStyle}>Weight</NavLink>
         <NavLink to="/app/nutrition" style={linkStyle}>Nutrition</NavLink>
         <NavLink to="/app/training" style={linkStyle}>Training</NavLink>
         <NavLink to="/app/cardio-steps" style={linkStyle}>Cardio & Steps</NavLink>
         <NavLink to="/app/check-ins" style={linkStyle}>Check-ins</NavLink>
         <NavLink to="/app/coach" style={linkStyle}>Coach</NavLink>
         <NavLink to="/app/settings" style={linkStyle}>Settings</NavLink>
-        <button
-          onClick={logout}
-          style={{
-            margin: "1rem",
-            padding: "0.5rem",
-            background: "#1e1e1e",
-            color: "#fff",
-            border: "none",
-            cursor: "pointer"
-          }}
-        >
-          Logout
-        </button>
       </nav>
     </aside>
   );

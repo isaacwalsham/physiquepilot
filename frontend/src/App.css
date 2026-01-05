@@ -1,42 +1,195 @@
+/*
+  Global app styles for PhysiquePilot.
+  Mobile-first shell that doesn’t fight page layouts.
+*/
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0f0f0f;
+  color: #fff;
+  overflow-x: hidden; /* prevent edge-case horizontal scroll */
+}
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+/* -----------------------------
+   App layout hooks (AppLayout)
+   ----------------------------- */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background: #0f0f0f;
+  color: #fff;
+}
+
+/* Sidebar container (desktop) */
+.app-sidebar {
+  width: 280px;
+  flex: 0 0 280px;
+  border-right: 1px solid #1f1f1f;
+  background: #0f0f0f;
+
+  /* make the sidebar independently scrollable on desktop */
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Main content area */
+.app-content {
+  flex: 1;
+  min-width: 0;
   padding: 2rem;
-  text-align: center;
+  overflow-x: hidden;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Inner wrapper */
+.app-content-inner {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+/* -----------------------------
+   Responsive (mobile/tablet)
+   ----------------------------- */
+
+/*
+  Strategy on mobile:
+  - Sidebar becomes a sticky top bar container (not a full-height column).
+  - Content flows underneath.
+  - Sidebar can scroll if it’s tall, but won’t take the whole screen.
+*/
+@media (max-width: 900px) {
+  .app-shell {
+    flex-direction: column;
   }
-  to {
-    transform: rotate(360deg);
+
+  .app-sidebar {
+    width: 100%;
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 1px solid #1f1f1f;
+
+    /* IMPORTANT: sidebar is no longer 100vh on mobile */
+    height: auto;
+    max-height: 160px;
+
+    /* sticky top bar feel */
+    position: sticky;
+    top: 0;
+    z-index: 20;
+
+    overflow-y: auto;
+  }
+
+  .app-content {
+    padding: 1rem;
+  }
+
+  .app-content-inner {
+    max-width: none;
+    margin: 0;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+@media (max-width: 520px) {
+  .app-sidebar {
+    max-height: 140px;
+  }
+
+  .app-content {
+    padding: 0.85rem;
   }
 }
 
-.card {
-  padding: 2em;
+/* -----------------------------
+   Helpers
+   ----------------------------- */
+
+* {
+  box-sizing: border-box;
 }
 
-.read-the-docs {
-  color: #888;
+img,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Sidebar component styles (desktop + mobile) */
+.pp-sidebar {
+  width: 100%;
+}
+
+/* Desktop: use the existing app-sidebar sizing from App.css;
+   this just controls internal layout */
+.pp-sidebar-header {
+  padding: 1.2rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.pp-sidebar-brand {
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.pp-logout-btn {
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: #1e1e1e;
+  color: #fff;
+  border: 1px solid #2a2a2a;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pp-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  gap: 0.35rem;
+}
+
+/* Mobile: top horizontal nav */
+@media (max-width: 900px) {
+  .pp-sidebar-header {
+    padding: 0.9rem 1rem;
+  }
+
+  .pp-sidebar-nav {
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .pp-sidebar-nav::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
 }

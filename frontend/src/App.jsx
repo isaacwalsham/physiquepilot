@@ -12,7 +12,6 @@ import Training from "./pages/Training";
 import CheckIns from "./pages/CheckIns";
 import Coach from "./pages/Coach";
 import Settings from "./pages/Settings";
-import "./styles/responsive.css";
 
 function App() {
   return (
@@ -33,6 +32,7 @@ function App() {
         <Route path="coach" element={<Coach />} />
         <Route path="settings" element={<Settings />} />
       </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
