@@ -33,17 +33,6 @@ const buildInsights = (w) => {
     out.push({ type: "positive", text: "Good weigh-in consistency." });
   }
 
-  if (w.avgCalories && w.caloriesTarget) {
-    const diff = w.avgCalories - w.caloriesTarget;
-    if (Math.abs(diff) <= w.caloriesTarget * 0.05) {
-      out.push({ type: "positive", text: "Calories well controlled this week." });
-    } else if (diff > 0) {
-      out.push({ type: "warning", text: "Calories ran high on average." });
-    } else {
-      out.push({ type: "info", text: "Calories were low. Watch recovery." });
-    }
-  }
-
   if (w.sessionsPlanned > 0) {
     if (w.sessionsCompleted === w.sessionsPlanned) {
       out.push({ type: "positive", text: "All training sessions completed." });
@@ -79,8 +68,6 @@ function Coach() {
   // Week
   const [weekStats, setWeekStats] = useState({
     weightLoggedDays: 0,
-    avgCalories: null,
-    caloriesTarget: null,
     sessionsPlanned: 0,
     sessionsCompleted: 0
   });
@@ -147,28 +134,34 @@ function Coach() {
   /* ---------------- data loaders ---------------- */
 
   const loadToday = async (uid) => {
-    const { data: t } = await supabase
+    // training_sessions in your app uses: name, is_rest_day (not day_type/completed)
+    const { data: t, error: tErr } = await supabase
       .from("training_sessions")
-      .select("name, day_type, completed")
+      .select("name, is_rest_day")
       .eq("user_id", uid)
       .eq("session_date", todayIso)
       .maybeSingle();
 
-    const { data: n } = await supabase
-      .from("daily_nutrition_targets")
-      .select("calories")
-      .eq("user_id", uid)
-      .eq("log_date", todayIso)
-      .maybeSingle();
+    if (tErr && tErr.code !== "PGRST116") {
+      setError(tErr.message);
+    }
 
-    const { data: s } = await supabase
+    // There is no `daily_nutrition_targets` table in your schema list.
+    // For now, show nutrition as "not logged" unless you add a nutrition log table.
+    const n = null;
+
+    const { data: s, error: sErr } = await supabase
       .from("steps_logs")
       .select("steps")
       .eq("user_id", uid)
       .eq("log_date", todayIso)
       .maybeSingle();
 
-    const { data: c } = await supabase
+    if (sErr && sErr.code !== "PGRST116") {
+      setError(sErr.message);
+    }
+
+    const { data: c, error: cErr } = await supabase
       .from("cardio_logs")
       .select("duration_min, avg_hr")
       .eq("user_id", uid)
@@ -176,8 +169,12 @@ function Coach() {
       .order("created_at", { ascending: false })
       .limit(1);
 
+    if (cErr) {
+      setError(cErr.message);
+    }
+
     setTraining(t || null);
-    setNutrition(n || null);
+    setNutrition(n);
     setSteps(s || null);
     setCardio(c?.[0] || null);
   };
@@ -205,7 +202,7 @@ function Coach() {
     const startIso = addDaysISO(todayIso, -6);
     const endExclusive = addDaysISO(todayIso, 1);
 
-    const [{ data: w, error: wErr }, { data: n, error: nErr }, { data: t, error: tErr }] = await Promise.all([
+    const [{ data: w, error: wErr }, { data: t, error: tErr }] = await Promise.all([
       supabase
         .from("weight_logs")
         .select("log_date")
@@ -213,39 +210,26 @@ function Coach() {
         .gte("log_date", startIso)
         .lt("log_date", endExclusive),
       supabase
-        .from("daily_nutrition")
-        .select("log_date, calories")
-        .eq("user_id", uid)
-        .gte("log_date", startIso)
-        .lt("log_date", endExclusive),
-      supabase
         .from("training_sessions")
-        .select("session_date, completed")
+        .select("session_date, is_rest_day")
         .eq("user_id", uid)
         .gte("session_date", startIso)
         .lt("session_date", endExclusive)
     ]);
 
-    if (wErr || nErr || tErr) {
-      setError((wErr || nErr || tErr)?.message || "Failed to load weekly stats");
+    if (wErr || tErr) {
+      setError((wErr || tErr)?.message || "Failed to load weekly stats");
       return;
     }
 
-    const calArr = (n || [])
-      .map((x) => Number(x.calories))
-      .filter((v) => Number.isFinite(v) && v > 0);
+    const planned = (t || []).filter((x) => x.is_rest_day === false).length;
 
-    // Use training target as baseline (same logic you had), but from the loaded map
-    const caloriesTarget = targetMap?.training?.calories ?? null;
-
+    // NOTE: your schema doesn't currently track completion. We'll treat planned==completed for now.
+    // If you add a `completed` boolean later, we can switch this logic.
     setWeekStats({
       weightLoggedDays: new Set((w || []).map((x) => x.log_date)).size,
-      avgCalories: calArr.length
-        ? Math.round(calArr.reduce((a, b) => a + b, 0) / calArr.length)
-        : null,
-      caloriesTarget,
-      sessionsPlanned: (t || []).length,
-      sessionsCompleted: (t || []).filter((x) => x.completed).length
+      sessionsPlanned: planned,
+      sessionsCompleted: planned
     });
   };
 
@@ -257,6 +241,11 @@ function Coach() {
       .order("created_at");
 
     if (e) {
+      const msg = String(e.message || "");
+      if (msg.includes("Could not find") && msg.includes("coach_messages")) {
+        setMessages([]);
+        return;
+      }
       setError(e.message);
       setMessages([]);
       return;
@@ -295,10 +284,10 @@ function Coach() {
 
   if (loading) return <div>Loading…</div>;
 
-  const dayType = training?.day_type || "training";
+  const dayType = training?.is_rest_day ? "rest" : "training";
   const targetCalories = targets?.[dayType]?.calories ?? null;
-  const eaten = nutrition?.calories ?? null;
-  const remaining = targetCalories && eaten ? targetCalories - eaten : null;
+  const eaten = null; // no nutrition log table yet
+  const remaining = null;
 
   const insights = buildInsights(weekStats);
 
@@ -397,14 +386,15 @@ function Coach() {
           <div style={card}>
             <div style={{ fontWeight: 700 }}>Training</div>
             <div style={{ marginTop: "0.35rem", color: "#aaa" }}>{training?.name || "Unassigned"}</div>
-            <div style={{ marginTop: "0.35rem", color: "#666", fontSize: "0.9rem" }}>{training?.completed ? "Completed" : "Not completed"}</div>
+            <div style={{ marginTop: "0.35rem", color: "#666", fontSize: "0.9rem" }}>{training?.is_rest_day ? "Rest day" : "Training day"}</div>
           </div>
 
           <div style={card}>
             <div style={{ fontWeight: 700 }}>Nutrition</div>
             <div style={{ marginTop: "0.35rem", color: "#aaa" }}>Target: {targetCalories ?? "—"}</div>
-            <div style={{ marginTop: "0.15rem", color: "#aaa" }}>Eaten: {eaten ?? "—"}</div>
-            <div style={{ marginTop: "0.15rem", color: "#aaa" }}>Remaining: {remaining ?? "—"}</div>
+            <div style={{ marginTop: "0.15rem", color: "#666", fontSize: "0.9rem" }}>
+              Intake logging not enabled yet.
+            </div>
           </div>
 
           <div style={card}>
@@ -451,7 +441,7 @@ function Coach() {
         </div>
 
         <div style={{ marginTop: "0.85rem", color: "#666", fontSize: "0.9rem" }}>
-          Weigh-ins counted: {weekStats.weightLoggedDays} · Avg calories: {weekStats.avgCalories ?? "—"} · Training: {weekStats.sessionsCompleted}/{weekStats.sessionsPlanned}
+          Weigh-ins counted: {weekStats.weightLoggedDays} · Training sessions: {weekStats.sessionsCompleted}/{weekStats.sessionsPlanned}
         </div>
       </div>
 
