@@ -35,9 +35,7 @@ function Landing() {
     return () => clearInterval(i);
   }, [slides.length]);
 
-  const wrap = {
-    minHeight: "100vh"
-  };
+  const wrap = { minHeight: "100vh" };
 
   const header = {
     borderBottom: "1px solid #1e1e1e",
@@ -52,7 +50,9 @@ function Landing() {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "1rem 0"
+    padding: "1rem 0",
+    gap: "1rem",
+    flexWrap: "wrap"
   };
 
   const brand = { fontWeight: 750, fontSize: "1.15rem", letterSpacing: "0.2px" };
@@ -65,27 +65,16 @@ function Landing() {
     borderRadius: "12px"
   };
 
-  const btnGhost = {
-    ...btnBase,
-    background: "transparent",
-    color: "#fff"
-  };
+  const btnGhost = { ...btnBase, background: "transparent", color: "#fff" };
+  const btnPrimary = { ...btnBase, background: "#2a2a2a", color: "#fff" };
 
-  const btnPrimary = {
-    ...btnBase,
-    background: "#2a2a2a",
-    color: "#fff"
-  };
-
-  const section = {
-    padding: "4.5rem 0"
-  };
+  const section = { padding: "4.5rem 0" };
 
   const heroGrid = {
     display: "grid",
     gridTemplateColumns: "1.1fr 0.9fr",
     gap: "2.25rem",
-    alignItems: "center"
+    alignItems: "start"
   };
 
   const heroTitle = {
@@ -122,12 +111,7 @@ function Landing() {
     transition: "transform 0.2s ease, border-color 0.2s ease"
   };
 
-  const dots = {
-    marginTop: "1.25rem",
-    display: "flex",
-    gap: "0.4rem"
-  };
-
+  const dots = { marginTop: "1.25rem", display: "flex", gap: "0.4rem" };
   const dot = (active) => ({
     width: "8px",
     height: "8px",
@@ -135,9 +119,7 @@ function Landing() {
     background: active ? "#fff" : "#333"
   });
 
-  const sectionDivider = {
-    borderTop: "1px solid #1e1e1e"
-  };
+  const sectionDivider = { borderTop: "1px solid #1e1e1e" };
 
   const gridCards = {
     display: "grid",
@@ -156,12 +138,55 @@ function Landing() {
   const cardTitle = { marginTop: 0, marginBottom: "0.5rem" };
   const cardText = { color: "#aaa", lineHeight: 1.7, margin: 0 };
 
-  // Responsive tweaks without needing more CSS files
+  // ✅ Key: proper mobile flow (title first, content underneath, no squash)
   const responsiveStyle = `
+    /* Tablet + below */
     @media (max-width: 980px) {
-      .pp-hero-grid { grid-template-columns: 1fr; }
-      .pp-cards { grid-template-columns: 1fr; }
-      .pp-cards-3 { grid-template-columns: 1fr; }
+      .pp-hero-grid { 
+        grid-template-columns: 1fr !important; 
+        gap: 1.25rem !important;
+      }
+      .pp-cards { grid-template-columns: 1fr !important; }
+      .pp-cards-3 { grid-template-columns: 1fr !important; }
+
+      .pp-hero-pad { 
+        padding-top: 2.75rem !important; 
+        padding-bottom: 2.25rem !important; 
+      }
+    }
+
+    /* Mobile */
+    @media (max-width: 520px) {
+      .pp-header-actions {
+        width: 100%;
+        display: flex !important;
+        gap: 0.6rem !important;
+        justify-content: flex-start !important;
+        flex-wrap: wrap !important;
+      }
+
+      .pp-hero-title {
+        font-size: 2.05rem !important;
+        line-height: 1.12 !important;
+      }
+
+      .pp-hero-text {
+        font-size: 1rem !important;
+        line-height: 1.6 !important;
+      }
+
+      .pp-panel {
+        padding: 1.25rem !important;
+        min-height: 0 !important;
+      }
+
+      .pp-section {
+        padding: 3.25rem 0 !important;
+      }
+
+      .pp-footer {
+        padding: 1.5rem 0 !important;
+      }
     }
   `;
 
@@ -187,7 +212,7 @@ function Landing() {
           <div style={headerInner}>
             <div style={brand}>PhysiquePilot</div>
 
-            <div style={{ display: "flex", gap: "0.75rem" }}>
+            <div className="pp-header-actions" style={{ display: "flex", gap: "0.75rem" }}>
               <button onClick={() => navigate("/login")} style={btnGhost}>
                 Log in
               </button>
@@ -206,12 +231,14 @@ function Landing() {
 
         <main>
           {/* HERO */}
-          <section style={{ ...section, paddingTop: "4rem" }}>
+          <section className="pp-section pp-hero-pad" style={{ ...section, paddingTop: "4rem" }}>
             <div className="pp-hero-grid" style={heroGrid}>
               <div>
-                <h1 style={heroTitle}>A connected training, nutrition, and progress system.</h1>
+                <h1 className="pp-hero-title" style={heroTitle}>
+                  A connected training, nutrition, and progress system.
+                </h1>
 
-                <p style={heroText}>
+                <p className="pp-hero-text" style={heroText}>
                   PhysiquePilot brings training, nutrition, and progress tracking into one system. As you log data,
                   the platform learns and applies coaching logic to help guide smarter decisions over time.
                 </p>
@@ -233,6 +260,7 @@ function Landing() {
               </div>
 
               <div
+                className="pp-panel"
                 style={panel}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)";
@@ -244,9 +272,7 @@ function Landing() {
                 }}
               >
                 <div style={{ fontSize: "1.25rem", fontWeight: 750 }}>{slides[index].title}</div>
-                <div style={{ marginTop: "0.8rem", color: "#aaa", lineHeight: 1.7 }}>
-                  {slides[index].text}
-                </div>
+                <div style={{ marginTop: "0.8rem", color: "#aaa", lineHeight: 1.7 }}>{slides[index].text}</div>
 
                 <div style={dots}>
                   {slides.map((_, i) => (
@@ -258,7 +284,7 @@ function Landing() {
           </section>
 
           {/* 3 CORE PILLARS */}
-          <section style={{ ...sectionDivider, ...section }}>
+          <section className="pp-section" style={{ ...sectionDivider, ...section }}>
             <div className="pp-cards-3" style={gridCards}>
               {[
                 {
@@ -283,7 +309,7 @@ function Landing() {
           </section>
 
           {/* HOW IT WORKS */}
-          <section style={{ ...sectionDivider, ...section }}>
+          <section className="pp-section" style={{ ...sectionDivider, ...section }}>
             <h2 style={{ marginTop: 0, marginBottom: "1.25rem" }}>How it works</h2>
 
             <div
@@ -335,7 +361,7 @@ function Landing() {
             </div>
           </section>
 
-          <footer style={{ borderTop: "1px solid #1e1e1e", padding: "2rem 0", color: "#777" }}>
+          <footer className="pp-footer" style={{ borderTop: "1px solid #1e1e1e", padding: "2rem 0", color: "#777" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
               <div>© {new Date().getFullYear()} PhysiquePilot</div>
               <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
