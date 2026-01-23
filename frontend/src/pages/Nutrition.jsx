@@ -747,6 +747,61 @@ function Nutrition() {
               <div style={{ color: "#666" }}>{dayLabel[todayType]}</div>
             </div>
 
+            {/* Goal for the day */}
+            <div
+              style={{
+                marginTop: "1rem",
+                border: "1px solid #222",
+                background: "#111",
+                borderRadius: "16px",
+                padding: "1rem"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
+                <div style={{ fontWeight: 800 }}>Goal for {logDate}</div>
+
+                <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ color: "#aaa" }}>Day type</div>
+                  <select
+                    value={todayType}
+                    onChange={(e) => saveTodayType(e.target.value)}
+                    style={{ ...input, width: "auto", padding: "0.6rem 0.7rem" }}
+                  >
+                    <option value="training">Training day</option>
+                    <option value="rest">Rest day</option>
+                    <option value="high">High day</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ color: "#aaa", marginTop: "0.5rem", lineHeight: 1.55 }}>
+                Use these targets as your aim for the day, then log what you actually ate below.
+              </div>
+
+              <div className="pp-metrics-4" style={{ marginTop: "0.85rem" }}>
+                <div>
+                  <div style={{ color: "#aaa" }}>Calories</div>
+                  <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets?.calories ?? "—"}</div>
+                </div>
+                <div>
+                  <div style={{ color: "#aaa" }}>Protein</div>
+                  <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.protein_g}g` : "—"}</div>
+                </div>
+                <div>
+                  <div style={{ color: "#aaa" }}>Carbs</div>
+                  <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.carbs_g}g` : "—"}</div>
+                </div>
+                <div>
+                  <div style={{ color: "#aaa" }}>Fats</div>
+                  <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.fats_g}g` : "—"}</div>
+                </div>
+              </div>
+
+              <div style={{ color: "#666", marginTop: "0.75rem", fontSize: "0.9rem" }}>
+                Note: right now this uses your current day-type selection. If you log future dates, you can switch the day type here.
+              </div>
+            </div>
+
             <div className="pp-grid-2" style={{ marginTop: "1rem" }}>
               <div>
                 <div style={{ color: "#aaa", marginBottom: "0.35rem" }}>Today’s day type</div>
