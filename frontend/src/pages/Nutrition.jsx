@@ -33,6 +33,34 @@ function Nutrition() {
   const [logDate, setLogDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dailyLog, setDailyLog] = useState({ calories: "", protein_g: "", carbs_g: "", fats_g: "", notes: "", finalized: false });
   const [savingLog, setSavingLog] = useState(false);
+  // State for selected log date's resolved day type
+  const [logDayType, setLogDayType] = useState("rest");
+  const [logIsHigh, setLogIsHigh] = useState(false);
+  // Helper to resolve a day type for any date (prefers training_cycle_days, falls back to profiles.training_days)
+  const resolveDayTypeForDate = async (uid, isoDate, fallbackTrainingDays) => {
+    // 1) Prefer canonical cycle day table
+    try {
+      const { data: cd, error: cdErr } = await supabase
+        .from("training_cycle_days")
+        .select("day_type,is_high_day")
+        .eq("user_id", uid)
+        .eq("date", isoDate)
+        .maybeSingle();
+
+      if (!cdErr && cd && cd.day_type) {
+        return { dayType: cd.day_type, isHigh: !!cd.is_high_day };
+      }
+    } catch {
+      // ignore and fall back
+    }
+
+    // 2) Fallback: infer from weekly fixed training_days
+    const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const todayShort = dayMap[new Date(isoDate + "T00:00:00").getDay()];
+    const inferred = (fallbackTrainingDays || []).includes(todayShort) ? "training" : "rest";
+    return { dayType: inferred, isHigh: false };
+  };
+
 
   const [targets, setTargets] = useState({
     training: null,
@@ -148,6 +176,11 @@ function Nutrition() {
         high: pData?.baseline_ratio_high || null
       });
 
+      // Resolve day type for the selected log date (used in the Log tab goal display)
+      const resolvedLog = await resolveDayTypeForDate(user.id, logDate, trainingDays);
+      setLogDayType(resolvedLog.dayType);
+      setLogIsHigh(resolvedLog.isHigh);
+
       const { data: fData, error: fErr } = await supabase
         .from("weekly_flex_rules")
         .select("base_cheat_meals, banked_cheat_meals, used_cheat_meals, alcohol_units_week, week_start")
@@ -242,6 +275,22 @@ function Nutrition() {
     const run = async () => {
       if (!userId || !logDate) return;
       setError("");
+
+      // Resolve day type for this log date
+      try {
+        const { data: pData } = await supabase
+          .from("profiles")
+          .select("training_days")
+          .eq("user_id", userId)
+          .maybeSingle();
+        const trainingDays = Array.isArray(pData?.training_days) ? pData.training_days : [];
+        const resolved = await resolveDayTypeForDate(userId, logDate, trainingDays);
+        setLogDayType(resolved.dayType);
+        setLogIsHigh(resolved.isHigh);
+      } catch {
+        // ignore
+      }
+
       const { data: dLog, error: dErr } = await supabase
         .from("daily_nutrition_logs")
         .select("calories, protein_g, carbs_g, fats_g, notes, finalized, finalized_at")
@@ -1228,6 +1277,48 @@ function Nutrition() {
 
             <div className="pp-grid-2" style={{ marginTop: "1rem" }}>
               <div>
+                {/* Goal for the day block */}
+                <div style={{ marginBottom: "1rem", padding: "1rem", border: "1px solid #222", background: "#111", borderRadius: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.75rem", flexWrap: "wrap" }}>
+                    <div style={{ fontWeight: 800 }}>Goal for {logDate}</div>
+                    <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                      {logDayType === "high" ? "High day" : logDayType === "training" ? "Training day" : "Rest day"}
+                      {logIsHigh ? " (high)" : ""}
+                    </div>
+                  </div>
+
+                  <div style={{ color: "#aaa", marginTop: "0.4rem", fontSize: "0.9rem", lineHeight: 1.4 }}>
+                    These targets are synced from your training calendar. If you need to change the day type, do it in Training.
+                  </div>
+
+                  <div className="pp-metrics-4" style={{ marginTop: "0.75rem" }}>
+                    <div>
+                      <div style={{ color: "#aaa" }}>Calories</div>
+                      <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>
+                        {(targets[logDayType]?.calories ?? "—")}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#aaa" }}>Protein</div>
+                      <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>
+                        {targets[logDayType] ? `${targets[logDayType].protein_g}g` : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#aaa" }}>Carbs</div>
+                      <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>
+                        {targets[logDayType] ? `${targets[logDayType].carbs_g}g` : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: "#aaa" }}>Fats</div>
+                      <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>
+                        {targets[logDayType] ? `${targets[logDayType].fats_g}g` : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div style={{ fontWeight: 800 }}>Totals</div>
                 <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.9rem" }}>
                   You can log totals even if you don't know the exact foods yet.

@@ -120,6 +120,79 @@ export default function Training() {
     return norm.length ? norm : null;
   };
 
+  // Persist a computed day type for a date so other pages (e.g. Nutrition) can stay in sync.
+  // This is intentionally defensive because the DB schema may differ between environments.
+  const persistDayTypeForDate = async (uid, dateISO, dayType) => {
+    if (!uid || !dateISO) return;
+    const cleanType = dayType === "high" ? "high" : dayType === "training" ? "training" : "rest";
+
+    // Try a few common table/column layouts.
+    const attempts = [
+      // training_cycle_days(day_date, day_type)
+      () =>
+        supabase
+          .from("training_cycle_days")
+          .upsert(
+            { user_id: uid, day_date: dateISO, day_type: cleanType },
+            { onConflict: "user_id,day_date" }
+          ),
+      // training_cycle_days(session_date, day_type)
+      () =>
+        supabase
+          .from("training_cycle_days")
+          .upsert(
+            { user_id: uid, session_date: dateISO, day_type: cleanType },
+            { onConflict: "user_id,session_date" }
+          ),
+      // training_day_overrides(override_date, day_type)
+      () =>
+        supabase
+          .from("training_day_overrides")
+          .upsert(
+            { user_id: uid, override_date: dateISO, day_type: cleanType },
+            { onConflict: "user_id,override_date" }
+          ),
+      // training_day_overrides(day_date, day_type)
+      () =>
+        supabase
+          .from("training_day_overrides")
+          .upsert(
+            { user_id: uid, day_date: dateISO, day_type: cleanType },
+            { onConflict: "user_id,day_date" }
+          )
+    ];
+
+    for (const run of attempts) {
+      try {
+        const { error } = await run();
+        if (!error) return;
+
+        // If the table/column doesn't exist in this project, try next attempt.
+        const msg = String(error.message || "");
+        if (msg.includes("Could not find") || msg.includes("schema cache") || msg.includes("does not exist")) {
+          continue;
+        }
+
+        // Any other error is real (RLS/permissions/etc) — surface it.
+        setError(msg);
+        return;
+      } catch (e) {
+        // Network/runtime issues — surface.
+        setError(String(e?.message || e));
+        return;
+      }
+    }
+    // If all attempts failed due to missing schema, silently do nothing.
+  };
+
+  const persistManyDayTypes = async (uid, rows) => {
+    if (!uid || !Array.isArray(rows) || !rows.length) return;
+    // Best-effort: write sequentially so one bad row doesn't stop the rest.
+    for (const r of rows) {
+      await persistDayTypeForDate(uid, r.dateISO, r.dayType);
+    }
+  };
+
   const preloadWeekFromProfile = async (uid) => {
     // Pull schedule settings from onboarding
     const { data: profile, error: pErr } = await supabase
@@ -169,6 +242,13 @@ export default function Training() {
 
     // Next 7 days (today + 6)
     const dates = week.map((d) => d.iso);
+
+    // Persist the computed schedule (training/rest) for the next 7 days so Nutrition can infer day types.
+    // Note: high days can be layered later (e.g. from weak-part selection). For now we persist training/rest.
+    await persistManyDayTypes(
+      uid,
+      dates.map((d) => ({ dateISO: d, dayType: isTrainingForDate(d) ? "training" : "rest" }))
+    );
 
     // Check which sessions already exist
     const { data: existing, error: exErr } = await supabase
@@ -257,6 +337,10 @@ export default function Training() {
       setExercises([]);
       setSetsByExercise({});
       await syncTodayDayTypeToProfile(null);
+
+      // Best-effort: ensure the date exists in the schedule table as "rest" so Nutrition can stay consistent
+      // even when no session row exists.
+      await persistDayTypeForDate(uid, dateISO, "rest");
       return;
     }
 
@@ -335,6 +419,7 @@ export default function Training() {
     setExercises([]);
     setSetsByExercise({});
     await syncTodayDayTypeToProfile(data);
+    await persistDayTypeForDate(userId, selectedDate, data.is_rest_day ? "rest" : "training");
     await fetchWeekSessions(userId);
   };
   // Sync today's day type (training/rest) to profiles table if editing today
@@ -424,6 +509,7 @@ export default function Training() {
 
     setSession({ ...session, is_rest_day: next });
     await syncTodayDayTypeToProfile({ ...session, is_rest_day: next });
+    await persistDayTypeForDate(userId, selectedDate, next ? "rest" : "training");
     await fetchWeekSessions(userId);
   };
 
