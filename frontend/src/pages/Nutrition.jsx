@@ -27,6 +27,12 @@ function Nutrition() {
   const [todayType, setTodayType] = useState("rest");
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("pp_nutrition_view_mode") || "macros");
   const [macroDisplay, setMacroDisplay] = useState(() => localStorage.getItem("pp_mealplan_macro_display") || "both");
+  // New state for tab, baselineRatios, logDate, dailyLog, savingLog
+  const [tab, setTab] = useState(() => localStorage.getItem("pp_nutrition_tab") || "macros");
+  const [baselineRatios, setBaselineRatios] = useState({ training: null, rest: null, high: null });
+  const [logDate, setLogDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dailyLog, setDailyLog] = useState({ calories: "", protein_g: "", carbs_g: "", fats_g: "", notes: "", finalized: false });
+  const [savingLog, setSavingLog] = useState(false);
 
   const [targets, setTargets] = useState({
     training: null,
@@ -109,7 +115,7 @@ function Nutrition() {
       const { data: pData } = await supabase
         .from("profiles")
         .select(
-          "training_days, today_day_type, today_day_type_date, current_weight_kg, nutrition_view_mode, show_meal_macros, show_day_macros"
+          "training_days, today_day_type, today_day_type_date, current_weight_kg, nutrition_view_mode, show_meal_macros, show_day_macros, baseline_ratio_training, baseline_ratio_rest, baseline_ratio_high"
         )
         .eq("user_id", user.id)
         .maybeSingle();
@@ -134,6 +140,13 @@ function Nutrition() {
         const nextDisplay = perMeal && perDay ? "both" : perMeal ? "per_meal" : perDay ? "per_day" : "none";
         setMacroDisplay(nextDisplay);
       }
+
+      // Set baseline ratios from profile
+      setBaselineRatios({
+        training: pData?.baseline_ratio_training || null,
+        rest: pData?.baseline_ratio_rest || null,
+        high: pData?.baseline_ratio_high || null
+      });
 
       const { data: fData, error: fErr } = await supabase
         .from("weekly_flex_rules")
@@ -174,16 +187,90 @@ function Nutrition() {
         }
 
         setFlex(fData2);
+        // Load daily nutrition log for selected date
+        const { data: dLog, error: dErr } = await supabase
+          .from("daily_nutrition_logs")
+          .select("calories, protein_g, carbs_g, fats_g, notes, finalized, finalized_at")
+          .eq("user_id", user.id)
+          .eq("log_date", logDate)
+          .maybeSingle();
+
+        if (!dErr && dLog) {
+          setDailyLog({
+            calories: dLog.calories ?? "",
+            protein_g: dLog.protein_g ?? "",
+            carbs_g: dLog.carbs_g ?? "",
+            fats_g: dLog.fats_g ?? "",
+            notes: dLog.notes ?? "",
+            finalized: !!dLog.finalized
+          });
+        } else {
+          setDailyLog({ calories: "", protein_g: "", carbs_g: "", fats_g: "", notes: "", finalized: false });
+        }
         setLoading(false);
         return;
       }
 
       setFlex(fData);
+      // Load daily nutrition log for selected date
+      const { data: dLog, error: dErr } = await supabase
+        .from("daily_nutrition_logs")
+        .select("calories, protein_g, carbs_g, fats_g, notes, finalized, finalized_at")
+        .eq("user_id", user.id)
+        .eq("log_date", logDate)
+        .maybeSingle();
+
+      if (!dErr && dLog) {
+        setDailyLog({
+          calories: dLog.calories ?? "",
+          protein_g: dLog.protein_g ?? "",
+          carbs_g: dLog.carbs_g ?? "",
+          fats_g: dLog.fats_g ?? "",
+          notes: dLog.notes ?? "",
+          finalized: !!dLog.finalized
+        });
+      } else {
+        setDailyLog({ calories: "", protein_g: "", carbs_g: "", fats_g: "", notes: "", finalized: false });
+      }
       setLoading(false);
     };
 
     load();
   }, []);
+  // Reload daily log when userId or logDate changes
+  useEffect(() => {
+    const run = async () => {
+      if (!userId || !logDate) return;
+      setError("");
+      const { data: dLog, error: dErr } = await supabase
+        .from("daily_nutrition_logs")
+        .select("calories, protein_g, carbs_g, fats_g, notes, finalized, finalized_at")
+        .eq("user_id", userId)
+        .eq("log_date", logDate)
+        .maybeSingle();
+
+      if (dErr) {
+        // If the table/column isn't present yet, show error clearly
+        setError(dErr.message);
+        return;
+      }
+
+      if (dLog) {
+        setDailyLog({
+          calories: dLog.calories ?? "",
+          protein_g: dLog.protein_g ?? "",
+          carbs_g: dLog.carbs_g ?? "",
+          fats_g: dLog.fats_g ?? "",
+          notes: dLog.notes ?? "",
+          finalized: !!dLog.finalized
+        });
+      } else {
+        setDailyLog({ calories: "", protein_g: "", carbs_g: "", fats_g: "", notes: "", finalized: false });
+      }
+    };
+
+    run();
+  }, [userId, logDate]);
 
   // Keep in sync if another page (e.g. Training calendar) overrides today's day type.
   useEffect(() => {
@@ -299,6 +386,74 @@ function Nutrition() {
     return Number.isFinite(lb) && lb > 0 ? lb : null;
   }, [weightKg]);
 
+  // Helper: clamp and ratioBounds, saveDailyLog
+  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+  const ratioBounds = useMemo(() => {
+    const build = (dayType, key, fallbackVal) => {
+      const base = baselineRatios?.[dayType]?.[key];
+      const center = Number.isFinite(Number(base)) ? Number(base) : Number(fallbackVal);
+      const min = round2(center - 0.5);
+      const max = round2(center + 0.5);
+      return { center, min, max };
+    };
+
+    return {
+      training: {
+        protein: build("training", "protein", macroRatios.training.protein),
+        carbs: build("training", "carbs", macroRatios.training.carbs),
+        fats: build("training", "fats", macroRatios.training.fats)
+      },
+      rest: {
+        protein: build("rest", "protein", macroRatios.rest.protein),
+        carbs: build("rest", "carbs", macroRatios.rest.carbs),
+        fats: build("rest", "fats", macroRatios.rest.fats)
+      },
+      high: {
+        protein: build("high", "protein", macroRatios.high.protein),
+        carbs: build("high", "carbs", macroRatios.high.carbs),
+        fats: build("high", "fats", macroRatios.high.fats)
+      }
+    };
+  }, [baselineRatios, macroRatios]);
+
+  const saveDailyLog = async (finalize = false) => {
+    if (!userId || !logDate) return;
+    setSavingLog(true);
+    setError("");
+
+    const cleanIntOrNull = (v) => {
+      const s = String(v ?? "").trim();
+      if (!s) return null;
+      const n = Math.round(Number(s));
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
+
+    const payload = {
+      user_id: userId,
+      log_date: logDate,
+      calories: cleanIntOrNull(dailyLog.calories),
+      protein_g: cleanIntOrNull(dailyLog.protein_g),
+      carbs_g: cleanIntOrNull(dailyLog.carbs_g),
+      fats_g: cleanIntOrNull(dailyLog.fats_g),
+      notes: String(dailyLog.notes || ""),
+      finalized: finalize ? true : !!dailyLog.finalized,
+      finalized_at: finalize ? new Date().toISOString() : null
+    };
+
+    const { error: e } = await supabase
+      .from("daily_nutrition_logs")
+      .upsert(payload, { onConflict: "user_id,log_date" });
+
+    setSavingLog(false);
+    if (e) {
+      setError(e.message);
+      return;
+    }
+
+    setDailyLog((prev) => ({ ...prev, finalized: finalize ? true : prev.finalized }));
+  };
+
   const applyRatiosToDay = async (dayType, nextRatios) => {
     if (!userId) return;
     if (!weightLb) {
@@ -337,7 +492,10 @@ function Nutrition() {
   };
 
   const updateRatio = (dayType, key, value) => {
-    const clean = round2(value);
+    const bounds = ratioBounds?.[dayType]?.[key];
+    const min = bounds ? bounds.min : value;
+    const max = bounds ? bounds.max : value;
+    const clean = round2(clamp(value, min, max));
     const nextRatios = { ...macroRatios[dayType], [key]: clean };
     setMacroRatios((prev) => ({ ...prev, [dayType]: nextRatios }));
 
@@ -503,23 +661,53 @@ function Nutrition() {
         <div>
           <h1 style={{ margin: 0 }}>Nutrition</h1>
           <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            {viewMode === "macros"
+            {tab === "macros"
               ? "Daily targets can differ by training day, rest day, and high day."
-              : "Meal plans will be generated by the coach based on your targets and preferences."}
+              : tab === "meal_plan"
+              ? "Meal plans will be generated by the coach based on your targets and preferences."
+              : "Log what you ate today (macros) or leave notes. Finalize at the end of the day."}
           </div>
         </div>
 
         <div className="pp-actions" style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button type="button" onClick={() => setAndPersistViewMode("macros")} style={pill(viewMode === "macros")}>
+            <button
+              type="button"
+              onClick={() => {
+                setTab("macros");
+                try { localStorage.setItem("pp_nutrition_tab", "macros"); } catch {}
+                setAndPersistViewMode("macros");
+              }}
+              style={pill(tab === "macros")}
+            >
               Macros
             </button>
-            <button type="button" onClick={() => setAndPersistViewMode("meal_plan")} style={pill(viewMode === "meal_plan")}>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTab("meal_plan");
+                try { localStorage.setItem("pp_nutrition_tab", "meal_plan"); } catch {}
+                setAndPersistViewMode("meal_plan");
+              }}
+              style={pill(tab === "meal_plan")}
+            >
               Meal plan
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTab("log");
+                try { localStorage.setItem("pp_nutrition_tab", "log"); } catch {}
+              }}
+              style={pill(tab === "log")}
+            >
+              Log
             </button>
           </div>
 
-          {viewMode === "meal_plan" && (
+          {tab === "meal_plan" && (
             <select
               value={macroDisplay}
               onChange={(e) => setAndPersistMacroDisplay(e.target.value)}
@@ -547,7 +735,7 @@ function Nutrition() {
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
       {/* MACROS VIEW */}
-      {viewMode === "macros" && (
+      {tab === "macros" && (
         <div className="pp-stack">
           {/* SECTION: TODAY */}
           <section style={sectionCard}>
@@ -673,7 +861,7 @@ function Nutrition() {
                       </div>
 
                       <div style={{ color: "#aaa", marginTop: "0.4rem", fontSize: "0.9rem" }}>
-                        Adjust in 0.05 g/lb steps. Updates grams + calories.
+                        Adjust in 0.05 g/lb steps. Sliders are capped to ±0.5 g/lb from your baseline.
                       </div>
 
                       <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.7rem" }}>
@@ -684,8 +872,8 @@ function Nutrition() {
                           </div>
                           <input
                             type="range"
-                            min="0.60"
-                            max="1.50"
+                            min={ratioBounds[dayType].protein.min}
+                            max={ratioBounds[dayType].protein.max}
                             step="0.05"
                             value={macroRatios[dayType].protein}
                             onChange={(e) => updateRatio(dayType, "protein", Number(e.target.value))}
@@ -701,8 +889,8 @@ function Nutrition() {
                           </div>
                           <input
                             type="range"
-                            min="0.25"
-                            max="2.50"
+                            min={ratioBounds[dayType].carbs.min}
+                            max={ratioBounds[dayType].carbs.max}
                             step="0.05"
                             value={macroRatios[dayType].carbs}
                             onChange={(e) => updateRatio(dayType, "carbs", Number(e.target.value))}
@@ -718,8 +906,8 @@ function Nutrition() {
                           </div>
                           <input
                             type="range"
-                            min="0.15"
-                            max="0.60"
+                            min={ratioBounds[dayType].fats.min}
+                            max={ratioBounds[dayType].fats.max}
                             step="0.05"
                             value={macroRatios[dayType].fats}
                             onChange={(e) => updateRatio(dayType, "fats", Number(e.target.value))}
@@ -851,7 +1039,7 @@ function Nutrition() {
       )}
 
       {/* MEAL PLAN VIEW */}
-      {viewMode === "meal_plan" && (
+      {tab === "meal_plan" && (
         <div className="pp-stack">
           <section style={sectionCard}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
@@ -954,6 +1142,133 @@ function Nutrition() {
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* LOG VIEW */}
+      {tab === "log" && (
+        <div className="pp-stack">
+          <section style={sectionCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
+              <div>
+                <div style={sectionTitle}>Daily nutrition log</div>
+                <div style={sectionSub}>
+                  Enter your day totals (quick) or write notes. Finalize when you're done for the day.
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ color: "#aaa" }}>Date</div>
+                <input
+                  type="date"
+                  value={logDate}
+                  onChange={(e) => setLogDate(e.target.value)}
+                  style={{ ...input, width: "auto" }}
+                />
+              </div>
+            </div>
+
+            <div className="pp-grid-2" style={{ marginTop: "1rem" }}>
+              <div>
+                <div style={{ fontWeight: 800 }}>Totals</div>
+                <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.9rem" }}>
+                  You can log totals even if you don't know the exact foods yet.
+                </div>
+
+                <div className="pp-metrics-4" style={{ marginTop: "0.9rem" }}>
+                  <div>
+                    <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Calories</div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={dailyLog.calories}
+                      onChange={(e) => setDailyLog((p) => ({ ...p, calories: e.target.value }))}
+                      style={input}
+                      disabled={dailyLog.finalized}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Protein (g)</div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={dailyLog.protein_g}
+                      onChange={(e) => setDailyLog((p) => ({ ...p, protein_g: e.target.value }))}
+                      style={input}
+                      disabled={dailyLog.finalized}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Carbs (g)</div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={dailyLog.carbs_g}
+                      onChange={(e) => setDailyLog((p) => ({ ...p, carbs_g: e.target.value }))}
+                      style={input}
+                      disabled={dailyLog.finalized}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Fats (g)</div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={dailyLog.fats_g}
+                      onChange={(e) => setDailyLog((p) => ({ ...p, fats_g: e.target.value }))}
+                      style={input}
+                      disabled={dailyLog.finalized}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "0.9rem", display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => saveDailyLog(false)}
+                    disabled={savingLog || dailyLog.finalized}
+                    style={{ ...pill(true), background: "#2a2a2a", borderColor: "#333" }}
+                  >
+                    {savingLog ? "Saving…" : "Save"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => saveDailyLog(true)}
+                    disabled={savingLog || dailyLog.finalized}
+                    style={pill(false)}
+                  >
+                    Finalize day
+                  </button>
+
+                  {dailyLog.finalized && (
+                    <div style={{ color: "#ffb86b", alignSelf: "center" }}>
+                      Finalized — unlock by editing in the database for now.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 800 }}>Notes / chat log</div>
+                <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.9rem" }}>
+                  Type what you ate (free text). Later the coach can parse and structure this.
+                </div>
+
+                <textarea
+                  value={dailyLog.notes}
+                  onChange={(e) => setDailyLog((p) => ({ ...p, notes: e.target.value }))}
+                  style={{ ...input, minHeight: "220px", resize: "vertical", padding: "0.85rem" }}
+                  disabled={dailyLog.finalized}
+                  placeholder="Example: Breakfast: oats + whey..."
+                />
+
+                <div style={{ marginTop: "0.75rem", color: "#666", fontSize: "0.9rem" }}>
+                  This will be included in your weekly check-in.
+                </div>
               </div>
             </div>
           </section>
