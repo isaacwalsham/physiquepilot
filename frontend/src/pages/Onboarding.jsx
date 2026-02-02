@@ -14,6 +14,7 @@ function Onboarding() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [sex, setSex] = useState("male");
+  const [dateOfBirth, setDateOfBirth] = useState(""); // YYYY-MM-DD
   const [bodyFatPctInput, setBodyFatPctInput] = useState("");
   const [defaultLissOptIn, setDefaultLissOptIn] = useState(true);
 
@@ -181,6 +182,7 @@ function Onboarding() {
       if (existingProfile.first_name) setFirstName(existingProfile.first_name);
       if (existingProfile.last_name) setLastName(existingProfile.last_name);
       if (existingProfile.sex) setSex(existingProfile.sex);
+      if (existingProfile.date_of_birth) setDateOfBirth(String(existingProfile.date_of_birth));
 
       if (typeof existingProfile.body_fat_pct === "number") {
         setBodyFatPctInput(String(existingProfile.body_fat_pct));
@@ -236,16 +238,20 @@ function Onboarding() {
 
     // Step 2: Account details
     if (s === 2) {
-      if (!firstName.trim() || !lastName.trim()) {
-        setError("Please enter your first and last name.");
-        return false;
-      }
-      if (!sex) {
-        setError("Please choose male or female.");
-        return false;
-      }
-      return true;
-    }
+  if (!firstName.trim() || !lastName.trim()) {
+    setError("Please enter your first and last name.");
+    return false;
+  }
+  if (!sex) {
+    setError("Please choose male or female.");
+    return false;
+  }
+  if (!dateOfBirth || !/^\d{4}-\d{2}-\d{2}$/.test(String(dateOfBirth))) {
+    setError("Please enter your date of birth.");
+    return false;
+  }
+  return true;
+}
 
     // Step 3: Goal & calories
     if (s === 3) {
@@ -391,7 +397,7 @@ function Onboarding() {
   const safeWeeklyChangeKg = (goal, kg) => {
     if (!kg || goal === "maintain") return null;
     if (goal === "lose") return Math.min(1, kg);
-    if (goal === "gain") return Math.min(0.2, kg);
+    if (goal === "gain") return Math.min(0.3, kg);
     return kg;
   };
 
@@ -458,6 +464,7 @@ function Onboarding() {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       sex,
+      date_of_birth: dateOfBirth || null,
       // body_fat_pct and default_liss_opt_in removed from core payload
     };
 
@@ -944,48 +951,62 @@ function Onboarding() {
 
           )}
 
-          {step === 2 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>About you</h2>
+{step === 2 && (
+  <div style={{ display: "grid", gap: "1rem" }}>
+    <h2 style={sectionTitle}>About you</h2>
 
-              <div style={grid2}>
-                <div>
-                  <div style={label}>First name</div>
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    style={field}
-                    placeholder="e.g. Chris"
-                  />
-                </div>
+    <div style={grid2}>
+      <div>
+        <div style={label}>First name</div>
+        <input
+          type="text"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          style={field}
+          placeholder="e.g. Chris"
+          autoComplete="given-name"
+        />
+      </div>
 
-                <div>
-                  <div style={label}>Last name</div>
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    style={field}
-                    placeholder="e.g. Bumstead"
-                  />
-                </div>
-              </div>
+      <div>
+        <div style={label}>Last name</div>
+        <input
+          type="text"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          style={field}
+          placeholder="e.g. Bumstead"
+          autoComplete="family-name"
+        />
+      </div>
+    </div>
 
-              <div>
-                <div style={label}>Sex</div>
-                <div style={segmentedWrap}>
-                  <button type="button" onClick={() => setSex("male")} style={segBtn(sex === "male")}>
-                    Male
-                  </button>
-                  <button type="button" onClick={() => setSex("female")} style={segBtn(sex === "female")}>
-                    Female
-                  </button>
-                </div>
-                <div style={help}>This helps set more realistic calorie and macro baselines.</div>
-              </div>
-            </div>
-          )}
+    <div>
+      <div style={label}>Date of birth</div>
+      <input
+        type="date"
+        value={dateOfBirth}
+        onChange={(e) => setDateOfBirth(e.target.value)}
+        style={field}
+        autoComplete="bday"
+      />
+      <div style={help}>Used for calorie calculations. You can change this later in Settings.</div>
+    </div>
+
+    <div>
+      <div style={label}>Sex</div>
+      <div style={segmentedWrap}>
+        <button type="button" onClick={() => setSex("male")} style={segBtn(sex === "male")}>
+          Male
+        </button>
+        <button type="button" onClick={() => setSex("female")} style={segBtn(sex === "female")}>
+          Female
+        </button>
+      </div>
+      <div style={help}>This helps set more realistic calorie and macro baselines.</div>
+    </div>
+  </div>
+)}
           {step === 3 && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <h2 style={sectionTitle}>Goal & calories</h2>
