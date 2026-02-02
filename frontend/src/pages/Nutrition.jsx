@@ -36,19 +36,24 @@ function Nutrition() {
   // State for selected log date's resolved day type
   const [logDayType, setLogDayType] = useState("rest");
   const [logIsHigh, setLogIsHigh] = useState(false);
-  // Helper to resolve a day type for any date (prefers training_cycle_days, falls back to profiles.training_days)
+  // Helper to resolve a day type for any date.
+  // Prefers explicit overrides (training_day_overrides), otherwise falls back to profiles.training_days.
   const resolveDayTypeForDate = async (uid, isoDate, fallbackTrainingDays) => {
-    // 1) Prefer canonical cycle day table
+    // 1) Explicit override (e.g. user changed the day type in Training)
     try {
-      const { data: cd, error: cdErr } = await supabase
-        .from("training_cycle_days")
-        .select("day_type,is_high_day")
+      const { data: ov, error: ovErr } = await supabase
+        .from("training_day_overrides")
+        .select("override_type")
         .eq("user_id", uid)
         .eq("date", isoDate)
         .maybeSingle();
 
-      if (!cdErr && cd && cd.day_type) {
-        return { dayType: cd.day_type, isHigh: !!cd.is_high_day };
+      if (!ovErr && ov?.override_type) {
+        const t = String(ov.override_type);
+        if (t === "high") return { dayType: "high", isHigh: true };
+        if (t === "training") return { dayType: "training", isHigh: false };
+        if (t === "rest") return { dayType: "rest", isHigh: false };
+        // Unknown override_type → ignore
       }
     } catch {
       // ignore and fall back
@@ -56,8 +61,8 @@ function Nutrition() {
 
     // 2) Fallback: infer from weekly fixed training_days
     const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const todayShort = dayMap[new Date(isoDate + "T00:00:00").getDay()];
-    const inferred = (fallbackTrainingDays || []).includes(todayShort) ? "training" : "rest";
+    const dow = dayMap[new Date(isoDate + "T00:00:00").getDay()];
+    const inferred = (fallbackTrainingDays || []).includes(dow) ? "training" : "rest";
     return { dayType: inferred, isHigh: false };
   };
 
@@ -701,6 +706,8 @@ function Nutrition() {
     }
   `;
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+
   return (
     <div style={{ width: "100%" }}>
       <style>{responsive}</style>
@@ -807,7 +814,7 @@ function Nutrition() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
-                <div style={{ fontWeight: 800 }}>Goal for {logDate}</div>
+                <div style={{ fontWeight: 800 }}>Goal for {todayIso}</div>
 
                 <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ color: "#aaa" }}>Day type</div>
@@ -824,7 +831,7 @@ function Nutrition() {
               </div>
 
               <div style={{ color: "#aaa", marginTop: "0.5rem", lineHeight: 1.55 }}>
-                Use these targets as your aim for the day, then log what you actually ate below.
+                Use these targets as your aim for the day.
               </div>
 
               <div className="pp-metrics-4" style={{ marginTop: "0.85rem" }}>
@@ -851,47 +858,6 @@ function Nutrition() {
               </div>
             </div>
 
-            <div className="pp-grid-2" style={{ marginTop: "1rem" }}>
-              <div>
-                <div style={{ color: "#aaa", marginBottom: "0.35rem" }}>Today’s day type</div>
-                <select
-                  value={todayType}
-                  onChange={(e) => saveTodayType(e.target.value)}
-                  style={{ ...input, padding: "0.7rem" }}
-                >
-                  <option value="training">Training day</option>
-                  <option value="rest">Rest day</option>
-                  <option value="high">High day</option>
-                </select>
-
-                <div style={{ color: "#666", marginTop: "0.75rem", fontSize: "0.9rem" }}>
-                  You can override it for today (it syncs with Training / Nutrition).
-                </div>
-              </div>
-
-              <div>
-                <div style={{ color: "#aaa", marginBottom: "0.35rem" }}>Today’s targets</div>
-
-                <div className="pp-metrics-4" style={{ marginTop: "0.75rem" }}>
-                  <div>
-                    <div style={{ color: "#aaa" }}>Calories</div>
-                    <div style={{ marginTop: "0.25rem", fontSize: "1.2rem" }}>{todaysTargets?.calories ?? "—"}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: "#aaa" }}>Protein</div>
-                    <div style={{ marginTop: "0.25rem", fontSize: "1.2rem" }}>{todaysTargets ? `${todaysTargets.protein_g}g` : "—"}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: "#aaa" }}>Carbs</div>
-                    <div style={{ marginTop: "0.25rem", fontSize: "1.2rem" }}>{todaysTargets ? `${todaysTargets.carbs_g}g` : "—"}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: "#aaa" }}>Fats</div>
-                    <div style={{ marginTop: "0.25rem", fontSize: "1.2rem" }}>{todaysTargets ? `${todaysTargets.fats_g}g` : "—"}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </section>
 
           {/* SECTION: DAY TYPE TARGETS */}
