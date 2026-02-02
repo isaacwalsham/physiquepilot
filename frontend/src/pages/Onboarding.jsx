@@ -4,6 +4,23 @@ import { supabase } from "../supabaseClient";
 
 const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+const CAPS = {
+  height_cm: { min: 120, max: 230 },
+  weight_kg: { min: 30, max: 300 },
+  weekly_loss_kg: { min: 0.1, max: 1.0 },
+  weekly_gain_kg: { min: 0.05, max: 0.3 },
+  custom_calories: { min: 1200, max: 6000 },
+  steps_per_day: { min: 0, max: 20000 },
+  cardio_minutes_per_week: { min: 0, max: 600 },
+  cardio_avg_hr: { min: 0, max: 220 }
+};
+
+const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+const toNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -14,7 +31,8 @@ function Onboarding() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [sex, setSex] = useState("male");
-  const [dateOfBirth, setDateOfBirth] = useState(""); // YYYY-MM-DD
+  const [dateOfBirth, setDateOfBirth] = useState(""); 
+
   const [bodyFatPctInput, setBodyFatPctInput] = useState("");
   const [defaultLissOptIn, setDefaultLissOptIn] = useState(true);
 
@@ -24,7 +42,7 @@ function Onboarding() {
   const [goalWeightInput, setGoalWeightInput] = useState("");
 
   const [goalType, setGoalType] = useState("maintain");
-  // Helper to infer goal type from starting and goal weights
+
   const inferGoalTypeFromWeights = () => {
     const startKg = parseWeightToKg(startingWeightInput);
     const goalKg = parseWeightToKg(goalWeightInput);
@@ -32,13 +50,10 @@ function Onboarding() {
 
     const diff = goalKg - startKg;
 
-    // Within ±2kg → maintain
     if (Math.abs(diff) <= 2) return "maintain";
 
-    // Goal lower than start → lose
     if (diff < -2) return "lose";
 
-    // Goal higher than start → gain
     if (diff > 2) return "gain";
 
     return goalType;
@@ -49,7 +64,7 @@ function Onboarding() {
     if (inferred !== goalType) {
       setGoalType(inferred);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [startingWeightInput, goalWeightInput, unitSystem]);
   const [weeklyChangeInput, setWeeklyChangeInput] = useState("");
   const [calorieMode, setCalorieMode] = useState("ai");
@@ -218,7 +233,6 @@ function Onboarding() {
         setDefaultLissOptIn(existingProfile.default_liss_opt_in);
       }
 
-
       if (existingProfile.activity_level) setActivityLevel(existingProfile.activity_level);
       if (existingProfile.baseline_steps_per_day !== null && existingProfile.baseline_steps_per_day !== undefined) {
         setBaselineStepsInput(String(existingProfile.baseline_steps_per_day));
@@ -240,10 +254,9 @@ function Onboarding() {
   }, [navigate]);
 
   const validateStep = (s) => {
-    // Clear any previous error before re-validating
+
     setError("");
 
-    // Step 1: Body metrics
     if (s === 1) {
       const heightCm = parseHeightToCm();
       const startingWeightKg = parseWeightToKg(startingWeightInput);
@@ -251,7 +264,9 @@ function Onboarding() {
       const bf = parseBodyFatPct();
 
       if (!heightCm || !startingWeightKg || !goalWeightKg) {
-        setError("Please fill in height, starting weight, and goal weight.");
+        setError(
+          `Please enter valid height and weights. Height must be ${CAPS.height_cm.min}-${CAPS.height_cm.max} cm. Weight must be ${CAPS.weight_kg.min}-${CAPS.weight_kg.max} kg.`
+        );
         return false;
       }
 
@@ -263,37 +278,38 @@ function Onboarding() {
       return true;
     }
 
-    // Step 2: Account details
     if (s === 2) {
-  if (!firstName.trim() || !lastName.trim()) {
-    setError("Please enter your first and last name.");
-    return false;
-  }
-  if (!sex) {
-    setError("Please choose male or female.");
-    return false;
-  }
-  if (!dateOfBirth || !/^\d{4}-\d{2}-\d{2}$/.test(String(dateOfBirth))) {
-    setError("Please enter your date of birth.");
-    return false;
-  }
-  return true;
-}
+      if (!firstName.trim() || !lastName.trim()) {
+        setError("Please enter your first and last name.");
+        return false;
+      }
+      if (!sex) {
+        setError("Please choose male or female.");
+        return false;
+      }
+      if (!dateOfBirth || !/^\d{4}-\d{2}-\d{2}$/.test(String(dateOfBirth))) {
+        setError("Please enter your date of birth.");
+        return false;
+      }
+      return true;
+    }
 
-    // Step 3: Goal & calories
     if (s === 3) {
       const weeklyChangeKgRaw = parseWeeklyChangeToKg();
       const weeklyChangeKg = safeWeeklyChangeKg(goalType, weeklyChangeKgRaw);
 
       if ((goalType === "lose" || goalType === "gain") && !weeklyChangeKg) {
-        setError("Please choose a weekly rate of change.");
+        if (goalType === "lose") {
+          setError(`Please choose a weekly loss rate between ${CAPS.weekly_loss_kg.min} and ${CAPS.weekly_loss_kg.max} kg/week.`);
+        } else {
+          setError(`Please choose a weekly gain rate between ${CAPS.weekly_gain_kg.min} and ${CAPS.weekly_gain_kg.max} kg/week.`);
+        }
         return false;
       }
 
       if (calorieMode === "custom") {
-        const cc = Number(customCalories);
-        if (!Number.isFinite(cc) || cc < 1200) {
-          setError("Custom calories must be at least 1200.");
+        if (!Number.isFinite(cc) || cc < CAPS.custom_calories.min || cc > CAPS.custom_calories.max) {
+          setError(`Custom calories must be between ${CAPS.custom_calories.min} and ${CAPS.custom_calories.max}.`);
           return false;
         }
       }
@@ -301,7 +317,6 @@ function Onboarding() {
       return true;
     }
 
-    // Step 4: Training setup
     if (s === 4) {
       if (splitMode === "fixed" && trainingDaysSelected.length === 0) {
         setError("Please select at least one training day.");
@@ -324,18 +339,15 @@ function Onboarding() {
       return true;
     }
 
-    // Step 5: Activity baseline (only lifestyle required; others optional)
     if (s === 5) {
       if (!activityLevel) {
         setError("Please choose your lifestyle activity level.");
         return false;
       }
 
-      // Optional fields: steps/cardio/minutes/hr — allow empty
-      // If provided, must be valid non-negative integers
-      const baselineSteps = parseOptionalInt(baselineStepsInput);
-      const baselineCardioMinutes = parseOptionalInt(baselineCardioMinutesInput);
-      const baselineCardioHr = parseOptionalInt(baselineCardioHrInput);
+      const baselineSteps = parseOptionalInt(baselineStepsInput, CAPS.steps_per_day);
+      const baselineCardioMinutes = parseOptionalInt(baselineCardioMinutesInput, CAPS.cardio_minutes_per_week);
+      const baselineCardioHr = parseOptionalInt(baselineCardioHrInput, CAPS.cardio_avg_hr);
 
       if (baselineStepsInput.trim() && baselineSteps === null) {
         setError("Average steps per day must be a non-negative number.");
@@ -353,12 +365,10 @@ function Onboarding() {
       return true;
     }
 
-    // Step 6: Nutrition preferences (all optional; always valid)
     if (s === 6) {
       return true;
     }
 
-    // Step 7: Safety
     if (s === 7) {
       if (!disclaimerAccepted) {
         setError("You must confirm the disclaimer to continue.");
@@ -372,7 +382,7 @@ function Onboarding() {
 
   const nextStep = () => {
     if (saving) return;
-    // Validate current step before moving forward
+
     const ok = validateStep(step);
     if (!ok) return;
     setStep((s) => Math.min(s + 1, 7));
@@ -385,55 +395,80 @@ function Onboarding() {
 
   const parseHeightToCm = () => {
     if (!heightInput) return null;
+
     if (unitSystem === "metric") {
-      const v = Number(heightInput);
-      return Number.isFinite(v) && v > 0 ? v : null;
+      const v = toNum(heightInput);
+      if (v === null) return null;
+      if (v < CAPS.height_cm.min || v > CAPS.height_cm.max) return null;
+      return Math.round(v);
     }
 
-    const cleaned = heightInput.replace(/[^0-9'" ]/g, "").trim();
+    const cleaned = String(heightInput).replace(/[^0-9'" ]/g, "").trim();
     const match = cleaned.match(/(\d+)'\s*(\d+)"/);
 
+    let cm = null;
     if (match) {
       const feet = Number(match[1]);
       const inches = Number(match[2]);
+      if (!Number.isFinite(feet) || !Number.isFinite(inches)) return null;
       const totalInches = feet * 12 + inches;
-      return Math.round(totalInches * 2.54);
+      cm = Math.round(totalInches * 2.54);
+    } else {
+      const inchesOnly = toNum(heightInput);
+      if (inchesOnly === null || inchesOnly <= 0) return null;
+      cm = Math.round(inchesOnly * 2.54);
     }
 
-    const inchesOnly = Number(heightInput);
-    if (!Number.isFinite(inchesOnly) || inchesOnly <= 0) return null;
-    return Math.round(inchesOnly * 2.54);
+    if (cm < CAPS.height_cm.min || cm > CAPS.height_cm.max) return null;
+    return cm;
   };
 
   const parseWeightToKg = (value) => {
-    if (!value) return null;
-    const num = Number(value);
-    if (!Number.isFinite(num) || num <= 0) return null;
-    if (unitSystem === "metric") return num;
-    return num / 2.20462;
+    if (value === null || value === undefined || String(value).trim() === "") return null;
+    const num = toNum(value);
+    if (num === null || num <= 0) return null;
+
+    const kg = unitSystem === "metric" ? num : num / 2.20462;
+    if (kg < CAPS.weight_kg.min || kg > CAPS.weight_kg.max) return null;
+    return Math.round(kg * 10) / 10;
   };
 
   const parseWeeklyChangeToKg = () => {
-    if (!weeklyChangeInput) return null;
-    const num = Number(weeklyChangeInput);
-    if (!Number.isFinite(num) || num <= 0) return null;
-    if (unitSystem === "metric") return num;
-    return num / 2.20462;
+    if (weeklyChangeInput === null || weeklyChangeInput === undefined || String(weeklyChangeInput).trim() === "") return null;
+    const num = toNum(weeklyChangeInput);
+    if (num === null || num <= 0) return null;
+    const kg = unitSystem === "metric" ? num : num / 2.20462;
+    return Math.round(kg * 100) / 100;
   };
 
   const safeWeeklyChangeKg = (goal, kg) => {
     if (!kg || goal === "maintain") return null;
-    if (goal === "lose") return Math.min(1, kg);
-    if (goal === "gain") return Math.min(0.3, kg);
-    return kg;
+
+    if (goal === "lose") {
+      const capped = clamp(kg, CAPS.weekly_loss_kg.min, CAPS.weekly_loss_kg.max);
+      return Math.round(capped * 100) / 100;
+    }
+
+    if (goal === "gain") {
+      const capped = clamp(kg, CAPS.weekly_gain_kg.min, CAPS.weekly_gain_kg.max);
+      return Math.round(capped * 100) / 100;
+    }
+
+    return Math.round(kg * 100) / 100;
   };
 
-  const parseOptionalInt = (v) => {
+  const parseOptionalInt = (v, cap) => {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     if (!s) return null;
+
     const n = Math.round(Number(s));
-    if (!Number.isFinite(n) || n < 0) return null;
+    if (!Number.isFinite(n)) return null;
+
+    const min = cap?.min ?? 0;
+    const max = cap?.max ?? Number.POSITIVE_INFINITY;
+    if (n < min || n > max) return null;
+
     return n;
   };
 
@@ -492,7 +527,7 @@ function Onboarding() {
       last_name: lastName.trim(),
       sex,
       date_of_birth: dateOfBirth || null,
-      // body_fat_pct and default_liss_opt_in removed from core payload
+
     };
 
     const optionalPayload = {
@@ -516,12 +551,12 @@ function Onboarding() {
       if (!e1) return { error: null };
 
       const msg = String(e1.message || "");
-      // If PostgREST schema cache is missing a column, retry without the unknown columns.
+
       if (!msg.includes("Could not find")) return { error: e1 };
 
       const cleaned = { ...payload };
       for (const k of Object.keys(cleaned)) {
-        // Heuristic: remove the column mentioned in the error.
+
         if (msg.includes(`'${k}'`)) delete cleaned[k];
       }
 
@@ -533,7 +568,6 @@ function Onboarding() {
       return { error: e2 || null };
     };
 
-    // 1) Always try to save the core onboarding fields first.
     const coreRes = await updateWithFallback(basePayload);
     if (coreRes.error) {
       setSaving(false);
@@ -541,17 +575,15 @@ function Onboarding() {
       return;
     }
 
-    // 2) Try activity baseline fields (optional).
     const actRes = await updateWithFallback(activityPayload);
     if (actRes.error) {
-      // Don't block onboarding if activity columns aren't present yet.
+
       console.warn("Activity baseline save skipped:", actRes.error.message);
     }
 
-    // 3) Try optional fields (sex/bodyfat/LISS opt-in) (optional).
     const optRes = await updateWithFallback(optionalPayload);
     if (optRes.error) {
-      // Don't block onboarding if optional columns aren't present yet.
+
       console.warn("Optional profile fields save skipped:", optRes.error.message);
     }
 
@@ -576,9 +608,6 @@ function Onboarding() {
       return;
     }
 
-    // --- Post-init nutrition logic: enforce sensible day-type differences ---
-    // Rest day: lower calories, higher fats, lower carbs, protein unchanged
-    // High day: slightly higher calories, more carbs than training day, protein unchanged
     try {
       const { data: tRows, error: tErr } = await supabase
         .from("nutrition_day_targets")
@@ -596,18 +625,16 @@ function Onboarding() {
       const kgToLb = (kg) => Number(kg) * 2.2046226218;
       const clamp0 = (n) => Math.max(0, Math.round(Number(n) || 0));
 
-      // Build a reasonable training baseline if it doesn't exist
       let training = byType.training;
       if (!training) {
         const trainingCalories = calorieMode === "custom" ? Math.round(Number(customCalories) || 0) : 0;
-        // Fallback if neither AI init nor custom calories produced a base
+
         const defaultCalories = sex === "female" ? 2300 : 2500;
         const safeCalories = trainingCalories >= 1200 ? trainingCalories : defaultCalories;
 
         const bwLb = kgToLb(startingWeightKg || 0);
-        const protein = clamp0(bwLb * 1.0); // default 1.0 g/lb
+        const protein = clamp0(bwLb * 1.0); 
 
-        // Baseline fat, carbs fill (slightly higher fat default for females)
         const fatPerLb = sex === "female" ? 0.35 : 0.30;
         const fats = clamp0(bwLb * fatPerLb);
         const carbs = clamp0((safeCalories - protein * 4 - fats * 9) / 4);
@@ -631,24 +658,20 @@ function Onboarding() {
       const trainingFats = clamp0(training.fats_g);
       const trainingCarbs = clamp0(training.carbs_g);
 
-      // Rest day: -10% calories, +10% fats (carbs fill), protein same
       const restCalories = clamp0(trainingCalories * 0.90);
       let restFats = clamp0(trainingFats * 1.10);
       let restCarbs = clamp0((restCalories - proteinG * 4 - restFats * 9) / 4);
 
-      // If carbs hit 0 because fats too high, cap fats to keep carbs >= 25g
       if (restCarbs < 25) {
         restCarbs = 25;
         const remaining = restCalories - proteinG * 4 - restCarbs * 4;
         restFats = clamp0(remaining / 9);
       }
 
-      // High day: +5% calories, slightly lower fats, carbs fill (ensure > training carbs)
       const highCalories = clamp0(trainingCalories * 1.05);
       let highFats = clamp0(trainingFats * 0.95);
       let highCarbs = clamp0((highCalories - proteinG * 4 - highFats * 9) / 4);
 
-      // Ensure high day carbs are meaningfully higher than training day
       if (highCarbs <= trainingCarbs) {
         highCarbs = clamp0(trainingCarbs * 1.10);
         const remaining = highCalories - proteinG * 4 - highCarbs * 4;
@@ -678,18 +701,13 @@ function Onboarding() {
         .from("nutrition_day_targets")
         .upsert(upserts, { onConflict: "user_id,day_type" });
     } catch (e) {
-      // Don't block onboarding if targets can't be tuned yet (schema/RLS/etc).
+
       console.warn("Post-init day-target tuning skipped:", e);
     }
-
-    // Training days selected in onboarding are already persisted to profiles.training_days.
-    // The Training page can build the schedule from that baseline.
 
     setSaving(false);
     navigate("/app/dashboard", { replace: true });
   };
-
-  // ---- nicer centered UI styles ----
 
   const pageWrap = {
     width: "100%",
@@ -701,7 +719,6 @@ function Onboarding() {
     padding: "1.25rem"
   };
 
-  // No container feel: no boxed card, just a centered content column
   const card = {
     width: "100%",
     maxWidth: "1100px",
@@ -975,65 +992,64 @@ function Onboarding() {
               </div>
             </div>
 
-
           )}
 
-{step === 2 && (
-  <div style={{ display: "grid", gap: "1rem" }}>
-    <h2 style={sectionTitle}>About you</h2>
+          {step === 2 && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <h2 style={sectionTitle}>About you</h2>
 
-    <div style={grid2}>
-      <div>
-        <div style={label}>First name</div>
-        <input
-          type="text"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          style={field}
-          placeholder="e.g. Chris"
-          autoComplete="given-name"
-        />
-      </div>
+              <div style={grid2}>
+                <div>
+                  <div style={label}>First name</div>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    style={field}
+                    placeholder="e.g. Chris"
+                    autoComplete="given-name"
+                  />
+                </div>
 
-      <div>
-        <div style={label}>Last name</div>
-        <input
-          type="text"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-          style={field}
-          placeholder="e.g. Bumstead"
-          autoComplete="family-name"
-        />
-      </div>
-    </div>
+                <div>
+                  <div style={label}>Last name</div>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    style={field}
+                    placeholder="e.g. Bumstead"
+                    autoComplete="family-name"
+                  />
+                </div>
+              </div>
 
-    <div>
-      <div style={label}>Date of birth</div>
-      <input
-        type="date"
-        value={dateOfBirth}
-        onChange={(e) => setDateOfBirth(e.target.value)}
-        style={field}
-        autoComplete="bday"
-      />
-      <div style={help}>Used for calorie calculations. You can change this later in Settings.</div>
-    </div>
+              <div>
+                <div style={label}>Date of birth</div>
+                <input
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  style={field}
+                  autoComplete="bday"
+                />
+                <div style={help}>Used for calorie calculations. You can change this later in Settings.</div>
+              </div>
 
-    <div>
-      <div style={label}>Sex</div>
-      <div style={segmentedWrap}>
-        <button type="button" onClick={() => setSex("male")} style={segBtn(sex === "male")}>
-          Male
-        </button>
-        <button type="button" onClick={() => setSex("female")} style={segBtn(sex === "female")}>
-          Female
-        </button>
-      </div>
-      <div style={help}>This helps set more realistic calorie and macro baselines.</div>
-    </div>
-  </div>
-)}
+              <div>
+                <div style={label}>Sex</div>
+                <div style={segmentedWrap}>
+                  <button type="button" onClick={() => setSex("male")} style={segBtn(sex === "male")}>
+                    Male
+                  </button>
+                  <button type="button" onClick={() => setSex("female")} style={segBtn(sex === "female")}>
+                    Female
+                  </button>
+                </div>
+                <div style={help}>This helps set more realistic calorie and macro baselines.</div>
+              </div>
+            </div>
+          )}
           {step === 3 && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <h2 style={sectionTitle}>Goal & calories</h2>
