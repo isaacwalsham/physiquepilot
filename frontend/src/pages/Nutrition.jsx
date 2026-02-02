@@ -19,6 +19,44 @@ const round0 = (n) => Math.max(0, Math.round(Number(n) || 0));
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const kgToLb = (kg) => Number(kg) * 2.2046226218;
 
+const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+// Ratios are grams per lb. Anything beyond this is basically impossible in normal use.
+const RATIO_SANITY_MAX = 3.0;
+
+const sanitizeRatioValue = (v, fallback) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  if (n < 0) return fallback;
+  if (n > RATIO_SANITY_MAX) return fallback;
+  return Math.round(n * 100) / 100;
+};
+
+const sanitizeRatioObj = (obj, fallbackObj) => {
+  const fb = fallbackObj || { protein: 1.0, carbs: 1.0, fats: 0.3 };
+  const o = obj && typeof obj === "object" ? obj : {};
+  return {
+    protein: sanitizeRatioValue(o.protein, fb.protein),
+    carbs: sanitizeRatioValue(o.carbs, fb.carbs),
+    fats: sanitizeRatioValue(o.fats, fb.fats)
+  };
+};
+
+const ratiosFromTargets = (targetsRow, weightLb, fallbackObj) => {
+  if (!targetsRow || !Number.isFinite(Number(weightLb)) || Number(weightLb) <= 0) {
+    return sanitizeRatioObj(null, fallbackObj);
+  }
+  const w = Number(weightLb);
+  return sanitizeRatioObj(
+    {
+      protein: (Number(targetsRow.protein_g || 0) / w),
+      carbs: (Number(targetsRow.carbs_g || 0) / w),
+      fats: (Number(targetsRow.fats_g || 0) / w)
+    },
+    fallbackObj
+  );
+};
+
 function Nutrition() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -265,6 +303,39 @@ function Nutrition() {
       setTargets(mapped);
       setDraftTargets(mapped);
       setDirtyTargets({ training: false, rest: false, high: false });
+
+      // --- Build SAFE ratio defaults (profile baseline -> derived from targets -> defaults)
+const wlb = pData?.current_weight_kg ? kgToLb(pData.current_weight_kg) : null;
+
+const defaults = {
+  training: { protein: 1.0, carbs: 1.0, fats: 0.3 },
+  rest: { protein: 1.0, carbs: 0.8, fats: 0.3 },
+  high: { protein: 1.0, carbs: 1.2, fats: 0.3 }
+};
+
+const profileRatios = {
+  training: sanitizeRatioObj(pData?.baseline_ratio_training, defaults.training),
+  rest: sanitizeRatioObj(pData?.baseline_ratio_rest, defaults.rest),
+  high: sanitizeRatioObj(pData?.baseline_ratio_high, defaults.high)
+};
+
+const derivedRatios = {
+  training: ratiosFromTargets(mapped.training, wlb, defaults.training),
+  rest: ratiosFromTargets(mapped.rest, wlb, defaults.rest),
+  high: ratiosFromTargets(mapped.high, wlb, defaults.high)
+};
+
+// If profile is missing OR was corrupted previously, derivedRatios will be used.
+const nextRatios = {
+  training: profileRatios.training || derivedRatios.training,
+  rest: profileRatios.rest || derivedRatios.rest,
+  high: profileRatios.high || derivedRatios.high
+};
+
+setMacroRatios(nextRatios);
+
+// slider centers must be stable (used for ±0.5 bounds)
+setRatioCenters((prev) => prev || nextRatios);
 
       const todayIso = new Date().toISOString().slice(0, 10);
 
@@ -583,8 +654,9 @@ function Nutrition() {
       const center = Number.isFinite(Number(centerSource)) ? Number(centerSource) : Number(fallbackVal);
 
       // Keep bounds stable and prevent negative ratios.
-      const min = round2(Math.max(0, center - 0.5));
-      const max = round2(Math.max(min, center + 0.5));
+      const saneCenter = sanitizeRatioValue(center, Number(fallbackVal));
+      const min = Math.round(Math.max(0, saneCenter - 0.5) * 100) / 100;
+      const max = Math.round(Math.max(min, saneCenter + 0.5) * 100) / 100;
 
       return { center, min, max };
     };
@@ -651,7 +723,7 @@ function Nutrition() {
     const bounds = ratioBounds?.[dayType]?.[key];
     const min = bounds ? bounds.min : value;
     const max = bounds ? bounds.max : value;
-    const clean = round2(clamp(value, min, max));
+    const clean = Math.round(clamp(sanitizeRatioValue(value, min), min, max) * 100) / 100;
 
     const nextRatios = { ...macroRatios[dayType], [key]: clean };
     setMacroRatios((prev) => ({ ...prev, [dayType]: nextRatios }));
