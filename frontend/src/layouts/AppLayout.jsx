@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Sidebar from "../components/Sidebar";
@@ -6,11 +6,23 @@ import Sidebar from "../components/Sidebar";
 function AppLayout() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const aliveRef = useRef(true);
 
   useEffect(() => {
-    const run = async () => {
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
+    aliveRef.current = true;
+
+    const guard = async () => {
+      // While we check auth/profile, keep the layout in a loading state
+      if (aliveRef.current) setLoading(true);
+
+      const { data, error: sessErr } = await supabase.auth.getSession();
+      const session = data?.session;
+
+      if (sessErr) {
+        // If session fetch fails, send user to landing
+        navigate("/", { replace: true });
+        return;
+      }
 
       if (!session) {
         navigate("/", { replace: true });
@@ -33,10 +45,23 @@ function AppLayout() {
         return;
       }
 
-      setLoading(false);
+      if (aliveRef.current) setLoading(false);
     };
 
-    run();
+    // Run once on mount
+    guard();
+
+    // Re-run whenever auth changes (login/logout/refresh)
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      guard();
+    });
+
+    return () => {
+      aliveRef.current = false;
+      try {
+        sub?.subscription?.unsubscribe?.();
+      } catch {}
+    };
   }, [navigate]);
 
   if (loading) {

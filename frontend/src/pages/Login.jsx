@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 
@@ -8,22 +8,55 @@ function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+
+    const run = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session) navigate("/app", { replace: true });
+    };
+
+    run();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate("/app", { replace: true });
+    });
+
+    return () => {
+      aliveRef.current = false;
+      sub?.subscription?.unsubscribe();
+    };
+  }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setErrorMsg("");
-    setLoading(true);
+    if (aliveRef.current) setErrorMsg("");
+    if (aliveRef.current) setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
+    const emailNorm = String(email || "").trim().toLowerCase();
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: emailNorm,
       password
     });
 
-    setLoading(false);
+    if (aliveRef.current) setLoading(false);
 
     if (error) {
-      setErrorMsg(error.message);
+      if (aliveRef.current) setErrorMsg(error.message);
       return;
+    }
+
+    // Some environments can take a moment to persist the session.
+    // Confirm session exists before routing.
+    if (!data?.session) {
+      const { data: s } = await supabase.auth.getSession();
+      if (!s?.session) {
+        if (aliveRef.current) setErrorMsg("Login succeeded but session was not available yet. Please try again.");
+        return;
+      }
     }
 
     navigate("/app", { replace: true });

@@ -23,8 +23,10 @@ function Register() {
     setSuccessMsg("");
     setLoading(true);
 
+    const emailClean = String(email || "").trim().toLowerCase();
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: emailClean,
       password
     });
 
@@ -44,7 +46,7 @@ function Register() {
           body: JSON.stringify({
             userId: user.id,
             user_id: user.id,
-            email: user.email
+            email: user.email || emailClean
           })
         });
 
@@ -60,8 +62,20 @@ function Register() {
     }
 
     setLoading(false);
-    setSuccessMsg("Account created. Redirecting to login...");
-    setTimeout(() => navigate("/login"), 1200);
+
+    // If email confirmations are disabled, Supabase will return a session here.
+    // In that case, send the user straight into onboarding.
+    const session = data?.session;
+    if (session) {
+      setSuccessMsg("Account created. Redirecting to onboarding...");
+      navigate("/app/onboarding", { replace: true });
+      return;
+    }
+
+    // If confirmations are enabled, there may be no session yet.
+    // Send the user to login (or to confirm email, depending on your Supabase auth settings).
+    setSuccessMsg("Account created. Please check your email if confirmation is required. Redirecting to login...");
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -136,6 +150,22 @@ function Register() {
             }}
           >
             {loading ? "Creating account..." : "Register"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/login")}
+            style={{
+              width: "100%",
+              marginTop: "0.75rem",
+              padding: "0.7rem",
+              background: "transparent",
+              border: "1px solid #333",
+              color: "#fff",
+              cursor: "pointer"
+            }}
+          >
+            Already registered? Log in
           </button>
         </form>
 
