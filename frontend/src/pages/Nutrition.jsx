@@ -304,39 +304,6 @@ function Nutrition() {
       setDraftTargets(mapped);
       setDirtyTargets({ training: false, rest: false, high: false });
 
-      // --- Build SAFE ratio defaults (profile baseline -> derived from targets -> defaults)
-const wlb = pData?.current_weight_kg ? kgToLb(pData.current_weight_kg) : null;
-
-const defaults = {
-  training: { protein: 1.0, carbs: 1.0, fats: 0.3 },
-  rest: { protein: 1.0, carbs: 0.8, fats: 0.3 },
-  high: { protein: 1.0, carbs: 1.2, fats: 0.3 }
-};
-
-const profileRatios = {
-  training: sanitizeRatioObj(pData?.baseline_ratio_training, defaults.training),
-  rest: sanitizeRatioObj(pData?.baseline_ratio_rest, defaults.rest),
-  high: sanitizeRatioObj(pData?.baseline_ratio_high, defaults.high)
-};
-
-const derivedRatios = {
-  training: ratiosFromTargets(mapped.training, wlb, defaults.training),
-  rest: ratiosFromTargets(mapped.rest, wlb, defaults.rest),
-  high: ratiosFromTargets(mapped.high, wlb, defaults.high)
-};
-
-// If profile is missing OR was corrupted previously, derivedRatios will be used.
-const nextRatios = {
-  training: profileRatios.training || derivedRatios.training,
-  rest: profileRatios.rest || derivedRatios.rest,
-  high: profileRatios.high || derivedRatios.high
-};
-
-setMacroRatios(nextRatios);
-
-// slider centers must be stable (used for ±0.5 bounds)
-setRatioCenters((prev) => prev || nextRatios);
-
       const todayIso = new Date().toISOString().slice(0, 10);
 
       const { data: pData } = await supabase
@@ -346,6 +313,33 @@ setRatioCenters((prev) => prev || nextRatios);
         )
         .eq("user_id", user.id)
         .maybeSingle();
+
+      // --- Build SAFE ratio defaults (profile baseline -> derived from targets -> defaults)
+      const wlb = pData?.current_weight_kg ? kgToLb(pData.current_weight_kg) : null;
+
+      const defaults = {
+        training: { protein: 1.0, carbs: 1.0, fats: 0.3 },
+        rest: { protein: 1.0, carbs: 0.8, fats: 0.3 },
+        high: { protein: 1.0, carbs: 1.2, fats: 0.3 }
+      };
+
+      const derivedRatios = {
+        training: ratiosFromTargets(mapped.training, wlb, defaults.training),
+        rest: ratiosFromTargets(mapped.rest, wlb, defaults.rest),
+        high: ratiosFromTargets(mapped.high, wlb, defaults.high)
+      };
+
+      // Prefer profile baselines when present; otherwise fall back to ratios derived from current targets.
+      const nextRatios = {
+        training: sanitizeRatioObj(pData?.baseline_ratio_training, derivedRatios.training),
+        rest: sanitizeRatioObj(pData?.baseline_ratio_rest, derivedRatios.rest),
+        high: sanitizeRatioObj(pData?.baseline_ratio_high, derivedRatios.high)
+      };
+
+      setMacroRatios(nextRatios);
+
+      // Slider centers must be stable (used for ±0.5 bounds)
+      setRatioCenters((prev) => prev || nextRatios);
 
       const trainingDays = Array.isArray(pData?.training_days) ? pData.training_days : [];
       const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -377,14 +371,7 @@ setRatioCenters((prev) => prev || nextRatios);
       setBaselineRatios(nextBaselineRatios);
 
       // Freeze slider centers so min/max stay ±0.5 from the ORIGINAL baseline.
-      // If profile baselines aren't present yet, fall back to the initial local ratios.
-      setRatioCenters((prev) =>
-        prev || {
-          training: nextBaselineRatios.training || { ...macroRatios.training },
-          rest: nextBaselineRatios.rest || { ...macroRatios.rest },
-          high: nextBaselineRatios.high || { ...macroRatios.high }
-        }
-      );
+      setRatioCenters((prev) => prev || nextRatios);
 
       // Resolve day type for the selected log date (used in the Log tab goal display)
       const resolvedLog = await resolveDayTypeForDate(user.id, logDate, trainingDays);
