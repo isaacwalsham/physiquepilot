@@ -24,6 +24,33 @@ function Onboarding() {
   const [goalWeightInput, setGoalWeightInput] = useState("");
 
   const [goalType, setGoalType] = useState("maintain");
+  // Helper to infer goal type from starting and goal weights
+  const inferGoalTypeFromWeights = () => {
+    const startKg = parseWeightToKg(startingWeightInput);
+    const goalKg = parseWeightToKg(goalWeightInput);
+    if (!startKg || !goalKg) return goalType;
+
+    const diff = goalKg - startKg;
+
+    // Within ±2kg → maintain
+    if (Math.abs(diff) <= 2) return "maintain";
+
+    // Goal lower than start → lose
+    if (diff < -2) return "lose";
+
+    // Goal higher than start → gain
+    if (diff > 2) return "gain";
+
+    return goalType;
+  };
+
+  useEffect(() => {
+    const inferred = inferGoalTypeFromWeights();
+    if (inferred !== goalType) {
+      setGoalType(inferred);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startingWeightInput, goalWeightInput, unitSystem]);
   const [weeklyChangeInput, setWeeklyChangeInput] = useState("");
   const [calorieMode, setCalorieMode] = useState("ai");
   const [customCalories, setCustomCalories] = useState("");
@@ -1013,11 +1040,19 @@ function Onboarding() {
 
               <div>
                 <div style={label}>Main goal</div>
-                <select value={goalType} onChange={(e) => setGoalType(e.target.value)} style={field}>
+                <select
+                  value={goalType}
+                  disabled
+                  style={{ ...field, opacity: 0.7 }}
+                >
                   <option value="maintain">Maintain weight</option>
                   <option value="lose">Lose weight</option>
                   <option value="gain">Gain weight</option>
                 </select>
+                <div style={help}>
+                  Your goal is inferred from your starting and goal weight.
+                  If both are within 2kg, we assume maintenance.
+                </div>
               </div>
 
               {goalType !== "maintain" && (
