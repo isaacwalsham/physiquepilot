@@ -73,6 +73,126 @@ function Nutrition() {
     high: null
   });
 
+  // Draft editing (no autosave)
+  const [draftTargets, setDraftTargets] = useState({ training: null, rest: null, high: null });
+  const [dirtyTargets, setDirtyTargets] = useState({ training: false, rest: false, high: false });
+
+  const NUTRITION_CAPS = {
+    calories: { min: 0, max: 6000 },
+    protein_g: { min: 0, max: 350 },
+    carbs_g: { min: 0, max: 900 },
+    fats_g: { min: 0, max: 250 }
+  };
+
+  const clampInt = (v, min, max) => {
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n)) return min;
+    return Math.min(max, Math.max(min, n));
+  };
+
+  const recalcCalories = (row) => {
+    const p = Number(row.protein_g || 0);
+    const c = Number(row.carbs_g || 0);
+    const f = Number(row.fats_g || 0);
+    return Math.max(0, Math.round(p * 4 + c * 4 + f * 9));
+  };
+
+  const markDirty = (dayType) =>
+    setDirtyTargets((prev) => ({ ...prev, [dayType]: true }));
+
+  const updateDraftField = (dayType, field, value) => {
+    setDraftTargets((prev) => {
+      const current = prev[dayType] || {
+        day_type: dayType,
+        calories: 0,
+        protein_g: 0,
+        carbs_g: 0,
+        fats_g: 0
+      };
+
+      const cap = NUTRITION_CAPS[field] || { min: 0, max: 999999 };
+      const clean = clampInt(value, cap.min, cap.max);
+      const nextRow = { ...current, [field]: clean };
+
+      // Keep calories consistent if any macro changes.
+      if (field === "protein_g" || field === "carbs_g" || field === "fats_g") {
+        nextRow.calories = clampInt(recalcCalories(nextRow), NUTRITION_CAPS.calories.min, NUTRITION_CAPS.calories.max);
+      }
+
+      return { ...prev, [dayType]: nextRow };
+    });
+
+    markDirty(dayType);
+  };
+
+  const applyRatiosToDraft = (dayType, nextRatios) => {
+    if (!weightLb) {
+      setError("Set a current weight to use ratio sliders.");
+      return;
+    }
+
+    const p = clampInt(round0(nextRatios.protein * weightLb), NUTRITION_CAPS.protein_g.min, NUTRITION_CAPS.protein_g.max);
+    const c = clampInt(round0(nextRatios.carbs * weightLb), NUTRITION_CAPS.carbs_g.min, NUTRITION_CAPS.carbs_g.max);
+    const f = clampInt(round0(nextRatios.fats * weightLb), NUTRITION_CAPS.fats_g.min, NUTRITION_CAPS.fats_g.max);
+    const calories = clampInt(round0(p * 4 + c * 4 + f * 9), NUTRITION_CAPS.calories.min, NUTRITION_CAPS.calories.max);
+
+    setDraftTargets((prev) => {
+      const current = prev[dayType] || {
+        day_type: dayType,
+        calories: 0,
+        protein_g: 0,
+        carbs_g: 0,
+        fats_g: 0
+      };
+      return { ...prev, [dayType]: { ...current, calories, protein_g: p, carbs_g: c, fats_g: f } };
+    });
+
+    markDirty(dayType);
+  };
+
+  const saveDayTypeTargets = async (dayType) => {
+    if (!userId) return;
+    setError("");
+    setSavingTarget(true);
+
+    const row = draftTargets[dayType];
+    if (!row) {
+      setSavingTarget(false);
+      return;
+    }
+
+    // Final sanitize + compute calories if needed
+    const payload = {
+      user_id: userId,
+      day_type: dayType,
+      protein_g: clampInt(row.protein_g, NUTRITION_CAPS.protein_g.min, NUTRITION_CAPS.protein_g.max),
+      carbs_g: clampInt(row.carbs_g, NUTRITION_CAPS.carbs_g.min, NUTRITION_CAPS.carbs_g.max),
+      fats_g: clampInt(row.fats_g, NUTRITION_CAPS.fats_g.min, NUTRITION_CAPS.fats_g.max)
+    };
+    payload.calories = clampInt(recalcCalories(payload), NUTRITION_CAPS.calories.min, NUTRITION_CAPS.calories.max);
+
+    const { error: e } = await supabase
+      .from("nutrition_day_targets")
+      .upsert(payload, { onConflict: "user_id,day_type" });
+
+    setSavingTarget(false);
+
+    if (e) {
+      setError(e.message);
+      return;
+    }
+
+    // Persisted -> update saved targets and clear dirty
+    setTargets((prev) => ({ ...prev, [dayType]: { ...payload, day_type: dayType } }));
+    setDraftTargets((prev) => ({ ...prev, [dayType]: { ...payload, day_type: dayType } }));
+    setDirtyTargets((prev) => ({ ...prev, [dayType]: false }));
+  };
+
+  const resetDayTypeTargets = (dayType) => {
+    setDraftTargets((prev) => ({ ...prev, [dayType]: targets[dayType] }));
+    setDirtyTargets((prev) => ({ ...prev, [dayType]: false }));
+  };
+
   const [flex, setFlex] = useState(null);
 
   const [savingTarget, setSavingTarget] = useState(false);
@@ -142,6 +262,8 @@ function Nutrition() {
         if (row?.day_type && mapped[row.day_type]) mapped[row.day_type] = row;
       });
       setTargets(mapped);
+      setDraftTargets(mapped);
+      setDirtyTargets({ training: false, rest: false, high: false });
 
       const todayIso = new Date().toISOString().slice(0, 10);
 
@@ -508,100 +630,19 @@ function Nutrition() {
     setDailyLog((prev) => ({ ...prev, finalized: finalize ? true : prev.finalized }));
   };
 
-  const applyRatiosToDay = async (dayType, nextRatios) => {
-    if (!userId) return;
-    if (!weightLb) {
-      setError("Set a current weight to use ratio sliders.");
-      return;
-    }
-
-    const p = round0(nextRatios.protein * weightLb);
-    const c = round0(nextRatios.carbs * weightLb);
-    const f = round0(nextRatios.fats * weightLb);
-    const calories = round0(p * 4 + c * 4 + f * 9);
-
-    const current = targets[dayType] || {
-      day_type: dayType,
-      calories: 0,
-      protein_g: 0,
-      carbs_g: 0,
-      fats_g: 0
-    };
-
-    const nextRow = { ...current, calories, protein_g: p, carbs_g: c, fats_g: f };
-    setTargets((prev) => ({ ...prev, [dayType]: nextRow }));
-
-    setSavingTarget(true);
-    const payload = {
-      user_id: userId,
-      day_type: dayType,
-      calories: nextRow.calories,
-      protein_g: nextRow.protein_g,
-      carbs_g: nextRow.carbs_g,
-      fats_g: nextRow.fats_g
-    };
-    const { error: e } = await supabase.from("nutrition_day_targets").upsert(payload, { onConflict: "user_id,day_type" });
-    setSavingTarget(false);
-    if (e) setError(e.message);
-  };
+  // REMOVE applyRatiosToDay and updateTargetField
 
   const updateRatio = (dayType, key, value) => {
     const bounds = ratioBounds?.[dayType]?.[key];
     const min = bounds ? bounds.min : value;
     const max = bounds ? bounds.max : value;
     const clean = round2(clamp(value, min, max));
+
     const nextRatios = { ...macroRatios[dayType], [key]: clean };
     setMacroRatios((prev) => ({ ...prev, [dayType]: nextRatios }));
 
-    const k = `${dayType}`;
-    const existingTimer = ratioSaveTimersRef.current[k];
-    if (existingTimer) clearTimeout(existingTimer);
-
-    ratioSaveTimersRef.current[k] = setTimeout(() => {
-      applyRatiosToDay(dayType, nextRatios);
-    }, 350);
-  };
-
-  const updateTargetField = async (dayType, field, value) => {
-    if (!userId) return;
-    setError("");
-    setSavingTarget(true);
-
-    const clean = Math.max(0, Math.round(Number(value) || 0));
-
-    const current = targets[dayType] || {
-      day_type: dayType,
-      calories: 0,
-      protein_g: 0,
-      carbs_g: 0,
-      fats_g: 0
-    };
-
-    const nextRow = { ...current, [field]: clean };
-
-    if (field === "protein_g" || field === "carbs_g" || field === "fats_g") {
-      const p = Number(nextRow.protein_g || 0);
-      const c = Number(nextRow.carbs_g || 0);
-      const f = Number(nextRow.fats_g || 0);
-      nextRow.calories = Math.max(0, Math.round(p * 4 + c * 4 + f * 9));
-    }
-
-    const next = { ...targets, [dayType]: nextRow };
-    setTargets(next);
-
-    const payload = {
-      user_id: userId,
-      day_type: dayType,
-      calories: nextRow.calories,
-      protein_g: nextRow.protein_g,
-      carbs_g: nextRow.carbs_g,
-      fats_g: nextRow.fats_g
-    };
-
-    const { error: e } = await supabase.from("nutrition_day_targets").upsert(payload, { onConflict: "user_id,day_type" });
-
-    setSavingTarget(false);
-    if (e) setError(e.message);
+    // No autosave: apply to local draft only
+    applyRatiosToDraft(dayType, nextRatios);
   };
 
   const updateFlexField = async (field, value) => {
@@ -782,9 +823,13 @@ function Nutrition() {
             </select>
           )}
 
-          <div style={{ color: "#666", minWidth: "80px", textAlign: "right" }}>
-            {savingTarget || savingFlex ? "Saving..." : "Saved"}
-          </div>
+            <div style={{ color: "#666", minWidth: "120px", textAlign: "right" }}>
+              {savingTarget || savingFlex
+                ? "Saving..."
+                : (dirtyTargets.training || dirtyTargets.rest || dirtyTargets.high)
+                ? "Unsaved targets"
+                : "Saved"}
+            </div>
         </div>
       </div>
 
@@ -867,7 +912,7 @@ function Nutrition() {
 
             <div className="pp-grid-3" style={{ marginTop: "1rem" }}>
               {["training", "rest", "high"].map((dayType) => {
-                const t = targets[dayType];
+                const t = draftTargets[dayType];
                 if (!t) return null;
 
                 return (
@@ -877,13 +922,56 @@ function Nutrition() {
                       <div style={{ color: "#666", fontSize: "0.9rem" }}>{dayType === "high" ? "+ carbs day" : ""}</div>
                     </div>
 
+                    <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                      {dirtyTargets[dayType] ? (
+                        <div style={{ color: "#ffb86b", fontSize: "0.9rem" }}>Unsaved changes</div>
+                      ) : (
+                        <div style={{ color: "#666", fontSize: "0.9rem" }}>Saved</div>
+                      )}
+
+                      <div style={{ flex: 1 }} />
+
+                      <button
+                        type="button"
+                        onClick={() => resetDayTypeTargets(dayType)}
+                        disabled={savingTarget || !dirtyTargets[dayType]}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "12px",
+                          border: "1px solid #333",
+                          background: "transparent",
+                          color: !dirtyTargets[dayType] ? "#666" : "#fff",
+                          cursor: !dirtyTargets[dayType] ? "default" : "pointer"
+                        }}
+                      >
+                        Reset
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => saveDayTypeTargets(dayType)}
+                        disabled={savingTarget || !dirtyTargets[dayType]}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "12px",
+                          border: "1px solid #333",
+                          background: !dirtyTargets[dayType] ? "transparent" : "#2a2a2a",
+                          color: !dirtyTargets[dayType] ? "#666" : "#fff",
+                          cursor: !dirtyTargets[dayType] ? "default" : "pointer"
+                        }}
+                      >
+                        {savingTarget ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+
                     <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.65rem" }}>
                       <div>
                         <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Calories</div>
                         <input
                           type="number"
+                          min="0"
                           value={t.calories}
-                          onChange={(e) => updateTargetField(dayType, "calories", e.target.value)}
+                          onChange={(e) => updateDraftField(dayType, "calories", e.target.value)}
                           style={input}
                         />
                       </div>
@@ -893,8 +981,9 @@ function Nutrition() {
                           <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Protein (g)</div>
                           <input
                             type="number"
+                            min="0"
                             value={t.protein_g}
-                            onChange={(e) => updateTargetField(dayType, "protein_g", e.target.value)}
+                            onChange={(e) => updateDraftField(dayType, "protein_g", e.target.value)}
                             style={input}
                           />
                         </div>
@@ -903,8 +992,9 @@ function Nutrition() {
                           <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Carbs (g)</div>
                           <input
                             type="number"
+                            min="0"
                             value={t.carbs_g}
-                            onChange={(e) => updateTargetField(dayType, "carbs_g", e.target.value)}
+                            onChange={(e) => updateDraftField(dayType, "carbs_g", e.target.value)}
                             style={input}
                           />
                         </div>
@@ -913,8 +1003,9 @@ function Nutrition() {
                           <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Fats (g)</div>
                           <input
                             type="number"
+                            min="0"
                             value={t.fats_g}
-                            onChange={(e) => updateTargetField(dayType, "fats_g", e.target.value)}
+                            onChange={(e) => updateDraftField(dayType, "fats_g", e.target.value)}
                             style={input}
                           />
                         </div>
