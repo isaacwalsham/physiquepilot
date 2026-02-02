@@ -30,6 +30,7 @@ function Nutrition() {
   // New state for tab, baselineRatios, logDate, dailyLog, savingLog
   const [tab, setTab] = useState(() => localStorage.getItem("pp_nutrition_tab") || "macros");
   const [baselineRatios, setBaselineRatios] = useState({ training: null, rest: null, high: null });
+  const [ratioCenters, setRatioCenters] = useState(null);
   const [logDate, setLogDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dailyLog, setDailyLog] = useState({ calories: "", protein_g: "", carbs_g: "", fats_g: "", notes: "", finalized: false });
   const [savingLog, setSavingLog] = useState(false);
@@ -297,11 +298,22 @@ function Nutrition() {
       }
 
       // Set baseline ratios from profile
-      setBaselineRatios({
+      const nextBaselineRatios = {
         training: pData?.baseline_ratio_training || null,
         rest: pData?.baseline_ratio_rest || null,
         high: pData?.baseline_ratio_high || null
-      });
+      };
+      setBaselineRatios(nextBaselineRatios);
+
+      // Freeze slider centers so min/max stay ±0.5 from the ORIGINAL baseline.
+      // If profile baselines aren't present yet, fall back to the initial local ratios.
+      setRatioCenters((prev) =>
+        prev || {
+          training: nextBaselineRatios.training || { ...macroRatios.training },
+          rest: nextBaselineRatios.rest || { ...macroRatios.rest },
+          high: nextBaselineRatios.high || { ...macroRatios.high }
+        }
+      );
 
       // Resolve day type for the selected log date (used in the Log tab goal display)
       const resolvedLog = await resolveDayTypeForDate(user.id, logDate, trainingDays);
@@ -567,10 +579,13 @@ function Nutrition() {
 
   const ratioBounds = useMemo(() => {
     const build = (dayType, key, fallbackVal) => {
-      const base = baselineRatios?.[dayType]?.[key];
-      const center = Number.isFinite(Number(base)) ? Number(base) : Number(fallbackVal);
-      const min = round2(center - 0.5);
-      const max = round2(center + 0.5);
+      const centerSource = ratioCenters?.[dayType]?.[key];
+      const center = Number.isFinite(Number(centerSource)) ? Number(centerSource) : Number(fallbackVal);
+
+      // Keep bounds stable and prevent negative ratios.
+      const min = round2(Math.max(0, center - 0.5));
+      const max = round2(Math.max(min, center + 0.5));
+
       return { center, min, max };
     };
 
@@ -591,7 +606,7 @@ function Nutrition() {
         fats: build("high", "fats", macroRatios.high.fats)
       }
     };
-  }, [baselineRatios, macroRatios]);
+  }, [ratioCenters, macroRatios]);
 
   const saveDailyLog = async (finalize = false) => {
     if (!userId || !logDate) return;
@@ -1033,8 +1048,8 @@ function Nutrition() {
                           </div>
                           <input
                             type="range"
-                            min={ratioBounds[dayType].protein.min}
-                            max={ratioBounds[dayType].protein.max}
+                            min={ratioBounds?.[dayType]?.protein?.min ?? 0}
+                            max={ratioBounds?.[dayType]?.protein?.max ?? 2.5}
                             step="0.05"
                             value={macroRatios[dayType].protein}
                             onChange={(e) => updateRatio(dayType, "protein", Number(e.target.value))}
@@ -1050,8 +1065,8 @@ function Nutrition() {
                           </div>
                           <input
                             type="range"
-                            min={ratioBounds[dayType].carbs.min}
-                            max={ratioBounds[dayType].carbs.max}
+                            min={ratioBounds?.[dayType]?.carbs?.min ?? 0}
+                            max={ratioBounds?.[dayType]?.carbs?.max ?? 3.0}
                             step="0.05"
                             value={macroRatios[dayType].carbs}
                             onChange={(e) => updateRatio(dayType, "carbs", Number(e.target.value))}
@@ -1067,8 +1082,8 @@ function Nutrition() {
                           </div>
                           <input
                             type="range"
-                            min={ratioBounds[dayType].fats.min}
-                            max={ratioBounds[dayType].fats.max}
+                            min={ratioBounds?.[dayType]?.fats?.min ?? 0}
+                            max={ratioBounds?.[dayType]?.fats?.max ?? 1.0}
                             step="0.05"
                             value={macroRatios[dayType].fats}
                             onChange={(e) => updateRatio(dayType, "fats", Number(e.target.value))}
