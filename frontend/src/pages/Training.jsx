@@ -120,10 +120,34 @@ export default function Training() {
     return norm.length ? norm : null;
   };
 
+  // NOTE: Day-type sync is a convenience feature for cross-page consistency.
+  // If the overrides table/policies are misconfigured, we don't want Training to break.
+  const logSyncErr = (context, err) => {
+    // eslint-disable-next-line no-console
+    console.warn(`[training day-type sync] ${context}`, err);
+  };
+
+  const isIgnorableSyncError = (err) => {
+    const msg = String(err?.message || err || "");
+    // PostgREST can return 400/404 when schema cache is out of date or table is missing.
+    // RLS issues can appear as 401/403. We treat all of these as non-fatal for Training.
+    return (
+      msg.includes("Failed to fetch") ||
+      msg.includes("schema cache") ||
+      msg.includes("Could not find the table") ||
+      msg.includes("permission") ||
+      msg.includes("not allowed") ||
+      msg.includes("status of 400") ||
+      msg.includes("status of 401") ||
+      msg.includes("status of 403") ||
+      msg.includes("status of 404")
+    );
+  };
   // Persist a computed day type for a calendar date so other pages (e.g. Nutrition) can stay in sync.
   // Schema: public.training_day_overrides(user_id uuid, date date, override_type text)
   const persistDayTypeForDate = async (uid, dateISO, dayType) => {
     if (!uid || !dateISO) return;
+    if (persistDayTypeForDate._disabled) return;
 
     const cleanType = dayType === "high" ? "high" : dayType === "training" ? "training" : "rest";
 
@@ -141,7 +165,8 @@ export default function Training() {
         .maybeSingle();
 
       if (selErr && selErr.code !== "PGRST116") {
-        setError(String(selErr.message || selErr));
+        logSyncErr("select existing override", selErr);
+        if (isIgnorableSyncError(selErr)) persistDayTypeForDate._disabled = true;
         return;
       }
 
@@ -152,21 +177,47 @@ export default function Training() {
           .eq("id", existing.id)
           .eq("user_id", uid);
 
-        if (updErr) setError(String(updErr.message || updErr));
+        if (updErr) {
+          logSyncErr("update override", updErr);
+          if (isIgnorableSyncError(updErr)) persistDayTypeForDate._disabled = true;
+        }
         return;
       }
 
       const { error: insErr } = await supabase.from("training_day_overrides").insert(row);
-      if (insErr) setError(String(insErr.message || insErr));
+      if (insErr) {
+        logSyncErr("insert override", insErr);
+        if (isIgnorableSyncError(insErr)) persistDayTypeForDate._disabled = true;
+      }
     } catch (e) {
-      setError(String(e?.message || e));
+      logSyncErr("unexpected", e);
+      if (isIgnorableSyncError(e)) persistDayTypeForDate._disabled = true;
     }
   };
 
   const persistManyDayTypes = async (uid, rows) => {
     if (!uid || !Array.isArray(rows) || !rows.length) return;
-    for (const r of rows) {
-      await persistDayTypeForDate(uid, r.dateISO, r.dayType);
+    if (persistDayTypeForDate._disabled) return;
+
+    const payload = rows.map((r) => ({
+      user_id: uid,
+      date: r.dateISO,
+      override_type: r.dayType === "high" ? "high" : r.dayType === "training" ? "training" : "rest"
+    }));
+
+    try {
+      // Prefer a single request. This requires a unique index on (user_id, date).
+      const { error: upErr } = await supabase
+        .from("training_day_overrides")
+        .upsert(payload, { onConflict: "user_id,date" });
+
+      if (upErr) {
+        logSyncErr("bulk upsert overrides", upErr);
+        if (isIgnorableSyncError(upErr)) persistDayTypeForDate._disabled = true;
+      }
+    } catch (e) {
+      logSyncErr("bulk upsert unexpected", e);
+      if (isIgnorableSyncError(e)) persistDayTypeForDate._disabled = true;
     }
   };
 
