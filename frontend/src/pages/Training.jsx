@@ -122,9 +122,6 @@ export default function Training() {
 
   // Persist a computed day type for a calendar date so other pages (e.g. Nutrition) can stay in sync.
   // Schema: public.training_day_overrides(user_id uuid, date date, override_type text)
-  //
-  // NOTE: Upserts require a UNIQUE constraint on (user_id, date). If it doesn't exist yet,
-  // Supabase/PostgREST will 400. We fall back to select->update/insert so the page still works.
   const persistDayTypeForDate = async (uid, dateISO, dayType) => {
     if (!uid || !dateISO) return;
 
@@ -133,27 +130,9 @@ export default function Training() {
     const row = { user_id: uid, date: dateISO, override_type: cleanType };
 
     try {
-      // Fast path: proper upsert (requires UNIQUE (user_id,date))
-      const { error: upsertErr } = await supabase
-        .from("training_day_overrides")
-        .upsert(row, { onConflict: "user_id,date" });
-
-      if (!upsertErr) return;
-
-      const msg = String(upsertErr.message || "");
-      const needsFallback =
-        msg.toLowerCase().includes("unique") ||
-        msg.toLowerCase().includes("constraint") ||
-        msg.toLowerCase().includes("on_conflict") ||
-        msg.toLowerCase().includes("schema cache") ||
-        msg.toLowerCase().includes("could not find");
-
-      if (!needsFallback) {
-        setError(msg);
-        return;
-      }
-
-      // Fallback: select then update/insert
+      // Safer path: select -> update/insert.
+      // This avoids PostgREST 400s when the UNIQUE constraint for upsert is missing
+      // (and also makes errors easier to interpret).
       const { data: existing, error: selErr } = await supabase
         .from("training_day_overrides")
         .select("id")
