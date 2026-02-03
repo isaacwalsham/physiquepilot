@@ -15,13 +15,13 @@ function Login() {
 
     const run = async () => {
       const { data } = await supabase.auth.getSession();
-      if (data?.session) navigate("/app", { replace: true });
+      if (data?.session) navigate("/app/onboarding", { replace: true });
     };
 
     run();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) navigate("/app", { replace: true });
+      if (session) navigate("/app/onboarding", { replace: true });
     });
 
     return () => {
@@ -59,7 +59,7 @@ function Login() {
       }
     }
 
-    navigate("/app", { replace: true });
+    navigate("/app/onboarding", { replace: true });
   };
 
   return (

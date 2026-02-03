@@ -38,6 +38,8 @@ function Register() {
 
     const user = data?.user;
 
+    // Try to create an initial profiles row.
+    // If this fails due to auth/RLS/endpoint issues, don't block signup—Onboarding can create it.
     if (user) {
       try {
         const r = await fetch(`${API_URL}/api/profile/init`, {
@@ -52,26 +54,43 @@ function Register() {
 
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
-          throw new Error(j?.error || `Profile init failed (HTTP ${r.status})`);
+          console.warn("Profile init skipped:", j?.error || `HTTP ${r.status}`);
         }
       } catch (err) {
-        setLoading(false);
-        setErrorMsg(String(err?.message || err || "Profile init failed."));
-        return;
+        console.warn("Profile init skipped:", err);
       }
     }
 
-    setLoading(false);
+    let session = data?.session;
 
-    const session = data?.session;
+    if (!session) {
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: emailClean,
+        password
+      });
+
+      if (signInErr) {
+        setLoading(false);
+        setSuccessMsg("Account created. Please log in.");
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      session = signInData?.session || null;
+    }
+
     if (session) {
+      setLoading(false);
       setSuccessMsg("Account created. Redirecting to onboarding...");
       navigate("/app/onboarding", { replace: true });
       return;
     }
 
-    setSuccessMsg("Account created. Please check your email if confirmation is required. Redirecting to login...");
+    // Final fallback
+    setLoading(false);
+    setSuccessMsg("Account created. Please log in.");
     navigate("/login", { replace: true });
+    return;
   };
 
   return (

@@ -24,6 +24,7 @@ const toNum = (v) => {
 function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [hydratedStep, setHydratedStep] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -159,6 +160,15 @@ function Onboarding() {
       }
 
       setProfile(existingProfile);
+
+      // Resume onboarding where the user left off (if supported by schema)
+      if (!hydratedStep) {
+        const s = Number(existingProfile.onboarding_step);
+        if (Number.isFinite(s) && s >= 1 && s <= 7) {
+          setStep(s);
+        }
+        setHydratedStep(true);
+      }
 
       if (existingProfile.onboarding_complete) {
         navigate("/app/dashboard");
@@ -307,6 +317,7 @@ function Onboarding() {
         return false;
       }
 
+      const cc = Number(customCalories);
       if (calorieMode === "custom") {
         if (!Number.isFinite(cc) || cc < CAPS.custom_calories.min || cc > CAPS.custom_calories.max) {
           setError(`Custom calories must be between ${CAPS.custom_calories.min} and ${CAPS.custom_calories.max}.`);
@@ -380,14 +391,111 @@ function Onboarding() {
     return true;
   };
 
-  const nextStep = () => {
-    if (saving) return;
+  const updateWithFallback = async (payload) => {
+    const { error: e1 } = await supabase
+      .from("profiles")
+      .update(payload)
+      .eq("user_id", profile.user_id);
 
+    if (!e1) return { error: null };
+
+    const msg = String(e1.message || "");
+
+    if (!msg.includes("Could not find")) return { error: e1 };
+
+    const cleaned = { ...payload };
+    for (const k of Object.keys(cleaned)) {
+      if (msg.includes(`'${k}'`)) delete cleaned[k];
+    }
+
+    const { error: e2 } = await supabase
+      .from("profiles")
+      .update(cleaned)
+      .eq("user_id", profile.user_id);
+
+    return { error: e2 || null };
+  };
+
+  const saveProgress = async (nextStepValue) => {
+    if (!profile?.user_id) return;
+
+    // Build a partial payload (safe to save mid-onboarding)
+    const heightCm = parseHeightToCm();
+    const startingWeightKg = parseWeightToKg(startingWeightInput);
+    const goalWeightKg = parseWeightToKg(goalWeightInput);
+    const weeklyChangeKgRaw = parseWeeklyChangeToKg();
+    const weeklyChangeKg = safeWeeklyChangeKg(goalType, weeklyChangeKgRaw);
+    const bodyFatPct = parseBodyFatPct();
+
+    const baselineSteps = parseOptionalInt(baselineStepsInput, CAPS.steps_per_day);
+    const baselineCardioMinutes = parseOptionalInt(baselineCardioMinutesInput, CAPS.cardio_minutes_per_week);
+    const baselineCardioHr = parseOptionalInt(baselineCardioHrInput, CAPS.cardio_avg_hr);
+
+    const partialPayload = {
+      // resume support
+      onboarding_step: nextStepValue,
+      onboarding_complete: false,
+
+      // store whatever is valid so far
+      unit_system: unitSystem,
+      height_cm: heightCm,
+      starting_weight_kg: startingWeightKg,
+      goal_weight_kg: goalWeightKg,
+      goal_type: goalType,
+      weekly_weight_change_target_kg: goalType === "maintain" ? null : weeklyChangeKg,
+
+      first_name: firstName.trim() || null,
+      last_name: lastName.trim() || null,
+      sex: sex || null,
+      date_of_birth: dateOfBirth || null,
+
+      split_mode: splitMode,
+      training_frequency_range: splitMode === "rolling" ? trainingFrequencyRange : null,
+      rolling_start_date: splitMode === "rolling" ? (rollingStartDate || new Date().toISOString().slice(0, 10)) : null,
+      training_days: splitMode === "fixed" ? trainingDaysSelected : null,
+      training_days_per_week: splitMode === "fixed" ? trainingDaysSelected.length : null,
+      experience_level: experienceLevel,
+      gym_type: gymType,
+      gym_chain: gymChain,
+
+      activity_level: activityLevel,
+      baseline_steps_per_day: baselineSteps,
+      baseline_cardio_minutes_per_week: baselineCardioMinutes,
+      baseline_cardio_avg_hr: baselineCardioHr,
+
+      dietary_preference: dietaryPreference,
+      dietary_additional: dietaryAdditional,
+      food_allergies: foodAllergies,
+      dislikes,
+
+      calorie_mode: calorieMode,
+      custom_calories: calorieMode === "custom" ? Number(customCalories) || null : null,
+
+      body_fat_pct: bodyFatPct,
+      default_liss_opt_in: defaultLissOptIn
+    };
+
+    // Use the existing fallback logic so missing columns (e.g. onboarding_step) don’t break the flow
+    const res = await updateWithFallback(partialPayload);
+    if (res?.error) {
+      console.warn("Onboarding progress save skipped:", res.error.message);
+    }
+  };
+
+  const nextStep = async () => {
+    if (saving) return;
     const ok = validateStep(step);
     if (!ok) return;
-    setStep((s) => Math.min(s + 1, 7));
+
+    const next = Math.min(step + 1, 7);
+    setStep(next);
+    await saveProgress(next);
   };
-  const prevStep = () => setStep((s) => Math.max(s - 1, 1));
+  const prevStep = async () => {
+    const prev = Math.max(step - 1, 1);
+    setStep(prev);
+    await saveProgress(prev);
+  };
 
   const toggleTrainingDay = (day) => {
     setTrainingDaysSelected((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -522,12 +630,12 @@ function Onboarding() {
       dislikes,
       calorie_mode: calorieMode,
       custom_calories: calorieMode === "custom" ? Number(customCalories) || null : null,
+      onboarding_step: 7,
       onboarding_complete: true,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       sex,
       date_of_birth: dateOfBirth || null,
-
     };
 
     const optionalPayload = {
@@ -896,17 +1004,18 @@ function Onboarding() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (saving) return;
-                  navigate("/", { replace: true });
-                }}
-                disabled={saving}
-                style={linkBtn(saving)}
-              >
-                Back to home
-              </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (saving) return;
+                await saveProgress(step);
+                navigate("/", { replace: true });
+              }}
+              disabled={saving}
+              style={linkBtn(saving)}
+            >
+              Back to home
+            </button>
               <div style={stepText}>Step {step} of 7</div>
             </div>
           </div>
