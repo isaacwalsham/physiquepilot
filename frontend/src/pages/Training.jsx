@@ -121,77 +121,80 @@ export default function Training() {
   };
 
   // Persist a computed day type for a calendar date so other pages (e.g. Nutrition) can stay in sync.
-// Schema: public.training_day_overrides(user_id uuid, date date, override_type text)
-//
-// NOTE: Upserts require a UNIQUE constraint on (user_id, date). If it doesn't exist yet,
-// Supabase/PostgREST will 400. We fall back to select->update/insert so the page still works.
-const persistDayTypeForDate = async (uid, dateISO, dayType) => {
-  if (!uid || !dateISO) return;
+  // Schema: public.training_day_overrides(user_id uuid, date date, override_type text)
+  //
+  // NOTE: Upserts require a UNIQUE constraint on (user_id, date). If it doesn't exist yet,
+  // Supabase/PostgREST will 400. We fall back to select->update/insert so the page still works.
+  const persistDayTypeForDate = async (uid, dateISO, dayType) => {
+    if (!uid || !dateISO) return;
 
-  const cleanType = dayType === "high" ? "high" : dayType === "training" ? "training" : "rest";
+    const cleanType = dayType === "high" ? "high" : dayType === "training" ? "training" : "rest";
 
-  const row = { user_id: uid, date: dateISO, override_type: cleanType };
+    const row = { user_id: uid, date: dateISO, override_type: cleanType };
 
-  try {
-    // Fast path: proper upsert (requires UNIQUE (user_id,date))
-    const { error: upsertErr } = await supabase
-      .from("training_day_overrides")
-      .upsert(row, { onConflict: "user_id,date" });
-
-    if (!upsertErr) return;
-
-    const msg = String(upsertErr.message || "");
-    const needsFallback =
-      msg.toLowerCase().includes("unique") ||
-      msg.toLowerCase().includes("constraint") ||
-      msg.toLowerCase().includes("on_conflict") ||
-      msg.toLowerCase().includes("schema cache") ||
-      msg.toLowerCase().includes("could not find");
-
-    if (!needsFallback) {
-      setError(msg);
-      return;
-    }
-
-    // Fallback: select then update/insert
-    const { data: existing, error: selErr } = await supabase
-      .from("training_day_overrides")
-      .select("id")
-      .eq("user_id", uid)
-      .eq("date", dateISO)
-      .maybeSingle();
-
-    if (selErr && selErr.code !== "PGRST116") {
-      setError(String(selErr.message || selErr));
-      return;
-    }
-
-    if (existing?.id) {
-      const { error: updErr } = await supabase
+    try {
+      // Fast path: proper upsert (requires UNIQUE (user_id,date))
+      const { error: upsertErr } = await supabase
         .from("training_day_overrides")
-        .update({ override_type: cleanType })
-        .eq("id", existing.id)
-        .eq("user_id", uid);
+        .upsert(row, { onConflict: "user_id,date" });
 
-      if (updErr) setError(String(updErr.message || updErr));
-      return;
+      if (!upsertErr) return;
+
+      const msg = String(upsertErr.message || "");
+      const needsFallback =
+        msg.toLowerCase().includes("unique") ||
+        msg.toLowerCase().includes("constraint") ||
+        msg.toLowerCase().includes("on_conflict") ||
+        msg.toLowerCase().includes("schema cache") ||
+        msg.toLowerCase().includes("could not find");
+
+      if (!needsFallback) {
+        setError(msg);
+        return;
+      }
+
+      // Fallback: select then update/insert
+      const { data: existing, error: selErr } = await supabase
+        .from("training_day_overrides")
+        .select("id")
+        .eq("user_id", uid)
+        .eq("date", dateISO)
+        .maybeSingle();
+
+      if (selErr && selErr.code !== "PGRST116") {
+        setError(String(selErr.message || selErr));
+        return;
+      }
+
+      if (existing?.id) {
+        const { error: updErr } = await supabase
+          .from("training_day_overrides")
+          .update({ override_type: cleanType })
+          .eq("id", existing.id)
+          .eq("user_id", uid);
+
+        if (updErr) setError(String(updErr.message || updErr));
+        return;
+      }
+
+      const { error: insErr } = await supabase.from("training_day_overrides").insert(row);
+      if (insErr) setError(String(insErr.message || insErr));
+    } catch (e) {
+      setError(String(e?.message || e));
     }
+  };
 
-    const { error: insErr } = await supabase.from("training_day_overrides").insert(row);
-    if (insErr) setError(String(insErr.message || insErr));
-  } catch (e) {
-    setError(String(e?.message || e));
-  }
-};
-
-const persistManyDayTypes = async (uid, rows) => {
-  if (!uid || !Array.isArray(rows) || !rows.length) return;
-  for (const r of rows) {
-    await persistDayTypeForDate(uid, r.dateISO, r.dayType);
-  }
-};
+  const persistManyDayTypes = async (uid, rows) => {
+    if (!uid || !Array.isArray(rows) || !rows.length) return;
+    for (const r of rows) {
+      await persistDayTypeForDate(uid, r.dateISO, r.dayType);
+    }
+  };
 
   const preloadWeekFromProfile = async (uid) => {
+
+    if (preloadWeekFromProfile._didPersistOnce) return;
+    preloadWeekFromProfile._didPersistOnce = true;
     // Pull schedule settings from onboarding
     const { data: profile, error: pErr } = await supabase
       .from("profiles")
