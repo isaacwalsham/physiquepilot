@@ -120,69 +120,34 @@ export default function Training() {
     return norm.length ? norm : null;
   };
 
-  // Persist a computed day type for a date so other pages (e.g. Nutrition) can stay in sync.
-  // This is intentionally defensive because the DB schema may differ between environments.
+  // Persist a computed day type for a calendar date so other pages (e.g. Nutrition) can stay in sync.
+  // Your schema: public.training_day_overrides(user_id uuid, date date, override_type text)
   const persistDayTypeForDate = async (uid, dateISO, dayType) => {
     if (!uid || !dateISO) return;
+
+    // Only allow known types
     const cleanType = dayType === "high" ? "high" : dayType === "training" ? "training" : "rest";
 
-    // Try a few common table/column layouts.
-    const attempts = [
-      // training_cycle_days(day_date, day_type)
-      () =>
-        supabase
-          .from("training_cycle_days")
-          .upsert(
-            { user_id: uid, day_date: dateISO, day_type: cleanType },
-            { onConflict: "user_id,day_date" }
-          ),
-      // training_cycle_days(session_date, day_type)
-      () =>
-        supabase
-          .from("training_cycle_days")
-          .upsert(
-            { user_id: uid, session_date: dateISO, day_type: cleanType },
-            { onConflict: "user_id,session_date" }
-          ),
-      // training_day_overrides(override_date, day_type)
-      () =>
-        supabase
-          .from("training_day_overrides")
-          .upsert(
-            { user_id: uid, override_date: dateISO, day_type: cleanType },
-            { onConflict: "user_id,override_date" }
-          ),
-      // training_day_overrides(day_date, day_type)
-      () =>
-        supabase
-          .from("training_day_overrides")
-          .upsert(
-            { user_id: uid, day_date: dateISO, day_type: cleanType },
-            { onConflict: "user_id,day_date" }
-          )
-    ];
+    try {
+      const { error } = await supabase
+        .from("training_day_overrides")
+        .upsert(
+          {
+            user_id: uid,
+            date: dateISO,
+            override_type: cleanType
+          },
+          { onConflict: "user_id,date" }
+        );
 
-    for (const run of attempts) {
-      try {
-        const { error } = await run();
-        if (!error) return;
-
-        // If the table/column doesn't exist in this project, try next attempt.
+      if (error) {
         const msg = String(error.message || "");
-        if (msg.includes("Could not find") || msg.includes("schema cache") || msg.includes("does not exist")) {
-          continue;
-        }
-
-        // Any other error is real (RLS/permissions/etc) — surface it.
+        // Surface real issues (RLS, perms, bad columns)
         setError(msg);
-        return;
-      } catch (e) {
-        // Network/runtime issues — surface.
-        setError(String(e?.message || e));
-        return;
       }
+    } catch (e) {
+      setError(String(e?.message || e));
     }
-    // If all attempts failed due to missing schema, silently do nothing.
   };
 
   const persistManyDayTypes = async (uid, rows) => {
