@@ -12,14 +12,14 @@ function AppLayout() {
     aliveRef.current = true;
 
     const guard = async () => {
-      // While we check auth/profile, keep the layout in a loading state
+
       if (aliveRef.current) setLoading(true);
 
       const { data, error: sessErr } = await supabase.auth.getSession();
       const session = data?.session;
 
       if (sessErr) {
-        // If session fetch fails, send user to landing
+
         navigate("/", { replace: true });
         return;
       }
@@ -48,10 +48,8 @@ function AppLayout() {
       if (aliveRef.current) setLoading(false);
     };
 
-    // Run once on mount
     guard();
 
-    // Re-run whenever auth changes (login/logout/refresh)
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
       guard();
     });

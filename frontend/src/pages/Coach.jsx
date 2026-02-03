@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 
-/* ---------------- helpers ---------------- */
-
 const formatISO = (d) => {
   const dt = new Date(d);
   const y = dt.getFullYear();
@@ -47,8 +45,6 @@ const buildInsights = (w) => {
   return out;
 };
 
-/* ---------------- component ---------------- */
-
 function Coach() {
   const todayIso = useMemo(() => formatISO(new Date()), []);
   const chatRef = useRef(null);
@@ -58,26 +54,22 @@ function Coach() {
 
   const [userId, setUserId] = useState(null);
 
-  // Today
   const [training, setTraining] = useState(null);
   const [nutrition, setNutrition] = useState(null);
   const [steps, setSteps] = useState(null);
   const [cardio, setCardio] = useState(null);
   const [targets, setTargets] = useState({});
 
-  // Week
   const [weekStats, setWeekStats] = useState({
     weightLoggedDays: 0,
     sessionsPlanned: 0,
     sessionsCompleted: 0
   });
 
-  // Chat
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Responsive layout (simple)
   const [bp, setBp] = useState(() => {
     if (typeof window === "undefined") return "desktop";
     const w = window.innerWidth;
@@ -96,8 +88,6 @@ function Coach() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  /* ---------------- load ---------------- */
-
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -113,7 +103,6 @@ function Coach() {
       const uid = data.user.id;
       setUserId(uid);
 
-      // Load targets first so weekStats can use them reliably
       const targetMap = await loadTargets(uid);
 
       await Promise.all([loadToday(uid), loadWeek(uid, targetMap), loadChat(uid)]);
@@ -122,7 +111,7 @@ function Coach() {
     };
 
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [todayIso]);
 
   useEffect(() => {
@@ -131,10 +120,8 @@ function Coach() {
     }
   }, [messages]);
 
-  /* ---------------- data loaders ---------------- */
-
   const loadToday = async (uid) => {
-    // training_sessions in your app uses: name, is_rest_day (not day_type/completed)
+
     const { data: t, error: tErr } = await supabase
       .from("training_sessions")
       .select("name, is_rest_day")
@@ -146,8 +133,6 @@ function Coach() {
       setError(tErr.message);
     }
 
-    // There is no `daily_nutrition_targets` table in your schema list.
-    // For now, show nutrition as "not logged" unless you add a nutrition log table.
     const n = null;
 
     const { data: s, error: sErr } = await supabase
@@ -197,7 +182,7 @@ function Coach() {
   };
 
   const loadWeek = async (uid, targetMap) => {
-    // Last 7 days inclusive (today and previous 6)
+
     const startIso = addDaysISO(todayIso, -6);
     const endExclusive = addDaysISO(todayIso, 1);
 
@@ -223,8 +208,6 @@ function Coach() {
 
     const planned = (t || []).filter((x) => x.is_rest_day === false).length;
 
-    // NOTE: your schema doesn't currently track completion. We'll treat planned==completed for now.
-    // If you add a `completed` boolean later, we can switch this logic.
     setWeekStats({
       weightLoggedDays: new Set((w || []).map((x) => x.log_date)).size,
       sessionsPlanned: planned,
@@ -243,7 +226,6 @@ function Coach() {
       const msg = String(e.message || "");
       const status = e.status || e.statusCode;
 
-      // If the table doesn't exist yet, don't hard-fail the whole page.
       if (
         (msg.includes("coach_messages") && (msg.includes("Could not find") || msg.includes("schema cache"))) ||
         status === 404
@@ -259,8 +241,6 @@ function Coach() {
 
     setMessages(data || []);
   };
-
-  /* ---------------- chat ---------------- */
 
   const sendMessage = async () => {
     if (!userId) return;
@@ -286,13 +266,12 @@ function Coach() {
     setSending(false);
   };
 
-  /* ---------------- render ---------------- */
-
   if (loading) return <div>Loading…</div>;
 
   const dayType = training?.is_rest_day ? "rest" : "training";
   const targetCalories = targets?.[dayType]?.calories ?? null;
-  const eaten = null; // no nutrition log table yet
+  const eaten = null; 
+
   const remaining = null;
 
   const cardioMinutes =
@@ -400,7 +379,7 @@ function Coach() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      {/* TODAY SUMMARY (responsive grid) */}
+      {}
       <div style={section}>
         <div style={{ fontWeight: 700 }}>Today</div>
         <div style={small}>Quick snapshot of today’s inputs.</div>
@@ -437,7 +416,7 @@ function Coach() {
         </div>
       </div>
 
-      {/* INSIGHTS (full width section) */}
+      {}
       <div style={section}>
         <div style={{ fontWeight: 700 }}>Insights</div>
         <div style={small}>Based on the last 7 days.</div>
@@ -468,7 +447,7 @@ function Coach() {
         </div>
       </div>
 
-      {/* CHAT (full width section) */}
+      {}
       <div style={section}>
         <div style={{ fontWeight: 700 }}>Coach chat</div>
         <div style={small}>This is currently a simple log. Next step is wiring responses.</div>

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 
-
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -33,7 +32,6 @@ export default function Training() {
 
   const [newExerciseName, setNewExerciseName] = useState("");
 
-  // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 900);
@@ -43,7 +41,8 @@ export default function Training() {
 
   const week = useMemo(() => {
     const t = todayISO();
-    const start = t; // next 7 days starting today
+    const start = t; 
+
     return Array.from({ length: 7 }).map((_, i) => {
       const iso = addDaysISO(start, i);
       const d = new Date(`${iso}T00:00:00`);
@@ -81,7 +80,7 @@ export default function Training() {
   });
 
   const daysBetweenISO = (aISO, bISO) => {
-    // b - a in whole days
+
     const a = new Date(`${aISO}T00:00:00Z`);
     const b = new Date(`${bISO}T00:00:00Z`);
     const ms = b.getTime() - a.getTime();
@@ -89,9 +88,7 @@ export default function Training() {
   };
 
   const normalizeRollingPattern = (raw) => {
-    // Accept a few shapes:
-    // - array: [true,false] or ["training","rest"]
-    // - object: { pattern: [...] } or { days: [...] } or { sequence: [...] }
+
     const arr = Array.isArray(raw)
       ? raw
       : Array.isArray(raw?.pattern)
@@ -112,7 +109,7 @@ export default function Training() {
         if (!s) return false;
         if (s === "t" || s === "train" || s === "training" || s === "workout" || s === "lift") return true;
         if (s === "r" || s === "rest" || s === "off") return false;
-        // Fallback: treat unknown strings as false (rest)
+
         return false;
       })
       .filter((x) => typeof x === "boolean");
@@ -120,17 +117,14 @@ export default function Training() {
     return norm.length ? norm : null;
   };
 
-  // NOTE: Day-type sync is a convenience feature for cross-page consistency.
-  // If the overrides table/policies are misconfigured, we don't want Training to break.
   const logSyncErr = (context, err) => {
-    // eslint-disable-next-line no-console
+
     console.warn(`[training day-type sync] ${context}`, err);
   };
 
   const isIgnorableSyncError = (err) => {
     const msg = String(err?.message || err || "");
-    // PostgREST can return 400/404 when schema cache is out of date or table is missing.
-    // RLS issues can appear as 401/403. We treat all of these as non-fatal for Training.
+
     return (
       msg.includes("Failed to fetch") ||
       msg.includes("schema cache") ||
@@ -143,8 +137,7 @@ export default function Training() {
       msg.includes("status of 404")
     );
   };
-  // Persist a computed day type for a calendar date so other pages (e.g. Nutrition) can stay in sync.
-  // Schema: public.training_day_overrides(user_id uuid, date date, override_type text)
+
   const persistDayTypeForDate = async (uid, dateISO, dayType) => {
     if (!uid || !dateISO) return;
     if (persistDayTypeForDate._disabled) return;
@@ -154,9 +147,7 @@ export default function Training() {
     const row = { user_id: uid, date: dateISO, override_type: cleanType };
 
     try {
-      // Safer path: select -> update/insert.
-      // This avoids PostgREST 400s when the UNIQUE constraint for upsert is missing
-      // (and also makes errors easier to interpret).
+
       const { data: existing, error: selErr } = await supabase
         .from("training_day_overrides")
         .select("id")
@@ -206,7 +197,7 @@ export default function Training() {
     }));
 
     try {
-      // Prefer a single request. This requires a unique index on (user_id, date).
+
       const { error: upErr } = await supabase
         .from("training_day_overrides")
         .upsert(payload, { onConflict: "user_id,date" });
@@ -225,7 +216,7 @@ export default function Training() {
 
     if (preloadWeekFromProfile._didPersistOnce) return;
     preloadWeekFromProfile._didPersistOnce = true;
-    // Pull schedule settings from onboarding
+
     const { data: profile, error: pErr } = await supabase
       .from("profiles")
       .select(
@@ -248,9 +239,8 @@ export default function Training() {
 
     const rollingPattern = normalizeRollingPattern(profile?.rolling_pattern);
 
-    // If user chose rolling split but hasn't set a pattern yet, don't guess.
     if (splitMode === "rolling" && !rollingPattern) {
-      // Not fatal: user can set it inside Training later.
+
       return;
     }
 
@@ -262,7 +252,8 @@ export default function Training() {
 
     const isTrainingForDate = (dateISO) => {
       if (splitMode !== "rolling") {
-        const dow = isoToDow(dateISO); // e.g. "Mon"
+        const dow = isoToDow(dateISO); 
+
         return fixedDays.includes(dow);
       }
 
@@ -271,17 +262,13 @@ export default function Training() {
       return Boolean(rollingPattern[idx]);
     };
 
-    // Next 7 days (today + 6)
     const dates = week.map((d) => d.iso);
 
-    // Persist the computed schedule (training/rest) for the next 7 days so Nutrition can infer day types.
-    // Note: high days can be layered later (e.g. from weak-part selection). For now we persist training/rest.
     await persistManyDayTypes(
       uid,
       dates.map((d) => ({ dateISO: d, dayType: isTrainingForDate(d) ? "training" : "rest" }))
     );
 
-    // Check which sessions already exist
     const { data: existing, error: exErr } = await supabase
       .from("training_sessions")
       .select("session_date")
@@ -295,7 +282,6 @@ export default function Training() {
 
     const existingSet = new Set((existing || []).map((r) => r.session_date));
 
-    // Only insert TRAINING days by default (rest days can be left unassigned)
     const rowsToInsert = dates
       .filter((d) => !existingSet.has(d))
       .filter((d) => isTrainingForDate(d))
@@ -369,8 +355,6 @@ export default function Training() {
       setSetsByExercise({});
       await syncTodayDayTypeToProfile(null);
 
-      // Best-effort: ensure the date exists in the schedule table as "rest" so Nutrition can stay consistent
-      // even when no session row exists.
       await persistDayTypeForDate(uid, dateISO, "rest");
       return;
     }
@@ -453,14 +437,13 @@ export default function Training() {
     await persistDayTypeForDate(userId, selectedDate, data.is_rest_day ? "rest" : "training");
     await fetchWeekSessions(userId);
   };
-  // Sync today's day type (training/rest) to profiles table if editing today
+
   const syncTodayDayTypeToProfile = async (nextSession) => {
-    // Only sync if we are editing today
+
     const t = todayISO();
     if (!userId) return;
     if (selectedDate !== t) return;
 
-    // If no session exists for today, clear override
     if (!nextSession) {
       await supabase
         .from("profiles")
@@ -874,7 +857,7 @@ export default function Training() {
               </button>
             </div>
 
-            {/* Session name input */}
+            {}
             <div style={{ marginBottom: "0.75rem" }}>
               <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Session name</div>
               <input

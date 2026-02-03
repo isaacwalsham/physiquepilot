@@ -78,7 +78,7 @@ const suggestCalories = ({ goalType, weeklyRateKg, weightKg }) => {
 app.post("/api/profile/init", async (req, res) => {
   try {
     const body = req.body || {};
-    // Accept either userId (camelCase) or user_id (snake_case)
+
     const user_id = body.user_id || body.userId;
     const email = body.email;
 
@@ -171,7 +171,6 @@ app.post("/api/nutrition/init", async (req, res) => {
     return res.status(400).json({ ok: false, error: flexReadErr.message });
   }
 
-  // If there's no row yet, create one. If there is one, update it to the current week.
   if (!flexExisting) {
     const { error: flexUpsertErr } = await supabase
       .from("weekly_flex_rules")

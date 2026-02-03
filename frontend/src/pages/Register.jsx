@@ -63,8 +63,6 @@ function Register() {
 
     setLoading(false);
 
-    // If email confirmations are disabled, Supabase will return a session here.
-    // In that case, send the user straight into onboarding.
     const session = data?.session;
     if (session) {
       setSuccessMsg("Account created. Redirecting to onboarding...");
@@ -72,8 +70,6 @@ function Register() {
       return;
     }
 
-    // If confirmations are enabled, there may be no session yet.
-    // Send the user to login (or to confirm email, depending on your Supabase auth settings).
     setSuccessMsg("Account created. Please check your email if confirmation is required. Redirecting to login...");
     navigate("/login", { replace: true });
   };

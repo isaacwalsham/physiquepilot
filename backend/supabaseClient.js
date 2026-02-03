@@ -3,9 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
-// Server-side Supabase client.
-// IMPORTANT: This file should use the *Service Role* key only.
-// Never use the anon key on the backend.
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

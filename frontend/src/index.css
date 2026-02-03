@@ -1,7 +1,3 @@
-/* index.css
-   Keep this file minimal. App-wide layout + colors live in App.css.
-*/
-
 :root {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -13,7 +9,6 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Do NOT center the entire app */
 html,
 body {
   margin: 0;
@@ -22,7 +17,6 @@ body {
   height: 100%;
 }
 
-/* Helps mobile sizing behave predictably */
 * {
   box-sizing: border-box;
 }
@@ -35,7 +29,6 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Don’t let default button styles vary wildly */
 button {
   font-family: inherit;
 }
