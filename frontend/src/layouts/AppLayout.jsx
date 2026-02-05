@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, useLocation } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Sidebar from "../components/Sidebar";
 
@@ -8,26 +8,37 @@ function AppLayout() {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const aliveRef = useRef(true);
+  const hasCheckedRef = useRef(false);
+  const isGuardRunningRef = useRef(false);
 
   useEffect(() => {
     aliveRef.current = true;
 
     const guard = async () => {
+      // Prevent overlapping guards (can happen on rapid auth events)
+      if (isGuardRunningRef.current) return;
+      isGuardRunningRef.current = true;
+
       try {
-        if (aliveRef.current) setLoading(true);
+        // Only show the full-screen loader on the very first check
+        if (aliveRef.current && !hasCheckedRef.current) setLoading(true);
 
         const { data, error: sessErr } = await supabase.auth.getSession();
         const session = data?.session;
 
         // If not authenticated, always go back to landing
         if (sessErr || !session) {
+          if (aliveRef.current) {
+            hasCheckedRef.current = true;
+            setLoading(false);
+          }
           navigate("/", { replace: true });
           return;
         }
 
-        // Onboarding route should always be accessible while signed in,
-        // even if the profile row hasn't been created yet (race after sign-up).
-        const isOnboardingRoute = location.pathname.startsWith("/app/onboarding");
+        // Use the real current path (avoid using location.pathname as an effect dependency)
+        const currentPath = window.location.pathname;
+        const isOnboardingRoute = currentPath.startsWith("/app/onboarding");
 
         const { data: profile, error } = await supabase
           .from("profiles")
@@ -37,6 +48,10 @@ function AppLayout() {
 
         // If profile fetch fails for any reason, still allow onboarding route
         if (error && !isOnboardingRoute) {
+          if (aliveRef.current) {
+            hasCheckedRef.current = true;
+            setLoading(false);
+          }
           navigate("/", { replace: true });
           return;
         }
@@ -46,24 +61,43 @@ function AppLayout() {
         // If onboarding not complete (or profile missing), force user onto onboarding
         if (!onboardingComplete) {
           if (!isOnboardingRoute) {
+            if (aliveRef.current) {
+              hasCheckedRef.current = true;
+              setLoading(false);
+            }
             navigate("/app/onboarding", { replace: true });
             return;
           }
-          // Already on onboarding, allow render
-          if (aliveRef.current) setLoading(false);
+
+          if (aliveRef.current) {
+            hasCheckedRef.current = true;
+            setLoading(false);
+          }
           return;
         }
 
         // Onboarding complete -> keep users out of onboarding page
         if (onboardingComplete && isOnboardingRoute) {
+          if (aliveRef.current) {
+            hasCheckedRef.current = true;
+            setLoading(false);
+          }
           navigate("/app", { replace: true });
           return;
         }
 
-        if (aliveRef.current) setLoading(false);
+        if (aliveRef.current) {
+          hasCheckedRef.current = true;
+          setLoading(false);
+        }
       } catch {
-        // Safe fallback
+        if (aliveRef.current) {
+          hasCheckedRef.current = true;
+          setLoading(false);
+        }
         navigate("/", { replace: true });
+      } finally {
+        isGuardRunningRef.current = false;
       }
     };
 
@@ -79,7 +113,7 @@ function AppLayout() {
         sub?.subscription?.unsubscribe?.();
       } catch {}
     };
-  }, [navigate, location.pathname]);
+  }, [navigate]);
 
   if (loading) {
     return (
