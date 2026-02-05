@@ -17,6 +17,8 @@ function Register() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg("");
@@ -61,32 +63,46 @@ function Register() {
       }
     }
 
-    let session = data?.session;
+    // Supabase can sometimes return no session right after signUp (depending on auth settings).
+    // Even with email confirmation disabled, there can be a short delay before sign-in works.
+    let session = data?.session || null;
 
     if (!session) {
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-        email: emailClean,
-        password
-      });
+      // Try a few times before falling back to manual login.
+      for (let i = 0; i < 6; i++) {
+        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: emailClean,
+          password
+        });
 
-      if (signInErr) {
-        setLoading(false);
-        setSuccessMsg("Account created. Please log in.");
-        navigate("/login", { replace: true });
-        return;
+        if (!signInErr && signInData?.session) {
+          session = signInData.session;
+          break;
+        }
+
+        // small backoff
+        await sleep(350);
       }
-
-      session = signInData?.session || null;
     }
 
     if (session) {
       setLoading(false);
       setSuccessMsg("Account created. Redirecting to onboarding...");
+
+      // Navigate and force a lightweight reload so any auth-gated layout picks up the new session immediately.
+      // This avoids the "I have to refresh" issue after registration.
       navigate("/app/onboarding", { replace: true });
+      setTimeout(() => {
+        try {
+          window.location.reload();
+        } catch {
+          // ignore
+        }
+      }, 50);
       return;
     }
 
-    // Final fallback
+    // If we still couldn't establish a session, send them to login.
     setLoading(false);
     setSuccessMsg("Account created. Please log in.");
     navigate("/login", { replace: true });
