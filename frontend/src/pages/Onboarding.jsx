@@ -171,7 +171,8 @@ function Onboarding() {
       }
 
       if (existingProfile.onboarding_complete) {
-        navigate("/app/dashboard");
+        // Let the main app guard route the user; keep this consistent with AppLayout.
+        navigate("/app", { replace: true });
         return;
       }
 
@@ -814,7 +815,8 @@ function Onboarding() {
     }
 
     setSaving(false);
-    navigate("/app/dashboard", { replace: true });
+    // Route to the app shell; AppLayout will land them on the correct default page.
+    navigate("/app", { replace: true });
   };
 
   const pageWrap = {

@@ -87,18 +87,10 @@ function Register() {
 
     if (session) {
       setLoading(false);
-      setSuccessMsg("Account created. Redirecting to onboarding...");
+      setSuccessMsg("Account created. Redirecting...");
 
-      // Navigate and force a lightweight reload so any auth-gated layout picks up the new session immediately.
-      // This avoids the "I have to refresh" issue after registration.
-      navigate("/app/onboarding", { replace: true });
-      setTimeout(() => {
-        try {
-          window.location.reload();
-        } catch {
-          // ignore
-        }
-      }, 50);
+      // Route into the app shell. AppLayout decides whether the user should see onboarding or dashboard.
+      navigate("/app", { replace: true });
       return;
     }
 

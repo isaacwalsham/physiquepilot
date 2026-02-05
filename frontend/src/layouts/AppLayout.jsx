@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, useLocation } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Sidebar from "../components/Sidebar";
 
 function AppLayout() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const aliveRef = useRef(true);
   const hasCheckedRef = useRef(false);
@@ -13,6 +12,19 @@ function AppLayout() {
 
   useEffect(() => {
     aliveRef.current = true;
+
+    const finish = () => {
+      if (aliveRef.current) {
+        hasCheckedRef.current = true;
+        setLoading(false);
+      }
+    };
+
+    const go = (path) => {
+      const currentPath = window.location.pathname;
+      // Avoid pointless re-navigations that can cause flicker
+      if (currentPath !== path) navigate(path, { replace: true });
+    };
 
     const guard = async () => {
       // Prevent overlapping guards (can happen on rapid auth events)
@@ -28,15 +40,11 @@ function AppLayout() {
 
         // If not authenticated, always go back to landing
         if (sessErr || !session) {
-          if (aliveRef.current) {
-            hasCheckedRef.current = true;
-            setLoading(false);
-          }
-          navigate("/", { replace: true });
+          finish();
+          go("/");
           return;
         }
 
-        // Use the real current path (avoid using location.pathname as an effect dependency)
         const currentPath = window.location.pathname;
         const isOnboardingRoute = currentPath.startsWith("/app/onboarding");
 
@@ -46,56 +54,36 @@ function AppLayout() {
           .eq("user_id", session.user.id)
           .maybeSingle();
 
-        // If profile fetch fails for any reason, still allow onboarding route
-        if (error && !isOnboardingRoute) {
-          if (aliveRef.current) {
-            hasCheckedRef.current = true;
-            setLoading(false);
-          }
-          navigate("/", { replace: true });
+        // PGRST116 = no rows; treat as onboarding not complete.
+        // Any other error (permissions, schema, network) should not create a redirect loop.
+        if (error && error.code !== "PGRST116") {
+          console.warn("profiles read failed:", error);
+          // Keep user on onboarding if they're already there; otherwise send them there.
+          finish();
+          if (!isOnboardingRoute) go("/app/onboarding");
           return;
         }
 
         const onboardingComplete = profile?.onboarding_complete === true;
 
-        // If onboarding not complete (or profile missing), force user onto onboarding
         if (!onboardingComplete) {
-          if (!isOnboardingRoute) {
-            if (aliveRef.current) {
-              hasCheckedRef.current = true;
-              setLoading(false);
-            }
-            navigate("/app/onboarding", { replace: true });
-            return;
-          }
-
-          if (aliveRef.current) {
-            hasCheckedRef.current = true;
-            setLoading(false);
-          }
+          // Force user onto onboarding until complete
+          finish();
+          if (!isOnboardingRoute) go("/app/onboarding");
           return;
         }
 
         // Onboarding complete -> keep users out of onboarding page
-        if (onboardingComplete && isOnboardingRoute) {
-          if (aliveRef.current) {
-            hasCheckedRef.current = true;
-            setLoading(false);
-          }
-          navigate("/app", { replace: true });
+        finish();
+        if (isOnboardingRoute) {
+          go("/app");
           return;
         }
-
-        if (aliveRef.current) {
-          hasCheckedRef.current = true;
-          setLoading(false);
-        }
-      } catch {
-        if (aliveRef.current) {
-          hasCheckedRef.current = true;
-          setLoading(false);
-        }
-        navigate("/", { replace: true });
+      } catch (err) {
+        console.warn("AppLayout guard failed:", err);
+        finish();
+        // If something unexpected happens, at least don't trap them in a spinner loop.
+        go("/");
       } finally {
         isGuardRunningRef.current = false;
       }

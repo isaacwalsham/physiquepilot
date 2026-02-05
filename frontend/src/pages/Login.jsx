@@ -10,18 +10,31 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState("");
   const aliveRef = useRef(true);
 
+  const redirectingRef = useRef(false);
+
   useEffect(() => {
     aliveRef.current = true;
 
     const run = async () => {
       const { data } = await supabase.auth.getSession();
-      if (data?.session) navigate("/app/onboarding", { replace: true });
+      const session = data?.session;
+      if (!session) return;
+
+      if (redirectingRef.current) return;
+      redirectingRef.current = true;
+
+      if (aliveRef.current) navigate("/app", { replace: true });
     };
 
     run();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) navigate("/app/onboarding", { replace: true });
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session) return;
+
+      if (redirectingRef.current) return;
+      redirectingRef.current = true;
+
+      if (aliveRef.current) navigate("/app", { replace: true });
     });
 
     return () => {
@@ -59,7 +72,10 @@ function Login() {
       }
     }
 
-    navigate("/app/onboarding", { replace: true });
+    if (redirectingRef.current) return;
+    redirectingRef.current = true;
+
+    navigate("/app", { replace: true });
   };
 
   return (
