@@ -1,8 +1,6 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-// Node 18+ has global fetch; this fallback helps if you run an older Node locally.
-import fetch from "node-fetch";
 import supabase from "./supabaseClient.js";
 
 dotenv.config();
