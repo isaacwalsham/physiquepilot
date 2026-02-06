@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 
-// Keep API_URL logic consistent with the rest of the app
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
     .trim()
@@ -38,9 +37,8 @@ const isPositiveNumber = (v) => {
 };
 
 export default function Nutrition() {
-  // Top-level tabs
-  const [tab, setTab] = useState("log"); // 'log' | 'plan'
-  const [planTab, setPlanTab] = useState("targets"); // 'targets' | 'meal_plan'
+  const [tab, setTab] = useState("log");
+  const [planTab, setPlanTab] = useState("targets");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -55,19 +53,20 @@ export default function Nutrition() {
     high: null
   });
 
-  // Food log (UI-enforced amount + unit + cooked/raw)
   const [logNotes, setLogNotes] = useState("");
 
   const [entryFood, setEntryFood] = useState("");
   const [entryQty, setEntryQty] = useState("");
   const [entryUnit, setEntryUnit] = useState("g");
-  const [entryState, setEntryState] = useState(""); // 'raw' | 'cooked'
-  const [entries, setEntries] = useState([]); // local-only for now
+  const [entryState, setEntryState] = useState("");
+  const [entries, setEntries] = useState([]);
+
+  const [logTotals, setLogTotals] = useState(null);
+  const [logWarnings, setLogWarnings] = useState([]);
 
   const [waterMl, setWaterMl] = useState(0);
   const [saltG, setSaltG] = useState(0);
 
-  // Edit buffers for targets (no autosave)
   const [editTargets, setEditTargets] = useState({
     training: null,
     rest: null,
@@ -128,7 +127,6 @@ export default function Nutrition() {
         return;
       }
 
-      // If empty, init via backend route
       if (!tData || tData.length === 0) {
         const r = await fetch(`${API_URL}/api/nutrition/init`, {
           method: "POST",
@@ -286,40 +284,46 @@ export default function Nutrition() {
   };
 
   const saveLog = async () => {
-    if (!userId) return;
-    setError("");
-    setSaving(true);
+  if (!userId) return;
+  setError("");
+  setSaving(true);
 
-    const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = new Date().toISOString().slice(0, 10);
 
-    try {
-      const { error: e } = await supabase
-        .from("daily_nutrition_logs")
-        .upsert(
-          {
-            user_id: userId,
-            log_date: todayIso,
-            notes: logNotes || null,
-            calories: null,
-            protein_g: null,
-            carbs_g: null,
-            fats_g: null
-          },
-          { onConflict: "user_id,log_date" }
-        );
+  try {
+    const r = await fetch(`${API_URL}/api/nutrition/log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        log_date: todayIso,
+        notes: logNotes || null,
+        items: entries
+      })
+    });
 
-      if (e) {
-        setError(e.message);
-        setSaving(false);
-        return;
-      }
+    const j = await r.json().catch(() => ({}));
 
+    if (!r.ok || !j?.ok) {
+      setError(j?.error || "Failed to save nutrition log.");
       setSaving(false);
-    } catch (err) {
-      setError(String(err?.message || err));
-      setSaving(false);
+      return;
     }
-  };
+
+    setLogTotals({
+      calories: j.calories ?? 0,
+      protein_g: j.protein_g ?? 0,
+      carbs_g: j.carbs_g ?? 0,
+      fats_g: j.fats_g ?? 0
+    });
+    setLogWarnings(Array.isArray(j.warnings) ? j.warnings : []);
+
+    setSaving(false);
+  } catch (err) {
+    setError(String(err?.message || err));
+    setSaving(false);
+  }
+};
 
   const card = {
     background: "#1e1e1e",
@@ -481,6 +485,7 @@ export default function Nutrition() {
                   </div>
 
                   <button
+                    className="nutrition-entry-add"
                     type="button"
                     disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState}
                     onClick={() => {
@@ -562,14 +567,41 @@ export default function Nutrition() {
                     </button>
                   </div>
 
-                  <div style={{ color: "#666", fontSize: "0.9rem" }}>Right now “Save log” stores notes only. Next step: save items + compute macros/micros.</div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Save log estimates calories + macros from your items and stores today’s totals.
+                  </div>
                 </div>
               </div>
 
               <div className="nutrition-macro-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "1rem" }}>
                 <div style={card}>
                   <div style={{ fontWeight: 800 }}>Macros</div>
-                  <div style={{ color: "#666", marginTop: "0.5rem" }}>Placeholder — we’ll render the macro pie + totals once foods are parsed.</div>
+                  {logTotals ? (
+                    <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.35rem", color: "#aaa" }}>
+                      <div>
+                        <b style={{ color: "#fff" }}>{logTotals.calories}</b> kcal
+                      </div>
+                      <div>
+                        P: <b style={{ color: "#fff" }}>{logTotals.protein_g}</b>g
+                      </div>
+                      <div>
+                        C: <b style={{ color: "#fff" }}>{logTotals.carbs_g}</b>g
+                      </div>
+                      <div>
+                        F: <b style={{ color: "#fff" }}>{logTotals.fats_g}</b>g
+                      </div>
+
+                      {logWarnings?.length > 0 && (
+                        <div style={{ marginTop: "0.5rem", color: "#666", fontSize: "0.9rem" }}>
+                          {logWarnings.map((w, idx) => (
+                            <div key={idx}>• {w}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ color: "#666", marginTop: "0.5rem" }}>Save your log to calculate macros.</div>
+                  )}
                   {/* mount point for a future chart */}
                   <div className="nutrition-macros-chart" style={{ marginTop: "0.85rem" }} />
                 </div>
