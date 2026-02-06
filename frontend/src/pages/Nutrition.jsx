@@ -429,7 +429,7 @@ export default function Nutrition() {
                   <div>
                     <div style={{ fontWeight: 800 }}>Food log</div>
                     <div style={{ color: "#aaa", marginTop: "0.35rem" }}>
-                      Add one item at a time. Weight + unit + cooked/raw are required.
+                      Log your food by typing it.
                     </div>
                   </div>
                   <button
@@ -553,7 +553,7 @@ export default function Nutrition() {
                 </div>
 
                 <div style={{ marginTop: "1rem", display: "grid", gap: "0.6rem" }}>
-                  <div style={{ color: "#aaa" }}>Notes (optional)</div>
+                  <div style={{ color: "#aaa" }}>Notes </div>
                   <textarea
                     value={logNotes}
                     onChange={(e) => setLogNotes(e.target.value)}
@@ -729,7 +729,7 @@ export default function Nutrition() {
 
             <div>
               <div style={{ fontWeight: 800 }}>Water & salt</div>
-              <div style={{ color: "#aaa", marginTop: "0.35rem" }}>Optional. Always visible but out of the way.</div>
+              <div style={{ color: "#aaa", marginTop: "0.35rem" }}></div>
 
               <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.75rem" }}>
                 <div>
@@ -741,8 +741,6 @@ export default function Nutrition() {
                   <input type="number" value={saltG} onChange={(e) => setSaltG(clampInt(e.target.value, 0, 50))} style={field} />
                 </div>
               </div>
-
-              <div style={{ marginTop: "0.75rem", color: "#666", fontSize: "0.9rem" }}>Next: store these in the daily log and show progress vs targets.</div>
             </div>
           </div>
         </div>
