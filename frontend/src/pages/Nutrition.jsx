@@ -22,6 +22,21 @@ const clampInt = (v, min, max) => {
 
 const calcCalories = (p, c, f) => p * 4 + c * 4 + f * 9;
 
+const UNIT_OPTIONS = [
+  { value: "g", label: "g" },
+  { value: "kg", label: "kg" },
+  { value: "ml", label: "ml" },
+  { value: "l", label: "l" },
+  { value: "oz", label: "oz" },
+  { value: "lb", label: "lb" },
+  { value: "serv", label: "serv" }
+];
+
+const isPositiveNumber = (v) => {
+  const n = Number(String(v || "").trim());
+  return Number.isFinite(n) && n > 0;
+};
+
 export default function Nutrition() {
   // Top-level tabs
   const [tab, setTab] = useState("log"); // 'log' | 'plan'
@@ -40,8 +55,15 @@ export default function Nutrition() {
     high: null
   });
 
-  // Daily log input (stub for now; we’ll build the full chat parser next)
-  const [logText, setLogText] = useState("");
+  // Food log (UI-enforced amount + unit + cooked/raw)
+  const [logNotes, setLogNotes] = useState("");
+
+  const [entryFood, setEntryFood] = useState("");
+  const [entryQty, setEntryQty] = useState("");
+  const [entryUnit, setEntryUnit] = useState("g");
+  const [entryState, setEntryState] = useState(""); // 'raw' | 'cooked'
+  const [entries, setEntries] = useState([]); // local-only for now
+
   const [waterMl, setWaterMl] = useState(0);
   const [saltG, setSaltG] = useState(0);
 
@@ -196,8 +218,6 @@ export default function Nutrition() {
   };
 
   const updateEditField = (dayType, field, value) => {
-    // Hard clamps to prevent negative / nonsense on the client.
-    // DB constraints are still the real guardrail.
     const maxCalories = 6000;
     const minCalories = 800;
 
@@ -216,8 +236,6 @@ export default function Nutrition() {
       if (field === "carbs_g") next.carbs_g = clampInt(value, 0, maxCarbs);
       if (field === "fats_g") next.fats_g = clampInt(value, 0, maxFats);
 
-      // Keep calories consistent with macros (so we never violate ndt_calories_match_macros)
-      // If user edited macros, recompute calories.
       if (field === "protein_g" || field === "carbs_g" || field === "fats_g") {
         next.calories = clampInt(calcCalories(next.protein_g, next.carbs_g, next.fats_g), minCalories, maxCalories);
       }
@@ -254,7 +272,6 @@ export default function Nutrition() {
         return;
       }
 
-      // Sync view state
       const mapped = {
         training: { ...rows[0], day_type: "training" },
         rest: { ...rows[1], day_type: "rest" },
@@ -273,8 +290,6 @@ export default function Nutrition() {
     setError("");
     setSaving(true);
 
-    // For now: save only notes + optional water/salt into daily_nutrition_logs.
-    // Next step we’ll parse foods into macros/micros.
     const todayIso = new Date().toISOString().slice(0, 10);
 
     try {
@@ -284,8 +299,7 @@ export default function Nutrition() {
           {
             user_id: userId,
             log_date: todayIso,
-            notes: logText || null,
-            // Store summary for now; later we’ll store calculated macros.
+            notes: logNotes || null,
             calories: null,
             protein_g: null,
             carbs_g: null,
@@ -332,6 +346,49 @@ export default function Nutrition() {
     borderRadius: "10px"
   });
 
+  const shell = {
+    width: "100%",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 360px",
+    gap: "1rem",
+    alignItems: "start"
+  };
+
+  const sidebarCard = {
+    ...card,
+    position: "sticky",
+    top: "0.75rem",
+    zIndex: 5
+  };
+
+  const pill = (active) => ({
+    padding: "0.4rem 0.65rem",
+    borderRadius: "999px",
+    border: "1px solid #333",
+    background: active ? "#2a2a2a" : "transparent",
+    color: active ? "#fff" : "#aaa",
+    cursor: "pointer",
+    fontSize: "0.9rem"
+  });
+
+  const primaryBtn = (disabled) => ({
+    padding: "0.65rem 1rem",
+    background: disabled ? "transparent" : "#2a2a2a",
+    color: disabled ? "#666" : "#fff",
+    border: "1px solid #333",
+    borderRadius: "10px",
+    cursor: disabled ? "default" : "pointer"
+  });
+
+  const subtleBtn = {
+    padding: "0.55rem 0.8rem",
+    background: "transparent",
+    color: "#aaa",
+    border: "1px solid #333",
+    borderRadius: "10px",
+    cursor: "pointer"
+  };
+
   if (loading) return <div style={{ padding: "1rem" }}>Loading...</div>;
 
   return (
@@ -340,7 +397,7 @@ export default function Nutrition() {
         <div>
           <h1 style={{ margin: 0 }}>Nutrition</h1>
           <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            Log food daily, then use the Plan tab to adjust targets and generate meal plans.
+            Log daily. Plan your targets and (soon) generate meal plans.
           </div>
         </div>
 
@@ -357,172 +414,316 @@ export default function Nutrition() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      {/* Sticky Targets summary (always visible) */}
-      <div style={{ ...card, marginTop: "1rem", position: "sticky", top: "0.75rem", zIndex: 5 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-          <div>
-            <div style={{ fontWeight: 800 }}>Today’s target</div>
-            <div style={{ color: "#666", marginTop: "0.25rem" }}>{dayLabel[todayType] || "Today"}</div>
-          </div>
+      <div style={{ ...shell, marginTop: "1rem" }}>
+        {/* MAIN */}
+        <div style={{ minWidth: 0 }}>
+          {tab === "log" && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <div style={card}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>Food log</div>
+                    <div style={{ color: "#aaa", marginTop: "0.35rem" }}>
+                      Add one item at a time. Weight + unit + cooked/raw are required.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEntries([]);
+                      setEntryFood("");
+                      setEntryQty("");
+                      setEntryUnit("g");
+                      setEntryState("");
+                    }}
+                    style={subtleBtn}
+                  >
+                    Clear
+                  </button>
+                </div>
 
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-            <select value={todayType} onChange={(e) => saveTodayType(e.target.value)} style={{ ...field, width: "220px" }}>
-              <option value="training">Training day</option>
-              <option value="rest">Rest day</option>
-              <option value="high">High day</option>
-            </select>
-          </div>
+                <div
+                  style={{
+                    marginTop: "0.9rem",
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) 120px 110px 170px 120px",
+                    gap: "0.6rem",
+                    alignItems: "center"
+                  }}
+                >
+                  <input
+                    value={entryFood}
+                    onChange={(e) => setEntryFood(e.target.value)}
+                    placeholder="e.g. rice, chicken breast, olive oil"
+                    style={field}
+                  />
+
+                  <input
+                    value={entryQty}
+                    onChange={(e) => setEntryQty(e.target.value)}
+                    placeholder="Qty"
+                    inputMode="decimal"
+                    style={field}
+                  />
+
+                  <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={field}>
+                    {UNIT_OPTIONS.map((u) => (
+                      <option key={u.value} value={u.value}>
+                        {u.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-start" }}>
+                    <button type="button" onClick={() => setEntryState("raw")} style={pill(entryState === "raw")}>
+                      Raw
+                    </button>
+                    <button type="button" onClick={() => setEntryState("cooked")} style={pill(entryState === "cooked")}>
+                      Cooked
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState}
+                    onClick={() => {
+                      const qty = Number(String(entryQty).trim());
+                      if (!String(entryFood || "").trim() || !Number.isFinite(qty) || qty <= 0 || !entryState) return;
+
+                      setEntries((prev) => [
+                        ...prev,
+                        {
+                          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                          food: String(entryFood).trim(),
+                          qty,
+                          unit: entryUnit,
+                          state: entryState
+                        }
+                      ]);
+
+                      setEntryFood("");
+                      setEntryQty("");
+                      setEntryUnit("g");
+                      setEntryState("");
+                    }}
+                    style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState)}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.6rem" }}>
+                  Tip: you’ll be able to paste multi-items ("50g rice, 100g chicken") once the parser is wired up.
+                </div>
+
+                <div style={{ marginTop: "1rem", display: "grid", gap: "0.5rem" }}>
+                  {entries.length === 0 ? (
+                    <div style={{ color: "#666" }}>No items yet.</div>
+                  ) : (
+                    entries.map((it) => (
+                      <div
+                        key={it.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "0.75rem",
+                          padding: "0.65rem 0.75rem",
+                          border: "1px solid #2a2a2a",
+                          borderRadius: "10px",
+                          background: "#151515"
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {it.food}
+                          </div>
+                          <div style={{ color: "#888", fontSize: "0.9rem", marginTop: "0.2rem" }}>
+                            {it.qty}{it.unit} • {it.state === "raw" ? "Raw" : "Cooked"}
+                          </div>
+                        </div>
+
+                        <button type="button" onClick={() => setEntries((prev) => prev.filter((x) => x.id !== it.id))} style={subtleBtn}>
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div style={{ marginTop: "1rem", display: "grid", gap: "0.6rem" }}>
+                  <div style={{ color: "#aaa" }}>Notes (optional)</div>
+                  <textarea
+                    value={logNotes}
+                    onChange={(e) => setLogNotes(e.target.value)}
+                    placeholder="Anything you want to remember about today…"
+                    style={{ ...field, minHeight: "110px", resize: "vertical" }}
+                  />
+
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button type="button" onClick={saveLog} style={primaryBtn(false)}>
+                      Save log
+                    </button>
+                  </div>
+
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Right now “Save log” stores notes only. Next step: save items + compute macros/micros.
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "1rem" }}>
+                <div style={card}>
+                  <div style={{ fontWeight: 800 }}>Macros</div>
+                  <div style={{ color: "#666", marginTop: "0.5rem" }}>
+                    Placeholder — we’ll render the macro pie + totals once foods are parsed.
+                  </div>
+                </div>
+                <div style={card}>
+                  <div style={{ fontWeight: 800 }}>Micros</div>
+                  <div style={{ color: "#666", marginTop: "0.5rem" }}>
+                    Placeholder — we’ll add micronutrient sliders vs RDI.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "plan" && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button type="button" onClick={() => setPlanTab("targets")} style={tabBtn(planTab === "targets")}>
+                  Targets
+                </button>
+                <button type="button" onClick={() => setPlanTab("meal_plan")} style={tabBtn(planTab === "meal_plan")}>
+                  Meal plan
+                </button>
+              </div>
+
+              {planTab === "targets" && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "1rem" }}>
+                  {["training", "rest", "high"].map((dayType) => {
+                    const t = editTargets?.[dayType];
+                    if (!t) return null;
+
+                    return (
+                      <div key={dayType} style={card}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                          <div style={{ fontWeight: 800 }}>{dayLabel[dayType]}</div>
+                          <div style={{ color: "#666" }}>{dayType === "high" ? "+ carbs day" : ""}</div>
+                        </div>
+
+                        <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.65rem" }}>
+                          <div>
+                            <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Calories</div>
+                            <input type="number" value={t.calories} onChange={(e) => updateEditField(dayType, "calories", e.target.value)} style={field} />
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.5rem" }}>
+                            <div>
+                              <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Protein (g)</div>
+                              <input type="number" value={t.protein_g} onChange={(e) => updateEditField(dayType, "protein_g", e.target.value)} style={field} />
+                            </div>
+                            <div>
+                              <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Carbs (g)</div>
+                              <input type="number" value={t.carbs_g} onChange={(e) => updateEditField(dayType, "carbs_g", e.target.value)} style={field} />
+                            </div>
+                            <div>
+                              <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Fats (g)</div>
+                              <input type="number" value={t.fats_g} onChange={(e) => updateEditField(dayType, "fats_g", e.target.value)} style={field} />
+                            </div>
+                          </div>
+
+                          <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                            Calories auto-sync to macros (to satisfy your DB constraints). Saving is manual.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
+                    <button type="button" onClick={saveTargets} style={primaryBtn(false)}>
+                      Save targets
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {planTab === "meal_plan" && (
+                <div style={card}>
+                  <div style={{ fontWeight: 800 }}>Meal plan</div>
+                  <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+                    Next step: generate meals based on today’s targets, preferences, and training time.
+                  </div>
+                  <div style={{ marginTop: "1rem", color: "#666" }}>
+                    Placeholder for now — we’ll implement the meal blocks + alternatives after the logging and targets flows are solid.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div style={{ marginTop: "0.85rem", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "0.75rem" }}>
-          <div>
-            <div style={{ color: "#aaa" }}>Calories</div>
-            <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets?.calories ?? "—"}</div>
-          </div>
-          <div>
-            <div style={{ color: "#aaa" }}>Protein</div>
-            <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.protein_g}g` : "—"}</div>
-          </div>
-          <div>
-            <div style={{ color: "#aaa" }}>Carbs</div>
-            <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.carbs_g}g` : "—"}</div>
-          </div>
-          <div>
-            <div style={{ color: "#aaa" }}>Fats</div>
-            <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.fats_g}g` : "—"}</div>
+        {/* SIDEBAR */}
+        <div style={{ minWidth: 0 }}>
+          <div style={sidebarCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+              <div>
+                <div style={{ fontWeight: 800 }}>Today’s target</div>
+                <div style={{ color: "#666", marginTop: "0.25rem" }}>{dayLabel[todayType] || "Today"}</div>
+              </div>
+
+              <select value={todayType} onChange={(e) => saveTodayType(e.target.value)} style={{ ...field, width: "170px" }}>
+                <option value="training">Training day</option>
+                <option value="rest">Rest day</option>
+                <option value="high">High day</option>
+              </select>
+            </div>
+
+            <div style={{ marginTop: "0.85rem", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" }}>
+              <div>
+                <div style={{ color: "#aaa" }}>Calories</div>
+                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets?.calories ?? "—"}</div>
+              </div>
+              <div>
+                <div style={{ color: "#aaa" }}>Protein</div>
+                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.protein_g}g` : "—"}</div>
+              </div>
+              <div>
+                <div style={{ color: "#aaa" }}>Carbs</div>
+                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.carbs_g}g` : "—"}</div>
+              </div>
+              <div>
+                <div style={{ color: "#aaa" }}>Fats</div>
+                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.fats_g}g` : "—"}</div>
+              </div>
+            </div>
+
+            <div style={{ height: "1px", background: "#2a2a2a", margin: "0.9rem 0" }} />
+
+            <div>
+              <div style={{ fontWeight: 800 }}>Water & salt</div>
+              <div style={{ color: "#aaa", marginTop: "0.35rem" }}>Optional. Always visible but out of the way.</div>
+
+              <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.75rem" }}>
+                <div>
+                  <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Water (ml)</div>
+                  <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={field} />
+                </div>
+                <div>
+                  <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Salt (g)</div>
+                  <input type="number" value={saltG} onChange={(e) => setSaltG(clampInt(e.target.value, 0, 50))} style={field} />
+                </div>
+              </div>
+
+              <div style={{ marginTop: "0.75rem", color: "#666", fontSize: "0.9rem" }}>
+                Next: store these in the daily log and show progress vs targets.
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* LOG TAB */}
-      {tab === "log" && (
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", marginTop: "1rem" }}>
-          <div style={card}>
-            <div style={{ fontWeight: 800 }}>Food log</div>
-            <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-              Paste foods like: <span style={{ color: "#fff" }}>50g uncooked rice, 100g chicken, 5g olive oil</span>.
-            </div>
-
-            <textarea
-              value={logText}
-              onChange={(e) => setLogText(e.target.value)}
-              placeholder="Type or paste your foods here…"
-              style={{ ...field, marginTop: "0.75rem", minHeight: "160px", resize: "vertical" }}
-            />
-
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.75rem" }}>
-              <button
-                type="button"
-                onClick={saveLog}
-                style={{ padding: "0.65rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333", borderRadius: "10px", cursor: "pointer" }}
-              >
-                Save log
-              </button>
-            </div>
-          </div>
-
-          <div style={card}>
-            <div style={{ fontWeight: 800 }}>Water & salt</div>
-            <div style={{ color: "#aaa", marginTop: "0.5rem" }}>Optional. Keep it out of the way.</div>
-
-            <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.75rem" }}>
-              <div>
-                <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Water (ml)</div>
-                <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={field} />
-              </div>
-              <div>
-                <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Salt (g)</div>
-                <input type="number" value={saltG} onChange={(e) => setSaltG(clampInt(e.target.value, 0, 50))} style={field} />
-              </div>
-
-              <div style={{ color: "#666", fontSize: "0.9rem" }}>
-                Next: we’ll store these in the daily log table and show your progress vs targets.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* PLAN TAB */}
-      {tab === "plan" && (
-        <div style={{ marginTop: "1rem" }}>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            <button type="button" onClick={() => setPlanTab("targets")} style={tabBtn(planTab === "targets")}>
-              Targets
-            </button>
-            <button type="button" onClick={() => setPlanTab("meal_plan")} style={tabBtn(planTab === "meal_plan")}>
-              Meal plan
-            </button>
-          </div>
-
-          {planTab === "targets" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "1rem" }}>
-              {["training", "rest", "high"].map((dayType) => {
-                const t = editTargets?.[dayType];
-                if (!t) return null;
-
-                return (
-                  <div key={dayType} style={card}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <div style={{ fontWeight: 800 }}>{dayLabel[dayType]}</div>
-                      <div style={{ color: "#666" }}>{dayType === "high" ? "+ carbs day" : ""}</div>
-                    </div>
-
-                    <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.65rem" }}>
-                      <div>
-                        <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Calories</div>
-                        <input type="number" value={t.calories} onChange={(e) => updateEditField(dayType, "calories", e.target.value)} style={field} />
-                      </div>
-
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.5rem" }}>
-                        <div>
-                          <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Protein (g)</div>
-                          <input type="number" value={t.protein_g} onChange={(e) => updateEditField(dayType, "protein_g", e.target.value)} style={field} />
-                        </div>
-                        <div>
-                          <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Carbs (g)</div>
-                          <input type="number" value={t.carbs_g} onChange={(e) => updateEditField(dayType, "carbs_g", e.target.value)} style={field} />
-                        </div>
-                        <div>
-                          <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Fats (g)</div>
-                          <input type="number" value={t.fats_g} onChange={(e) => updateEditField(dayType, "fats_g", e.target.value)} style={field} />
-                        </div>
-                      </div>
-
-                      <div style={{ color: "#666", fontSize: "0.9rem" }}>
-                        Calories auto-sync to macros (to satisfy your DB constraints). Saving is manual.
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={saveTargets}
-                  style={{ padding: "0.7rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333", borderRadius: "10px", cursor: "pointer" }}
-                >
-                  Save targets
-                </button>
-              </div>
-            </div>
-          )}
-
-          {planTab === "meal_plan" && (
-            <div style={card}>
-              <div style={{ fontWeight: 800 }}>Meal plan</div>
-              <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-                Next step: generate meals based on today’s targets, preferences, and training time.
-              </div>
-
-              <div style={{ marginTop: "1rem", color: "#666" }}>
-                Placeholder for now — we’ll implement the meal blocks + alternatives after the logging and targets flows are solid.
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
