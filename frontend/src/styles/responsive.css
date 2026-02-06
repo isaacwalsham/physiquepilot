@@ -77,7 +77,7 @@
 
 .app-content {
   flex: 1;
-  min-width: 0; 
+  min-width: 0;
 }
 
 .page {
@@ -130,5 +130,136 @@
 
   .card-stack {
     gap: 0.85rem;
+  }
+}
+
+/* =========================
+   Nutrition page responsive
+   (desktop layout remains unchanged; these are mobile overrides)
+
+   Supports both legacy classnames (nutrition-*) and the newer layout hooks:
+   - .nutrition-shell / .nutrition-main / .nutrition-sidebar
+   - .nutrition-entry-row (the add-item grid)
+   - .nutrition-macro-grid (macros/micros cards)
+   - .nutrition-targets-grid (targets cards)
+   ========================= */
+
+@media (max-width: 900px) {
+  /* Header tabs wrap nicely */
+  .nutrition-tabs,
+  .nutrition-plan-subtabs {
+    flex-wrap: wrap;
+  }
+
+  /* If you still use the legacy sticky card */
+  .nutrition-sticky {
+    top: 0.5rem;
+  }
+
+  .nutrition-sticky-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Header stacks */
+  .nutrition-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .nutrition-tabs,
+  .nutrition-plan-subtabs {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+
+  .nutrition-tabs > button,
+  .nutrition-plan-subtabs > button {
+    white-space: nowrap;
+  }
+
+  /* New shell: collapse to a single column, keep desktop unchanged */
+  .nutrition-shell {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Sidebar becomes a normal flow card under main on mobile */
+  .nutrition-sidebar {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+  }
+
+  /* Legacy log layout helper (if used anywhere) */
+  .nutrition-log-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Legacy sticky top row */
+  .nutrition-sticky-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .nutrition-sticky-top select {
+    width: 100% !important;
+  }
+
+  .nutrition-sticky-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+  }
+
+  /* Targets cards: 3-up -> 1-up */
+  .nutrition-targets-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Macros/Micros cards: 2-up -> 1-up */
+  .nutrition-macro-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Add-item row: from 5 columns into a clean mobile grid */
+  .nutrition-entry-row {
+    grid-template-columns: 1fr 1fr !important;
+    align-items: stretch !important;
+  }
+
+  /* Food input spans full width */
+  .nutrition-entry-row > input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  /* The cooked/raw pill group spans full width */
+  .nutrition-entry-row .nutrition-entry-state {
+    grid-column: 1 / -1;
+  }
+
+  /* Add button spans full width */
+  .nutrition-entry-row .nutrition-entry-add {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Slightly tighter padding on sticky legacy card */
+  .nutrition-sticky {
+    padding: 0.85rem !important;
+  }
+
+  .nutrition-sticky-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Extra-tight mobile: stack the qty/unit row too */
+  .nutrition-entry-row {
+    grid-template-columns: 1fr !important;
   }
 }

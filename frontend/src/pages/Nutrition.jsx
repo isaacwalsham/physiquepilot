@@ -392,16 +392,17 @@ export default function Nutrition() {
   if (loading) return <div style={{ padding: "1rem" }}>Loading...</div>;
 
   return (
-    <div style={{ width: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+    <div className="nutrition-page" style={{ width: "100%" }}>
+      <div
+        className="nutrition-header"
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}
+      >
         <div>
           <h1 style={{ margin: 0 }}>Nutrition</h1>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            Log daily. Plan your targets and (soon) generate meal plans.
-          </div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>Log daily. Plan your targets and (soon) generate meal plans.</div>
         </div>
 
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <div className="nutrition-tabs" style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <button type="button" onClick={() => setTab("log")} style={tabBtn(tab === "log")}>
             Log
           </button>
@@ -414,9 +415,9 @@ export default function Nutrition() {
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      <div style={{ ...shell, marginTop: "1rem" }}>
+      <div className="nutrition-shell nutrition-log-grid" style={{ ...shell, marginTop: "1rem" }}>
         {/* MAIN */}
-        <div style={{ minWidth: 0 }}>
+        <div className="nutrition-main" style={{ minWidth: 0 }}>
           {tab === "log" && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <div style={card}>
@@ -443,6 +444,7 @@ export default function Nutrition() {
                 </div>
 
                 <div
+                  className="nutrition-entry-row"
                   style={{
                     marginTop: "0.9rem",
                     display: "grid",
@@ -452,19 +454,14 @@ export default function Nutrition() {
                   }}
                 >
                   <input
+                    className="nutrition-entry-food"
                     value={entryFood}
                     onChange={(e) => setEntryFood(e.target.value)}
                     placeholder="e.g. rice, chicken breast, olive oil"
                     style={field}
                   />
 
-                  <input
-                    value={entryQty}
-                    onChange={(e) => setEntryQty(e.target.value)}
-                    placeholder="Qty"
-                    inputMode="decimal"
-                    style={field}
-                  />
+                  <input value={entryQty} onChange={(e) => setEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
 
                   <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={field}>
                     {UNIT_OPTIONS.map((u) => (
@@ -474,7 +471,7 @@ export default function Nutrition() {
                     ))}
                   </select>
 
-                  <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-start" }}>
+                  <div className="nutrition-entry-state" style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-start" }}>
                     <button type="button" onClick={() => setEntryState("raw")} style={pill(entryState === "raw")}>
                       Raw
                     </button>
@@ -535,11 +532,10 @@ export default function Nutrition() {
                         }}
                       >
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {it.food}
-                          </div>
+                          <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.food}</div>
                           <div style={{ color: "#888", fontSize: "0.9rem", marginTop: "0.2rem" }}>
-                            {it.qty}{it.unit} • {it.state === "raw" ? "Raw" : "Cooked"}
+                            {it.qty}
+                            {it.unit} • {it.state === "raw" ? "Raw" : "Cooked"}
                           </div>
                         </div>
 
@@ -566,24 +562,22 @@ export default function Nutrition() {
                     </button>
                   </div>
 
-                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
-                    Right now “Save log” stores notes only. Next step: save items + compute macros/micros.
-                  </div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>Right now “Save log” stores notes only. Next step: save items + compute macros/micros.</div>
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "1rem" }}>
+              <div className="nutrition-macro-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "1rem" }}>
                 <div style={card}>
                   <div style={{ fontWeight: 800 }}>Macros</div>
-                  <div style={{ color: "#666", marginTop: "0.5rem" }}>
-                    Placeholder — we’ll render the macro pie + totals once foods are parsed.
-                  </div>
+                  <div style={{ color: "#666", marginTop: "0.5rem" }}>Placeholder — we’ll render the macro pie + totals once foods are parsed.</div>
+                  {/* mount point for a future chart */}
+                  <div className="nutrition-macros-chart" style={{ marginTop: "0.85rem" }} />
                 </div>
                 <div style={card}>
                   <div style={{ fontWeight: 800 }}>Micros</div>
-                  <div style={{ color: "#666", marginTop: "0.5rem" }}>
-                    Placeholder — we’ll add micronutrient sliders vs RDI.
-                  </div>
+                  <div style={{ color: "#666", marginTop: "0.5rem" }}>Placeholder — we’ll add micronutrient sliders vs RDI.</div>
+                  {/* mount point for future sliders */}
+                  <div className="nutrition-micros-sliders" style={{ marginTop: "0.85rem" }} />
                 </div>
               </div>
             </div>
@@ -591,7 +585,7 @@ export default function Nutrition() {
 
           {tab === "plan" && (
             <div style={{ display: "grid", gap: "1rem" }}>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div className="nutrition-plan-tabs nutrition-plan-subtabs" style={{ display: "flex", gap: "0.5rem" }}>
                 <button type="button" onClick={() => setPlanTab("targets")} style={tabBtn(planTab === "targets")}>
                   Targets
                 </button>
@@ -601,7 +595,7 @@ export default function Nutrition() {
               </div>
 
               {planTab === "targets" && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "1rem" }}>
+                <div className="nutrition-targets-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "1rem" }}>
                   {["training", "rest", "high"].map((dayType) => {
                     const t = editTargets?.[dayType];
                     if (!t) return null;
@@ -634,9 +628,7 @@ export default function Nutrition() {
                             </div>
                           </div>
 
-                          <div style={{ color: "#666", fontSize: "0.9rem" }}>
-                            Calories auto-sync to macros (to satisfy your DB constraints). Saving is manual.
-                          </div>
+                          <div style={{ color: "#666", fontSize: "0.9rem" }}>Calories auto-sync to macros (to satisfy your DB constraints). Saving is manual.</div>
                         </div>
                       </div>
                     );
@@ -653,9 +645,7 @@ export default function Nutrition() {
               {planTab === "meal_plan" && (
                 <div style={card}>
                   <div style={{ fontWeight: 800 }}>Meal plan</div>
-                  <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-                    Next step: generate meals based on today’s targets, preferences, and training time.
-                  </div>
+                  <div style={{ color: "#aaa", marginTop: "0.5rem" }}>Next step: generate meals based on today’s targets, preferences, and training time.</div>
                   <div style={{ marginTop: "1rem", color: "#666" }}>
                     Placeholder for now — we’ll implement the meal blocks + alternatives after the logging and targets flows are solid.
                   </div>
@@ -666,9 +656,9 @@ export default function Nutrition() {
         </div>
 
         {/* SIDEBAR */}
-        <div style={{ minWidth: 0 }}>
-          <div style={sidebarCard}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+        <div className="nutrition-sidebar" style={{ minWidth: 0 }}>
+          <div className="nutrition-sidebar-card nutrition-sticky" style={sidebarCard}>
+            <div className="nutrition-sticky-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
               <div>
                 <div style={{ fontWeight: 800 }}>Today’s target</div>
                 <div style={{ color: "#666", marginTop: "0.25rem" }}>{dayLabel[todayType] || "Today"}</div>
@@ -681,7 +671,10 @@ export default function Nutrition() {
               </select>
             </div>
 
-            <div style={{ marginTop: "0.85rem", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" }}>
+            <div
+              className="nutrition-sidebar-targets-grid nutrition-sticky-grid"
+              style={{ marginTop: "0.85rem", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" }}
+            >
               <div>
                 <div style={{ color: "#aaa" }}>Calories</div>
                 <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets?.calories ?? "—"}</div>
@@ -717,9 +710,7 @@ export default function Nutrition() {
                 </div>
               </div>
 
-              <div style={{ marginTop: "0.75rem", color: "#666", fontSize: "0.9rem" }}>
-                Next: store these in the daily log and show progress vs targets.
-              </div>
+              <div style={{ marginTop: "0.75rem", color: "#666", fontSize: "0.9rem" }}>Next: store these in the daily log and show progress vs targets.</div>
             </div>
           </div>
         </div>

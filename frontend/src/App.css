@@ -213,3 +213,107 @@ canvas {
     align-items: stretch !important;
   }
 }
+
+/* =========================
+   Nutrition page responsive
+   Desktop layout unchanged — mobile-only overrides
+   ========================= */
+
+@media (max-width: 900px) {
+  .nutrition-tabs {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Sidebar card stays sticky but with a slightly smaller offset */
+  .nutrition-sticky {
+    top: 0.5rem;
+  }
+
+  /* Sidebar targets grid becomes 2 columns on tablet */
+  .nutrition-sticky-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Header stacks */
+  .nutrition-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Tabs become horizontally scrollable */
+  .nutrition-tabs {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+
+  .nutrition-tabs > button {
+    white-space: nowrap;
+  }
+
+  /* Two-column page shell collapses to one column */
+  .nutrition-log-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Entry row (food / qty / unit / state / add) becomes stacked */
+  .nutrition-entry-row {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  .nutrition-entry-state {
+    justify-content: flex-start !important;
+    flex-wrap: wrap;
+  }
+
+  /* Macro/micro cards go 1 per row */
+  .nutrition-macro-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Sticky sidebar card layout adapts */
+  .nutrition-sticky-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nutrition-sticky-top select {
+    width: 100% !important;
+  }
+
+  .nutrition-sticky-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+  }
+
+  /* Targets cards grid becomes single column */
+  .nutrition-targets-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Plan subtabs scroll */
+  .nutrition-plan-subtabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+
+  .nutrition-plan-subtabs > button {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .nutrition-sticky {
+    padding: 0.85rem !important;
+  }
+
+  .nutrition-sticky-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
