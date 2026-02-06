@@ -2,11 +2,28 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import supabase from "./supabaseClient.js";
+import rateLimit from "express-rate-limit";
+import crypto from "crypto";
+import { LRUCache } from "lru-cache";
 
 dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+const nutritionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const parseCache = new LRUCache({ max: 500, ttl: 1000 * 60 * 60 }); // 1 hour
+
+const hashPayload = (items, notes) => {
+  const s = JSON.stringify({ items, notes: notes || "" });
+  return crypto.createHash("sha256").update(s).digest("hex");
+};
 
 const assertEnv = (cond, msg) => {
   if (!cond) {
@@ -77,6 +94,16 @@ const parseNutritionWithAI = async ({ items, notes }) => {
       fats_g: 0,
       warnings: ["No valid items provided."],
       items: []
+    };
+  }
+
+  // Cache by normalized items + notes to reduce duplicate OpenAI calls.
+  const cacheKey = hashPayload(safeItems, notes);
+  const cached = parseCache.get(cacheKey);
+  if (cached) {
+    return {
+      ...cached,
+      warnings: [...(cached.warnings || []), "Used cached estimate."]
     };
   }
 
@@ -160,7 +187,6 @@ const parseNutritionWithAI = async ({ items, notes }) => {
 
   const j = await r.json();
 
-  // Responses API content can be output_text or refusal.
   const first = j?.output?.[0]?.content?.[0];
 
   if (j?.status === "incomplete") {
@@ -183,16 +209,31 @@ const parseNutritionWithAI = async ({ items, notes }) => {
 
   const parsed = JSON.parse(first.text);
 
-  // Ensure numbers are sane.
   const toNum = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
-  return {
-    calories: Math.max(0, toNum(parsed.calories)),
-    protein_g: Math.max(0, toNum(parsed.protein_g)),
-    carbs_g: Math.max(0, toNum(parsed.carbs_g)),
-    fats_g: Math.max(0, toNum(parsed.fats_g)),
-    items: Array.isArray(parsed.items) ? parsed.items : [],
+  const toInt = (x) => Math.round(toNum(x));
+
+  const cleanItems = (Array.isArray(parsed.items) ? parsed.items : []).map((it) => ({
+    food: String(it?.food ?? ""),
+    qty: toNum(it?.qty),
+    unit: String(it?.unit ?? ""),
+    state: String(it?.state ?? ""),
+    calories: Math.max(0, toInt(it?.calories)),
+    protein_g: Math.max(0, toInt(it?.protein_g)),
+    carbs_g: Math.max(0, toInt(it?.carbs_g)),
+    fats_g: Math.max(0, toInt(it?.fats_g))
+  }));
+
+  const result = {
+    calories: Math.max(0, toInt(parsed.calories)),
+    protein_g: Math.max(0, toInt(parsed.protein_g)),
+    carbs_g: Math.max(0, toInt(parsed.carbs_g)),
+    fats_g: Math.max(0, toInt(parsed.fats_g)),
+    items: cleanItems,
     warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
   };
+
+  parseCache.set(cacheKey, result);
+  return result;
 };
 
 app.get("/api/health", (req, res) => {
@@ -200,7 +241,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Parses a list of food items into estimated calories/macros (does not write to DB)
-app.post("/api/nutrition/parse", async (req, res) => {
+app.post("/api/nutrition/parse", nutritionLimiter, async (req, res) => {
   try {
     const body = req.body || {};
     const items = body.items || body.entries || [];
@@ -215,7 +256,7 @@ app.post("/api/nutrition/parse", async (req, res) => {
 });
 
 // Saves today's log totals (writes calories/macros + notes to daily_nutrition_logs)
-app.post("/api/nutrition/log", async (req, res) => {
+app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
   try {
     const body = req.body || {};
     const user_id = body.user_id || body.userId;
