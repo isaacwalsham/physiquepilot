@@ -19,6 +19,14 @@ const clampInt = (v, min, max) => {
   return Math.min(max, Math.max(min, n));
 };
 
+const clampNumber = (v, min, max, decimals = 2) => {
+  const nRaw = Number(String(v ?? "").trim());
+  const n = Number.isFinite(nRaw) ? nRaw : 0;
+  const clamped = Math.min(max, Math.max(min, n));
+  const p = 10 ** decimals;
+  return Math.round(clamped * p) / p;
+};
+
 const calcCalories = (p, c, f) => p * 4 + c * 4 + f * 9;
 
 const UNIT_OPTIONS = [
@@ -93,6 +101,46 @@ export default function Nutrition() {
       }
 
       setUserId(user.id);
+
+      // Load today's saved log + items (so refresh doesn't wipe the UI)
+      const todayIsoForLog = new Date().toISOString().slice(0, 10);
+      const { data: logRow, error: logErr } = await supabase
+        .from("daily_nutrition_logs")
+        .select("calories, protein_g, carbs_g, fats_g, notes, water_ml, salt_g")
+        .eq("user_id", user.id)
+        .eq("log_date", todayIsoForLog)
+        .maybeSingle();
+
+      if (!logErr && logRow) {
+        setLogTotals({
+          calories: logRow.calories ?? 0,
+          protein_g: logRow.protein_g ?? 0,
+          carbs_g: logRow.carbs_g ?? 0,
+          fats_g: logRow.fats_g ?? 0
+        });
+        setLogNotes(logRow.notes ?? "");
+        setWaterMl(Number.isFinite(Number(logRow.water_ml)) ? Number(logRow.water_ml) : 0);
+        setSaltG(logRow.salt_g == null ? 0 : Number(logRow.salt_g));
+      }
+
+      const { data: itemRows, error: itemsErr } = await supabase
+        .from("daily_nutrition_items")
+        .select("id, food_name, amount, unit, cooked_state")
+        .eq("user_id", user.id)
+        .eq("log_date", todayIsoForLog)
+        .order("created_at", { ascending: true });
+
+      if (!itemsErr && Array.isArray(itemRows) && itemRows.length > 0) {
+        setEntries(
+          itemRows.map((r) => ({
+            id: r.id,
+            food: r.food_name,
+            qty: Number(r.amount),
+            unit: r.unit,
+            state: r.cooked_state
+          }))
+        );
+      }
 
       // Read profile to infer today type (fallback rest)
       const todayIso = new Date().toISOString().slice(0, 10);
@@ -284,46 +332,48 @@ export default function Nutrition() {
   };
 
   const saveLog = async () => {
-  if (!userId) return;
-  setError("");
-  setSaving(true);
+    if (!userId) return;
+    setError("");
+    setSaving(true);
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = new Date().toISOString().slice(0, 10);
 
-  try {
-    const r = await fetch(`${API_URL}/api/nutrition/log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        log_date: todayIso,
-        notes: logNotes || null,
-        items: entries
-      })
-    });
+    try {
+      const r = await fetch(`${API_URL}/api/nutrition/log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          log_date: todayIso,
+          notes: logNotes || null,
+          water_ml: waterMl || 0,
+          salt_g: saltG || 0,
+          items: entries
+        })
+      });
 
-    const j = await r.json().catch(() => ({}));
+      const j = await r.json().catch(() => ({}));
 
-    if (!r.ok || !j?.ok) {
-      setError(j?.error || "Failed to save nutrition log.");
+      if (!r.ok || !j?.ok) {
+        setError(j?.error || "Failed to save nutrition log.");
+        setSaving(false);
+        return;
+      }
+
+      setLogTotals({
+        calories: j.calories ?? 0,
+        protein_g: j.protein_g ?? 0,
+        carbs_g: j.carbs_g ?? 0,
+        fats_g: j.fats_g ?? 0
+      });
+      setLogWarnings(Array.isArray(j.warnings) ? j.warnings : []);
+
       setSaving(false);
-      return;
+    } catch (err) {
+      setError(String(err?.message || err));
+      setSaving(false);
     }
-
-    setLogTotals({
-      calories: j.calories ?? 0,
-      protein_g: j.protein_g ?? 0,
-      carbs_g: j.carbs_g ?? 0,
-      fats_g: j.fats_g ?? 0
-    });
-    setLogWarnings(Array.isArray(j.warnings) ? j.warnings : []);
-
-    setSaving(false);
-  } catch (err) {
-    setError(String(err?.message || err));
-    setSaving(false);
-  }
-};
+  };
 
   const card = {
     background: "#1e1e1e",
@@ -562,7 +612,7 @@ export default function Nutrition() {
                   />
 
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button type="button" onClick={saveLog} style={primaryBtn(false)}>
+                    <button type="button" onClick={saveLog} disabled={saving} style={primaryBtn(saving)}>
                       Save log
                     </button>
                   </div>
@@ -738,7 +788,7 @@ export default function Nutrition() {
                 </div>
                 <div>
                   <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Salt (g)</div>
-                  <input type="number" value={saltG} onChange={(e) => setSaltG(clampInt(e.target.value, 0, 50))} style={field} />
+                  <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={field} />
                 </div>
               </div>
             </div>
