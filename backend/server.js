@@ -60,7 +60,35 @@ app.use(cors({
 
 app.options(/.*/, cors());
 
+
 app.use(express.json());
+
+// Helper: convert to number (finite), else 0
+const toNum = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
+
+// Convert common units to grams so we can scale per-100g nutrient values.
+// For ml/l we assume water-like density for now (1ml ~= 1g).
+const qtyToGrams = ({ qty, unit }) => {
+  const q = toNum(qty);
+  const u = String(unit || "").trim().toLowerCase();
+  if (!Number.isFinite(q) || q <= 0) return null;
+
+  if (u === "g") return q;
+  if (u === "kg") return q * 1000;
+  if (u === "oz") return q * 28.349523125;
+  if (u === "lb") return q * 453.59237;
+  if (u === "ml") return q;
+  if (u === "l") return q * 1000;
+
+  // servings or unknown units: we can’t normalize deterministically
+  return null;
+};
+
+const scalePer100g = (amountPer100g, grams) => {
+  const g = toNum(grams);
+  if (!Number.isFinite(g) || g <= 0) return 0;
+  return (toNum(amountPer100g) * g) / 100;
+};
 
 const isoDate = (d = new Date()) => {
   const date = new Date(d);
@@ -255,21 +283,25 @@ app.post("/api/nutrition/parse", nutritionLimiter, async (req, res) => {
   }
 });
 
-// Saves today's log totals (writes calories/macros + notes to daily_nutrition_logs)
+// Saves today's log totals + items
 app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
   try {
     const body = req.body || {};
     const user_id = body.user_id || body.userId;
     const log_date = body.log_date || isoDate(new Date());
     const notes = body.notes || null;
+    const water_ml = body.water_ml ?? body.waterMl ?? 0;
+    const salt_g = body.salt_g ?? body.saltG ?? 0;
     const items = body.items || body.entries || [];
 
     if (!user_id) {
       return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
     }
 
+    // 1) Parse/estimate totals (kept for now; later you can replace with deterministic rollups)
     const parsed = await parseNutritionWithAI({ items, notes });
 
+    // 2) Upsert daily totals
     const { error: upsertErr } = await supabase
       .from("daily_nutrition_logs")
       .upsert(
@@ -277,6 +309,8 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
           user_id,
           log_date,
           notes,
+          water_ml: Math.max(0, Math.round(toNum(water_ml))),
+          salt_g: Math.max(0, toNum(salt_g)),
           calories: parsed.calories,
           protein_g: parsed.protein_g,
           carbs_g: parsed.carbs_g,
@@ -289,10 +323,179 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: upsertErr.message });
     }
 
-    return res.json({ ok: true, log_date, ...parsed });
+    // 3) Rewrite items for the day (simple + deterministic)
+    //    (If you want true edits later, we can upsert by item.id from the client.)
+    const { error: delErr } = await supabase
+      .from("daily_nutrition_items")
+      .delete()
+      .eq("user_id", user_id)
+      .eq("log_date", log_date);
+
+    if (delErr) {
+      return res.status(400).json({ ok: false, error: delErr.message });
+    }
+
+    // Insert each item and (optionally) its nutrient breakdown
+    const warnings = [...(parsed.warnings || [])];
+
+    for (const it of Array.isArray(items) ? items : []) {
+      const food_name = String(it?.food || it?.food_name || "").trim();
+      const amount = toNum(it?.qty ?? it?.amount);
+      const unit = String(it?.unit || "").trim().toLowerCase();
+      const cooked_state = String(it?.state || it?.cooked_state || "").trim().toLowerCase();
+
+      // optional DB-backed ids (future UI will set these)
+      const food_id = it?.food_id || it?.foodId || null;
+      const user_food_id = it?.user_food_id || it?.userFoodId || null;
+
+      if (!food_name || !Number.isFinite(amount) || amount <= 0 || !unit || !cooked_state) continue;
+
+      const grams = qtyToGrams({ qty: amount, unit });
+      if (unit === "serv" || grams == null) {
+        warnings.push(`"${food_name}": unit "${unit}" can't be normalized to grams yet; micronutrients may be incomplete.`);
+      }
+
+      // If the client already sent item macros (later), keep them; else fall back to AI per-item estimates.
+      const aiItem = (parsed.items || []).find(
+        (x) => String(x?.food || "").toLowerCase() === food_name.toLowerCase() && toNum(x?.qty) === amount
+      );
+
+      const itemRow = {
+        id: crypto.randomUUID(),
+        user_id,
+        log_date,
+        food_name,
+        amount,
+        unit,
+        cooked_state,
+        source_text: null,
+        source: food_id || user_food_id ? "db" : "ai",
+        food_id,
+        user_food_id,
+        grams: grams,
+        kcal: aiItem ? toNum(aiItem.calories) : null,
+        protein_g: aiItem ? toNum(aiItem.protein_g) : null,
+        carbs_g: aiItem ? toNum(aiItem.carbs_g) : null,
+        fats_g: aiItem ? toNum(aiItem.fats_g) : null
+      };
+
+      const { data: inserted, error: insErr } = await supabase
+        .from("daily_nutrition_items")
+        .insert(itemRow)
+        .select("id")
+        .single();
+
+      if (insErr) {
+        return res.status(400).json({ ok: false, error: insErr.message });
+      }
+
+      const item_id = inserted?.id;
+      if (!item_id) continue;
+
+      // Persist micros/macros per item when we have a known food + normalized grams
+      if (grams != null && (food_id || user_food_id)) {
+        // Pull per-100g nutrients
+        if (food_id) {
+          const { data: rows, error: nErr } = await supabase
+            .from("food_nutrients")
+            .select("nutrient_code, amount_per_100g")
+            .eq("food_id", food_id);
+
+          if (!nErr && Array.isArray(rows) && rows.length > 0) {
+            const payload = rows.map((r) => ({
+              item_id,
+              nutrient_code: r.nutrient_code,
+              amount: scalePer100g(r.amount_per_100g, grams)
+            }));
+
+            const { error: upErr } = await supabase
+              .from("daily_nutrition_item_nutrients")
+              .upsert(payload, { onConflict: "item_id,nutrient_code" });
+
+            if (upErr) {
+              return res.status(400).json({ ok: false, error: upErr.message });
+            }
+          }
+        } else if (user_food_id) {
+          const { data: rows, error: nErr } = await supabase
+            .from("user_food_nutrients")
+            .select("nutrient_code, amount_per_100g")
+            .eq("user_food_id", user_food_id);
+
+          if (!nErr && Array.isArray(rows) && rows.length > 0) {
+            const payload = rows.map((r) => ({
+              item_id,
+              nutrient_code: r.nutrient_code,
+              amount: scalePer100g(r.amount_per_100g, grams)
+            }));
+
+            const { error: upErr } = await supabase
+              .from("daily_nutrition_item_nutrients")
+              .upsert(payload, { onConflict: "item_id,nutrient_code" });
+
+            if (upErr) {
+              return res.status(400).json({ ok: false, error: upErr.message });
+            }
+          }
+        }
+      }
+    }
+
+    return res.json({ ok: true, log_date, ...parsed, warnings });
   } catch (e) {
     const status = e?.statusCode || 500;
     return res.status(status).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// Search foods (global + user foods)
+app.get("/api/foods/search", async (req, res) => {
+  try {
+    const term = String(req.query.q || "").trim();
+    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)));
+
+    if (!term) return res.json({ ok: true, items: [] });
+
+    // Prefer RPC if you created it (recommended for ranked search)
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("search_foods", {
+      term,
+      user_id: user_id || null,
+      lim: limit
+    });
+
+    if (!rpcErr && Array.isArray(rpcData)) {
+      return res.json({ ok: true, items: rpcData });
+    }
+
+    // Fallback: simple ILIKE (no ranking)
+    const { data: foods, error: fErr } = await supabase
+      .from("foods")
+      .select("id, name, brand, kcal_per_100g, protein_g_per_100g, carbs_g_per_100g, fats_g_per_100g")
+      .ilike("name", `%${term}%`)
+      .limit(limit);
+
+    if (fErr) return res.status(400).json({ ok: false, error: fErr.message });
+
+    let userFoods = [];
+    if (user_id) {
+      const { data: uFoods, error: uErr } = await supabase
+        .from("user_foods")
+        .select("id, name, brand, kcal_per_100g, protein_g_per_100g, carbs_g_per_100g, fats_g_per_100g")
+        .eq("user_id", user_id)
+        .ilike("name", `%${term}%`)
+        .limit(limit);
+      if (!uErr && Array.isArray(uFoods)) userFoods = uFoods;
+    }
+
+    const items = [
+      ...(userFoods || []).map((x) => ({ ...x, source: "user" })),
+      ...(foods || []).map((x) => ({ ...x, source: "global" }))
+    ].slice(0, limit);
+
+    return res.json({ ok: true, items });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 

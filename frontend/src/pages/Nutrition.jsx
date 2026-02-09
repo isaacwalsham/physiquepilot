@@ -69,6 +69,16 @@ export default function Nutrition() {
   const [entryState, setEntryState] = useState("");
   const [entries, setEntries] = useState([]);
 
+  const [entryFoodId, setEntryFoodId] = useState(null); // uuid of foods
+  const [entryUserFoodId, setEntryUserFoodId] = useState(null); // uuid of user_foods
+  const [foodQuery, setFoodQuery] = useState("");
+  const [foodResults, setFoodResults] = useState([]);
+  const [foodSearching, setFoodSearching] = useState(false);
+  const [foodDropdownOpen, setFoodDropdownOpen] = useState(false);
+
+  const [dayNutrients, setDayNutrients] = useState([]); // [{code,label,unit,sort_group,sort_order,amount}]
+  const [dayNutrientsLoading, setDayNutrientsLoading] = useState(false);
+
   const [logTotals, setLogTotals] = useState(null);
   const [logWarnings, setLogWarnings] = useState([]);
 
@@ -125,7 +135,7 @@ export default function Nutrition() {
 
       const { data: itemRows, error: itemsErr } = await supabase
         .from("daily_nutrition_items")
-        .select("id, food_name, amount, unit, cooked_state")
+        .select("id, food_name, amount, unit, cooked_state, food_id, user_food_id")
         .eq("user_id", user.id)
         .eq("log_date", todayIsoForLog)
         .order("created_at", { ascending: true });
@@ -137,10 +147,157 @@ export default function Nutrition() {
             food: r.food_name,
             qty: Number(r.amount),
             unit: r.unit,
-            state: r.cooked_state
+            state: r.cooked_state,
+            food_id: r.food_id ?? null,
+            user_food_id: r.user_food_id ?? null
           }))
         );
       }
+
+      await loadDayNutrients(user.id, todayIsoForLog);
+  const normalizeFoodResult = (row, kind) => {
+    const name = String(row?.name || "").trim();
+    const brand = String(row?.brand || "").trim();
+    const label = brand ? `${name} — ${brand}` : name;
+    return {
+      kind, // 'food' | 'user_food'
+      id: row.id,
+      name,
+      brand: brand || null,
+      label
+    };
+  };
+
+  const searchFoods = async (uid, term) => {
+    const q = String(term || "").trim();
+    if (!q) {
+      setFoodResults([]);
+      setFoodDropdownOpen(false);
+      return;
+    }
+
+    setFoodSearching(true);
+    try {
+      // Simple ilike-based search (no pg_trgm required). We do two queries and merge.
+      const limit = 8;
+
+      const { data: globalFoods, error: gfErr } = await supabase
+        .from("foods")
+        .select("id, name, brand")
+        .ilike("name", `%${q}%`)
+        .order("name", { ascending: true })
+        .limit(limit);
+
+      if (gfErr) throw gfErr;
+
+      const { data: userFoods, error: ufErr } = await supabase
+        .from("user_foods")
+        .select("id, name, brand")
+        .eq("user_id", uid)
+        .ilike("name", `%${q}%`)
+        .order("name", { ascending: true })
+        .limit(limit);
+
+      if (ufErr) throw ufErr;
+
+      const merged = [
+        ...(Array.isArray(userFoods) ? userFoods.map((r) => normalizeFoodResult(r, "user_food")) : []),
+        ...(Array.isArray(globalFoods) ? globalFoods.map((r) => normalizeFoodResult(r, "food")) : [])
+      ];
+
+      // Deduplicate by (kind,id)
+      const seen = new Set();
+      const deduped = [];
+      for (const it of merged) {
+        const k = `${it.kind}:${it.id}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        deduped.push(it);
+      }
+
+      setFoodResults(deduped);
+      setFoodDropdownOpen(true);
+    } catch (e) {
+      // Don't hard-fail the page for search errors
+      console.error(e);
+      setFoodResults([]);
+      setFoodDropdownOpen(false);
+    } finally {
+      setFoodSearching(false);
+    }
+  };
+
+  const pickFoodResult = (res) => {
+    if (!res) return;
+    setEntryFood(res.label || res.name || "");
+    setFoodQuery(res.label || res.name || "");
+    setFoodDropdownOpen(false);
+
+    if (res.kind === "food") {
+      setEntryFoodId(res.id);
+      setEntryUserFoodId(null);
+    } else {
+      setEntryUserFoodId(res.id);
+      setEntryFoodId(null);
+    }
+  };
+
+  const loadDayNutrients = async (uid, isoDate) => {
+    if (!uid || !isoDate) return;
+    setDayNutrientsLoading(true);
+    try {
+      // Join via FK item_id -> daily_nutrition_items.id. Filter through embedded inner join.
+      const { data, error: nErr } = await supabase
+        .from("daily_nutrition_item_nutrients")
+        .select(
+          "nutrient_code, amount, nutrients(label, unit, sort_group, sort_order), daily_nutrition_items!inner(user_id, log_date)"
+        )
+        .eq("daily_nutrition_items.user_id", uid)
+        .eq("daily_nutrition_items.log_date", isoDate);
+
+      if (nErr) throw nErr;
+
+      const map = new Map();
+      for (const row of data || []) {
+        const code = row?.nutrient_code;
+        if (!code) continue;
+        const meta = row?.nutrients || {};
+        const prev = map.get(code) || {
+          code,
+          label: meta.label || code,
+          unit: meta.unit || "",
+          sort_group: meta.sort_group || "Other",
+          sort_order: Number.isFinite(Number(meta.sort_order)) ? Number(meta.sort_order) : 9999,
+          amount: 0
+        };
+        prev.amount += Number(row?.amount || 0);
+        map.set(code, prev);
+      }
+
+      const arr = Array.from(map.values()).sort((a, b) => {
+        if (a.sort_group !== b.sort_group) return String(a.sort_group).localeCompare(String(b.sort_group));
+        return (a.sort_order || 0) - (b.sort_order || 0);
+      });
+
+      setDayNutrients(arr);
+
+      // Also keep the old macro totals display in sync if we can.
+      const byCode = (c) => arr.find((x) => x.code === c)?.amount ?? 0;
+      const calories = Math.round(byCode("energy_kcal"));
+      const protein = Math.round(byCode("protein_g"));
+      const carbs = Math.round(byCode("carbs_g"));
+      const fats = Math.round(byCode("fat_g"));
+      if (calories || protein || carbs || fats) {
+        setLogTotals({ calories, protein_g: protein, carbs_g: carbs, fats_g: fats });
+      }
+    } catch (e) {
+      console.error(e);
+      // keep existing UI; just clear nutrient list
+      setDayNutrients([]);
+    } finally {
+      setDayNutrientsLoading(false);
+    }
+  };
 
       // Read profile to infer today type (fallback rest)
       const todayIso = new Date().toISOString().slice(0, 10);
@@ -348,7 +505,11 @@ export default function Nutrition() {
           notes: logNotes || null,
           water_ml: waterMl || 0,
           salt_g: saltG || 0,
-          items: entries
+          items: (entries || []).map((it) => ({
+            ...it,
+            food_id: it.food_id ?? null,
+            user_food_id: it.user_food_id ?? null
+          }))
         })
       });
 
@@ -367,6 +528,8 @@ export default function Nutrition() {
         fats_g: j.fats_g ?? 0
       });
       setLogWarnings(Array.isArray(j.warnings) ? j.warnings : []);
+
+      await loadDayNutrients(userId, todayIso);
 
       setSaving(false);
     } catch (err) {
@@ -490,6 +653,11 @@ export default function Nutrition() {
                       setEntryQty("");
                       setEntryUnit("g");
                       setEntryState("");
+                      setFoodQuery("");
+                      setEntryFoodId(null);
+                      setEntryUserFoodId(null);
+                      setFoodResults([]);
+                      setFoodDropdownOpen(false);
                     }}
                     style={subtleBtn}
                   >
@@ -507,13 +675,77 @@ export default function Nutrition() {
                     alignItems: "center"
                   }}
                 >
-                  <input
-                    className="nutrition-entry-food"
-                    value={entryFood}
-                    onChange={(e) => setEntryFood(e.target.value)}
-                    placeholder="e.g. rice, chicken breast, olive oil"
-                    style={field}
-                  />
+                  <div style={{ position: "relative" }}>
+                    <input
+                      className="nutrition-entry-food"
+                      value={foodQuery}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setFoodQuery(v);
+                        setEntryFood(v);
+                        setEntryFoodId(null);
+                        setEntryUserFoodId(null);
+                        if (String(v || "").trim().length >= 2 && userId) {
+                          searchFoods(userId, v);
+                        } else {
+                          setFoodResults([]);
+                          setFoodDropdownOpen(false);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (foodResults.length > 0) setFoodDropdownOpen(true);
+                      }}
+                      onBlur={() => {
+                        // allow click selection
+                        setTimeout(() => setFoodDropdownOpen(false), 150);
+                      }}
+                      placeholder="e.g. rice, chicken breast, olive oil"
+                      style={field}
+                    />
+
+                    {foodDropdownOpen && (foodSearching || foodResults.length > 0) && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          left: 0,
+                          right: 0,
+                          background: "#111",
+                          border: "1px solid #333",
+                          borderRadius: "10px",
+                          zIndex: 20,
+                          overflow: "hidden"
+                        }}
+                      >
+                        {foodSearching ? (
+                          <div style={{ padding: "0.65rem", color: "#888" }}>Searching…</div>
+                        ) : (
+                          foodResults.map((r) => (
+                            <button
+                              key={`${r.kind}:${r.id}`}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => pickFoodResult(r)}
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "0.65rem",
+                                background: "transparent",
+                                border: "none",
+                                color: "#fff",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <div style={{ fontWeight: 700 }}>{r.label}</div>
+                              <div style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.15rem" }}>
+                                {r.kind === "user_food" ? "Your food" : "Global food"}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <input value={entryQty} onChange={(e) => setEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
 
@@ -549,7 +781,9 @@ export default function Nutrition() {
                           food: String(entryFood).trim(),
                           qty,
                           unit: entryUnit,
-                          state: entryState
+                          state: entryState,
+                          food_id: entryFoodId,
+                          user_food_id: entryUserFoodId
                         }
                       ]);
 
@@ -557,6 +791,11 @@ export default function Nutrition() {
                       setEntryQty("");
                       setEntryUnit("g");
                       setEntryState("");
+                      setFoodQuery("");
+                      setEntryFoodId(null);
+                      setEntryUserFoodId(null);
+                      setFoodResults([]);
+                      setFoodDropdownOpen(false);
                     }}
                     style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState)}
                   >
@@ -640,7 +879,23 @@ export default function Nutrition() {
                       <div>
                         F: <b style={{ color: "#fff" }}>{logTotals.fats_g}</b>g
                       </div>
-
+                      {dayNutrients.length > 0 && (
+                        <div style={{ marginTop: "0.35rem", color: "#666", fontSize: "0.9rem" }}>
+                          {(() => {
+                            const by = (c) => dayNutrients.find((x) => x.code === c)?.amount;
+                            const fiber = by("fiber_g");
+                            const sugars = by("sugars_g");
+                            const net = by("net_carbs_g");
+                            return (
+                              <div style={{ display: "grid", gap: "0.2rem" }}>
+                                {fiber != null && <div>Fibre: {Math.round(fiber * 10) / 10}g</div>}
+                                {sugars != null && <div>Sugars: {Math.round(sugars * 10) / 10}g</div>}
+                                {net != null && <div>Net carbs: {Math.round(net * 10) / 10}g</div>}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                       {logWarnings?.length > 0 && (
                         <div style={{ marginTop: "0.5rem", color: "#666", fontSize: "0.9rem" }}>
                           {logWarnings.map((w, idx) => (
@@ -656,10 +911,44 @@ export default function Nutrition() {
                   <div className="nutrition-macros-chart" style={{ marginTop: "0.85rem" }} />
                 </div>
                 <div style={card}>
-                  <div style={{ fontWeight: 800 }}>Micros</div>
-                  <div style={{ color: "#666", marginTop: "0.5rem" }}>Placeholder — we’ll add micronutrient sliders vs RDI.</div>
-                  {/* mount point for future sliders */}
-                  <div className="nutrition-micros-sliders" style={{ marginTop: "0.85rem" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <div style={{ fontWeight: 800 }}>Micros</div>
+                    <div style={{ color: "#666", fontSize: "0.9rem" }}>{dayNutrientsLoading ? "Loading…" : ""}</div>
+                  </div>
+
+                  {dayNutrients.length === 0 ? (
+                    <div style={{ color: "#666", marginTop: "0.5rem" }}>Save your log to see micronutrients.</div>
+                  ) : (
+                    <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.75rem" }}>
+                      {Array.from(
+                        dayNutrients
+                          .filter((n) => !["energy_kcal", "protein_g", "carbs_g", "fat_g"].includes(n.code))
+                          .reduce((acc, n) => {
+                            const key = n.sort_group || "Other";
+                            if (!acc.has(key)) acc.set(key, []);
+                            acc.get(key).push(n);
+                            return acc;
+                          }, new Map())
+                      ).map(([group, items]) => (
+                        <div key={group} style={{ border: "1px solid #2a2a2a", borderRadius: "10px", padding: "0.65rem", background: "#151515" }}>
+                          <div style={{ fontWeight: 800, marginBottom: "0.35rem" }}>{group}</div>
+                          <div style={{ display: "grid", gap: "0.25rem", color: "#aaa", fontSize: "0.95rem" }}>
+                            {items
+                              .slice()
+                              .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                              .map((n) => (
+                                <div key={n.code} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
+                                  <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</div>
+                                  <div style={{ color: "#fff", flexShrink: 0 }}>
+                                    {Math.round((Number(n.amount) || 0) * 100) / 100} {n.unit}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
