@@ -42,8 +42,8 @@ function Landing() {
     position: "sticky",
     top: 0,
     zIndex: 20,
-    backdropFilter: "blur(10px)",
-    background: "rgba(5,5,7,0.95)"
+    backdropFilter: "none",
+    background: "transparent"
   };
 
   const headerInner = {
