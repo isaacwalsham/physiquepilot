@@ -450,8 +450,8 @@ function CheckIns() {
   `;
 
   const card = {
-    background: "#1e1e1e",
-    border: "1px solid #222",
+    background: "#050507",
+    border: "1px solid #2a1118",
     padding: "1rem"
   };
 
@@ -462,13 +462,13 @@ function CheckIns() {
     padding: "0.6rem",
     background: "#111",
     color: "#fff",
-    border: "1px solid #333"
+    border: "1px solid #2a1118"
   };
 
   const pill = (active) => ({
     padding: "0.5rem 0.75rem",
-    border: "1px solid #333",
-    background: active ? "#2a2a2a" : "transparent",
+    border: "1px solid #2a1118",
+    background: active ? "#0b0b10" : "transparent",
     color: active ? "#fff" : "#aaa",
     cursor: "pointer"
   });
@@ -605,9 +605,9 @@ function CheckIns() {
               disabled={submitting}
               style={{
                 padding: "0.75rem",
-                background: "#2a2a2a",
+                background: "#0b0b10",
                 color: "#fff",
-                border: "1px solid #333",
+                border: "1px solid #2a1118",
                 cursor: submitting ? "default" : "pointer"
               }}
             >
@@ -776,7 +776,7 @@ function CheckIns() {
                 <div
                   key={p.id}
                   style={{
-                    border: "1px solid #333",
+                    border: "1px solid #2a1118",
                     background: "#111",
                     padding: "0.5rem"
                   }}
@@ -800,7 +800,7 @@ function CheckIns() {
                         width: "100%",
                         aspectRatio: "1 / 1",
                         background: "#0b0b0b",
-                        border: "1px solid #222",
+                        border: "1px solid #2a1118",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -825,7 +825,7 @@ function CheckIns() {
                       padding: "0.45rem",
                       background: "transparent",
                       color: "#ff6b6b",
-                      border: "1px solid #333",
+                      border: "1px solid #2a1118",
                       cursor: "pointer"
                     }}
                   >
@@ -857,8 +857,8 @@ function CheckIns() {
             style={{
               maxWidth: "1100px",
               width: "100%",
-              background: "#0f0f0f",
-              border: "1px solid #333",
+              background: "#060609",
+              border: "1px solid #2a1118",
               padding: "1rem"
             }}
           >
@@ -869,7 +869,7 @@ function CheckIns() {
                 style={{
                   background: "transparent",
                   color: "#fff",
-                  border: "1px solid #333",
+                  border: "1px solid #2a1118",
                   padding: "0.4rem 0.6rem",
                   cursor: "pointer"
                 }}
@@ -881,7 +881,7 @@ function CheckIns() {
             <img
               src={selectedPhotoUrl}
               alt="Progress"
-              style={{ width: "100%", marginTop: "0.75rem", border: "1px solid #222" }}
+              style={{ width: "100%", marginTop: "0.75rem", border: "1px solid #2a1118" }}
             />
           </div>
         </div>

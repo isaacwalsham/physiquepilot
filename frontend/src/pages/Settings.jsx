@@ -30,6 +30,8 @@ function Settings() {
 
   // Split preferences (optional: keep editable here)
   const [splitMode, setSplitMode] = useState("fixed"); // fixed | rolling
+  const [uiMotion, setUiMotion] = useState("medium"); // low | medium
+  const [uiContrast, setUiContrast] = useState("normal"); // normal | high
 
   const statusText = useMemo(() => {
     if (saving) return "Saving...";
@@ -90,6 +92,22 @@ function Settings() {
     load();
   }, []);
 
+  useEffect(() => {
+    const storedMotion = localStorage.getItem("pp_ui_motion") || "medium";
+    const storedContrast = localStorage.getItem("pp_ui_contrast") || "normal";
+    setUiMotion(storedMotion);
+    setUiContrast(storedContrast);
+  }, []);
+
+  const saveUiPrefs = (next = {}) => {
+    const motion = next.motion || uiMotion;
+    const contrast = next.contrast || uiContrast;
+    localStorage.setItem("pp_ui_motion", motion);
+    localStorage.setItem("pp_ui_contrast", contrast);
+    document.documentElement.dataset.motion = motion;
+    document.documentElement.dataset.contrast = contrast;
+  };
+
   const saveProfilePatch = async (patch) => {
     if (!userId) return;
     setError("");
@@ -108,8 +126,8 @@ function Settings() {
   if (loading) return <div>Loading...</div>;
 
   const card = {
-    background: "#1e1e1e",
-    border: "1px solid #222",
+    background: "#050507",
+    border: "1px solid #2a1118",
     padding: "1rem"
   };
 
@@ -120,7 +138,7 @@ function Settings() {
     padding: "0.6rem",
     background: "#111",
     color: "#fff",
-    border: "1px solid #333"
+    border: "1px solid #2a1118"
   };
 
   const toggleRow = {
@@ -128,7 +146,7 @@ function Settings() {
     justifyContent: "space-between",
     alignItems: "center",
     gap: "1rem",
-    border: "1px solid #222",
+    border: "1px solid #2a1118",
     background: "#111",
     padding: "0.75rem",
     marginTop: "0.6rem"
@@ -136,8 +154,8 @@ function Settings() {
 
   const pillBtn = (active) => ({
     padding: "0.5rem 0.75rem",
-    border: "1px solid #333",
-    background: active ? "#2a2a2a" : "transparent",
+    border: "1px solid #2a1118",
+    background: active ? "#0b0b10" : "transparent",
     color: active ? "#fff" : "#aaa",
     cursor: "pointer"
   });
@@ -351,6 +369,67 @@ function Settings() {
 
             <div style={{ color: "#666", marginTop: "0.6rem", fontSize: "0.9rem" }}>
               You can still override “today = rest day” inside Training (and it should also switch nutrition day type).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: "1rem", ...card }}>
+        <div style={{ fontWeight: 700 }}>Accessibility & motion</div>
+        <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+          Visual comfort controls for animation and contrast.
+        </div>
+
+        <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
+          <div>
+            <div style={label}>Motion</div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                style={pillBtn(uiMotion === "low")}
+                onClick={() => {
+                  setUiMotion("low");
+                  saveUiPrefs({ motion: "low" });
+                }}
+              >
+                Reduced
+              </button>
+              <button
+                type="button"
+                style={pillBtn(uiMotion === "medium")}
+                onClick={() => {
+                  setUiMotion("medium");
+                  saveUiPrefs({ motion: "medium" });
+                }}
+              >
+                Medium
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div style={label}>Contrast</div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                style={pillBtn(uiContrast === "normal")}
+                onClick={() => {
+                  setUiContrast("normal");
+                  saveUiPrefs({ contrast: "normal" });
+                }}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                style={pillBtn(uiContrast === "high")}
+                onClick={() => {
+                  setUiContrast("high");
+                  saveUiPrefs({ contrast: "high" });
+                }}
+              >
+                High
+              </button>
             </div>
           </div>
         </div>

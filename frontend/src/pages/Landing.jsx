@@ -38,7 +38,7 @@ function Landing() {
   const wrap = { minHeight: "100vh" };
 
   const header = {
-    borderBottom: "1px solid #1e1e1e",
+    borderBottom: "1px solid #050507",
     position: "sticky",
     top: 0,
     zIndex: 20,
@@ -59,14 +59,14 @@ function Landing() {
 
   const btnBase = {
     padding: "0.55rem 1rem",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     cursor: "pointer",
     transition: "transform 0.18s ease, border-color 0.18s ease, background 0.18s ease",
     borderRadius: "12px"
   };
 
   const btnGhost = { ...btnBase, background: "transparent", color: "#fff" };
-  const btnPrimary = { ...btnBase, background: "#2a2a2a", color: "#fff" };
+  const btnPrimary = { ...btnBase, background: "#0b0b10", color: "#fff" };
 
   const section = { padding: "4.5rem 0" };
 
@@ -100,7 +100,7 @@ function Landing() {
   };
 
   const panel = {
-    border: "1px solid #222",
+    border: "1px solid #2a1118",
     background: "#111",
     padding: "2rem",
     borderRadius: "16px",
@@ -116,10 +116,10 @@ function Landing() {
     width: "8px",
     height: "8px",
     borderRadius: "999px",
-    background: active ? "#fff" : "#333"
+    background: active ? "#fff" : "#2a1118"
   });
 
-  const sectionDivider = { borderTop: "1px solid #1e1e1e" };
+  const sectionDivider = { borderTop: "1px solid #050507" };
 
   const gridCards = {
     display: "grid",
@@ -128,7 +128,7 @@ function Landing() {
   };
 
   const card = {
-    border: "1px solid #222",
+    border: "1px solid #2a1118",
     background: "#111",
     padding: "1.5rem",
     borderRadius: "16px",
@@ -192,12 +192,12 @@ function Landing() {
 
   const hoverLift = (e) => {
     e.currentTarget.style.transform = "translateY(-4px)";
-    e.currentTarget.style.borderColor = "#333";
+    e.currentTarget.style.borderColor = "#2a1118";
   };
 
   const hoverReset = (e) => {
     e.currentTarget.style.transform = "translateY(0)";
-    e.currentTarget.style.borderColor = "#222";
+    e.currentTarget.style.borderColor = "#2a1118";
   };
 
   const btnLift = (e) => (e.currentTarget.style.transform = "translateY(-1px)");
@@ -300,7 +300,7 @@ function Landing() {
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#222";
+                  e.currentTarget.style.borderColor = "#2a1118";
                 }}
               >
                 <div style={{ fontSize: "1.25rem", fontWeight: 750 }}>{slides[index].title}</div>
@@ -400,7 +400,7 @@ function Landing() {
             </div>
           </section>
 
-          <footer className="pp-footer" style={{ borderTop: "1px solid #1e1e1e", padding: "2rem 0", color: "#777" }}>
+          <footer className="pp-footer" style={{ borderTop: "1px solid #050507", padding: "2rem 0", color: "#777" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
               <div>© {new Date().getFullYear()} PhysiquePilot</div>
               <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>

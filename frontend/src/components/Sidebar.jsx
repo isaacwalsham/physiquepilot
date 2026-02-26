@@ -9,15 +9,6 @@ function Sidebar() {
     navigate("/", { replace: true });
   };
 
-  const linkStyle = ({ isActive }) => ({
-    padding: "0.7rem 0.9rem",
-    textDecoration: "none",
-    color: isActive ? "#fff" : "#aaa",
-    background: isActive ? "#1e1e1e" : "transparent",
-    borderRadius: "10px",
-    whiteSpace: "nowrap"
-  });
-
   return (
     <aside className="pp-sidebar">
       <div className="pp-sidebar-header">
@@ -34,14 +25,14 @@ function Sidebar() {
       </div>
 
       <nav className="pp-sidebar-nav">
-        <NavLink to="/app/dashboard" style={linkStyle}>Dashboard</NavLink>
-        <NavLink to="/app/weight" style={linkStyle}>Weight</NavLink>
-        <NavLink to="/app/nutrition" style={linkStyle}>Nutrition</NavLink>
-        <NavLink to="/app/training" style={linkStyle}>Training</NavLink>
-        <NavLink to="/app/cardio-steps" style={linkStyle}>Cardio & Steps</NavLink>
-        <NavLink to="/app/check-ins" style={linkStyle}>Check-ins</NavLink>
-        <NavLink to="/app/coach" style={linkStyle}>Coach</NavLink>
-        <NavLink to="/app/settings" style={linkStyle}>Settings</NavLink>
+        <NavLink to="/app/dashboard" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Dashboard</NavLink>
+        <NavLink to="/app/weight" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Weight</NavLink>
+        <NavLink to="/app/nutrition" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Nutrition</NavLink>
+        <NavLink to="/app/training" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Training</NavLink>
+        <NavLink to="/app/cardio-steps" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Cardio & Steps</NavLink>
+        <NavLink to="/app/check-ins" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Check-ins</NavLink>
+        <NavLink to="/app/coach" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Coach</NavLink>
+        <NavLink to="/app/settings" className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}>Settings</NavLink>
       </nav>
     </aside>
   );

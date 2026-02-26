@@ -825,7 +825,7 @@ function Onboarding() {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "center",
-    background: "#0f0f0f",
+    background: "#060609",
     padding: "1.25rem"
   };
 
@@ -842,7 +842,7 @@ function Onboarding() {
   const header = {
     paddingBottom: "1.5rem",
     marginBottom: "1.5rem",
-    borderBottom: "1px solid #222"
+    borderBottom: "1px solid #2a1118"
   };
 
   const body = {
@@ -869,7 +869,7 @@ function Onboarding() {
     height: "10px",
     borderRadius: "999px",
     background: active ? "#fff" : "#3a3a3a",
-    border: "1px solid #2a2a2a"
+    border: "1px solid #0b0b10"
   });
 
   const stepText = { color: "#666", fontSize: "0.95rem" };
@@ -885,9 +885,9 @@ function Onboarding() {
   const field = {
     width: "100%",
     padding: "0.85rem",
-    background: "#0f0f0f",
+    background: "#060609",
     color: "#fff",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     borderRadius: "12px",
     outline: "none",
     fontSize: "1rem"
@@ -900,8 +900,8 @@ function Onboarding() {
   const segBtn = (active) => ({
     padding: "0.75rem 1.1rem",
     borderRadius: "12px",
-    border: "1px solid #333",
-    background: active ? "#2a2a2a" : "transparent",
+    border: "1px solid #2a1118",
+    background: active ? "#0b0b10" : "transparent",
     color: active ? "#fff" : "#aaa",
     cursor: "pointer",
     fontSize: "1rem"
@@ -910,8 +910,8 @@ function Onboarding() {
   const dayBtn = (active) => ({
     padding: "0.55rem 0.9rem",
     borderRadius: "999px",
-    border: "1px solid #333",
-    background: active ? "#2a2a2a" : "transparent",
+    border: "1px solid #2a1118",
+    background: active ? "#0b0b10" : "transparent",
     color: active ? "#fff" : "#aaa",
     cursor: "pointer",
     fontSize: "0.98rem"
@@ -920,7 +920,7 @@ function Onboarding() {
   const footer = {
     marginTop: "2rem",
     paddingTop: "1.5rem",
-    borderTop: "1px solid #222",
+    borderTop: "1px solid #2a1118",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -931,19 +931,19 @@ function Onboarding() {
     const base = {
       padding: "0.85rem 1.15rem",
       borderRadius: "12px",
-      border: "1px solid #333",
+      border: "1px solid #2a1118",
       cursor: disabled ? "default" : "pointer",
       opacity: disabled ? 0.6 : 1,
       fontSize: "1rem"
     };
-    if (variant === "primary") return { ...base, background: "#2a2a2a", color: "#fff" };
+    if (variant === "primary") return { ...base, background: "#0b0b10", color: "#fff" };
     return { ...base, background: "transparent", color: "#fff" };
   };
 
   const linkBtn = (disabled) => ({
     padding: "0.55rem 0.85rem",
     borderRadius: "12px",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     background: "transparent",
     color: "#aaa",
     cursor: disabled ? "default" : "pointer",

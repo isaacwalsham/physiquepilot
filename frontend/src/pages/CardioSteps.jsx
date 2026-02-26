@@ -213,8 +213,8 @@ function CardioSteps() {
 
   if (loading) return <div>Loading...</div>;
 
-  const card = { background: "#1e1e1e", border: "1px solid #222", padding: "1rem" };
-  const input = { width: "100%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #333" };
+  const card = { background: "#050507", border: "1px solid #2a1118", padding: "1rem" };
+  const input = { width: "100%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #2a1118" };
 
 return (
     <div style={{ width: "100%" }}>
@@ -265,7 +265,7 @@ return (
           <button
             onClick={saveSteps}
             disabled={savingSteps}
-            style={{ marginTop: "0.75rem", padding: "0.7rem", width: "100%", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+            style={{ marginTop: "0.75rem", padding: "0.7rem", width: "100%", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
           >
             {savingSteps ? "Saving..." : "Save steps"}
           </button>
@@ -298,7 +298,7 @@ return (
           <button
             onClick={addCardio}
             disabled={savingCardio}
-            style={{ marginTop: "0.75rem", padding: "0.7rem", width: "100%", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+            style={{ marginTop: "0.75rem", padding: "0.7rem", width: "100%", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
           >
             {savingCardio ? "Saving..." : "Add cardio"}
           </button>
@@ -311,7 +311,7 @@ return (
         </div>
       </div>
 
-      <div style={{ marginTop: "1rem", background: "#1e1e1e", border: "1px solid #222", padding: "1rem" }}>
+      <div style={{ marginTop: "1rem", background: "#050507", border: "1px solid #2a1118", padding: "1rem" }}>
         <div style={{ fontWeight: 700, marginBottom: "0.75rem" }}>Recent cardio sessions</div>
         {!recentCardio.length ? (
           <div style={{ color: "#666" }}>No sessions yet</div>
@@ -325,7 +325,7 @@ return (
                 </div>
                 <button
                   onClick={() => deleteCardio(r.id)}
-                  style={{ padding: "0.4rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #333" }}
+                  style={{ padding: "0.4rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #2a1118" }}
                 >
                   Delete
                 </button>
@@ -335,7 +335,7 @@ return (
         )}
       </div>
 
-      <div style={{ marginTop: "1rem", background: "#1e1e1e", border: "1px solid #222", padding: "1rem" }}>
+      <div style={{ marginTop: "1rem", background: "#050507", border: "1px solid #2a1118", padding: "1rem" }}>
         <div style={{ fontWeight: 700, marginBottom: "0.75rem" }}>Recent steps</div>
         {!recentSteps.length ? (
           <div style={{ color: "#666" }}>No steps logged yet</div>

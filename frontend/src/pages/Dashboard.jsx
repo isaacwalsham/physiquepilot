@@ -254,7 +254,7 @@ function Dashboard() {
 
   if (loading) return <div>Loading...</div>;
 
-  const card = { background: "#1e1e1e", padding: "1rem", border: "1px solid #222" };
+  const card = { background: "#050507", padding: "1rem", border: "1px solid #2a1118" };
 
   return (
     <div style={{ width: "100%" }}>
@@ -307,7 +307,7 @@ function Dashboard() {
           </div>
           <button
             onClick={() => navigate("/app/cardio-steps")}
-            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #333" }}
+            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #2a1118" }}
           >
             Log steps
           </button>
@@ -323,7 +323,7 @@ function Dashboard() {
           </div>
           <button
             onClick={() => navigate("/app/cardio-steps")}
-            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #333" }}
+            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #2a1118" }}
           >
             Log cardio
           </button>
@@ -357,28 +357,28 @@ function Dashboard() {
               gap: "0.75rem"
             }}
           >
-            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Calories</div>
               <div style={{ marginTop: "0.35rem", fontSize: "1.25rem", fontWeight: 700 }}>
                 {todayTargets?.calories ?? "—"}
               </div>
             </div>
 
-            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Protein</div>
               <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
                 {todayTargets ? `${todayTargets.protein_g}g` : "—"}
               </div>
             </div>
 
-            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Carbs</div>
               <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
                 {todayTargets ? `${todayTargets.carbs_g}g` : "—"}
               </div>
             </div>
 
-            <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
               <div style={{ color: "#aaa" }}>Fats</div>
               <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
                 {todayTargets ? `${todayTargets.fats_g}g` : "—"}
@@ -391,9 +391,9 @@ function Dashboard() {
               onClick={() => navigate("/app/nutrition")}
               style={{
                 padding: "0.6rem 1rem",
-                background: "#2a2a2a",
+                background: "#0b0b10",
                 color: "#fff",
-                border: "1px solid #333",
+                border: "1px solid #2a1118",
                 cursor: "pointer"
               }}
             >
@@ -406,7 +406,7 @@ function Dashboard() {
                 padding: "0.6rem 1rem",
                 background: "transparent",
                 color: "#fff",
-                border: "1px solid #333",
+                border: "1px solid #2a1118",
                 cursor: "pointer"
               }}
             >
@@ -424,7 +424,7 @@ function Dashboard() {
                 padding: "0.5rem 0.8rem",
                 background: "transparent",
                 color: "#fff",
-                border: "1px solid #333",
+                border: "1px solid #2a1118",
                 cursor: "pointer"
               }}
             >
@@ -442,7 +442,7 @@ function Dashboard() {
                 width: "100%",
                 background: "#111",
                 color: "#fff",
-                border: "1px solid #333",
+                border: "1px solid #2a1118",
                 padding: "0.6rem 0.6rem"
               }}
             >
@@ -463,14 +463,14 @@ function Dashboard() {
                 gap: "0.75rem"
               }}
             >
-              <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+              <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
                 <div style={{ color: "#aaa" }}>This week’s focus</div>
                 <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.95rem" }}>
                   Log weight, steps and cardio. Then submit your weekly check-in for adjustments.
                 </div>
               </div>
 
-              <div style={{ background: "#111", border: "1px solid #222", padding: "0.75rem" }}>
+              <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
                 <div style={{ color: "#aaa" }}>What you’ll get</div>
                 <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.95rem" }}>
                   A summary + insights (PDF later), and AI coaching once we wire it in.
@@ -486,14 +486,14 @@ function Dashboard() {
       </div>
 
       {!loggedToday && (
-        <div style={{ marginTop: "1rem", background: "#1e1e1e", padding: "1rem", border: "1px solid #222" }}>
+        <div style={{ marginTop: "1rem", background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
           <div style={{ color: "#aaa" }}>Reminder</div>
           <div style={{ marginTop: "0.5rem" }}>
             Log your weight first thing in the morning before eating or drinking, ideally after using the bathroom.
           </div>
           <button
             onClick={() => navigate("/app/weight")}
-            style={{ marginTop: "0.75rem", padding: "0.6rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+            style={{ marginTop: "0.75rem", padding: "0.6rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
           >
             Log weight
           </button>
@@ -503,19 +503,19 @@ function Dashboard() {
       <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
         <button
           onClick={() => navigate("/app/weight")}
-          style={{ padding: "0.7rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+          style={{ padding: "0.7rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
         >
           Log weight
         </button>
         <button
           onClick={() => navigate("/app/training")}
-          style={{ padding: "0.7rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+          style={{ padding: "0.7rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
         >
           View today’s training
         </button>
         <button
           onClick={() => navigate("/app/nutrition")}
-          style={{ padding: "0.7rem 1rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+          style={{ padding: "0.7rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
         >
           View today’s meal plan
         </button>

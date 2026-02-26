@@ -84,7 +84,7 @@ function Login() {
         height: "100vh",
         width: "100vw",
         overflow: "hidden",
-        background: "#0f0f0f",
+        background: "#060609",
         color: "#fff",
         display: "flex",
         alignItems: "center",
@@ -96,7 +96,7 @@ function Login() {
           width: "100%",
           maxWidth: "480px",
           background: "#111",
-          border: "1px solid #222",
+          border: "1px solid #2a1118",
           borderRadius: "10px",
           padding: "2rem",
           boxSizing: "border-box"
@@ -122,7 +122,7 @@ function Login() {
               padding: "0.75rem",
               background: "#0b0b0b",
               color: "#fff",
-              border: "1px solid #333",
+              border: "1px solid #2a1118",
               borderRadius: "8px",
               outline: "none",
               marginBottom: "0.9rem"
@@ -140,7 +140,7 @@ function Login() {
               padding: "0.75rem",
               background: "#0b0b0b",
               color: "#fff",
-              border: "1px solid #333",
+              border: "1px solid #2a1118",
               borderRadius: "8px",
               outline: "none",
               marginBottom: "1rem"
@@ -153,9 +153,9 @@ function Login() {
             style={{
               width: "100%",
               padding: "0.85rem",
-              background: loading ? "transparent" : "#2a2a2a",
+              background: loading ? "transparent" : "#0b0b10",
               color: loading ? "#666" : "#fff",
-              border: "1px solid #333",
+              border: "1px solid #2a1118",
               borderRadius: "8px",
               cursor: loading ? "default" : "pointer",
               fontSize: "1rem",

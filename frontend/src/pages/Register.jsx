@@ -109,7 +109,7 @@ function Register() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0f0f0f",
+        background: "#060609",
         overflow: "hidden"
       }}
     >
@@ -118,8 +118,8 @@ function Register() {
           width: "100%",
           maxWidth: "420px",
           padding: "2.5rem",
-          background: "#151515",
-          border: "1px solid #222",
+          background: "#08080b",
+          border: "1px solid #2a1118",
           borderRadius: "10px",
           boxSizing: "border-box"
         }}
@@ -137,8 +137,8 @@ function Register() {
               width: "100%",
               padding: "0.6rem",
               marginBottom: "1.2rem",
-              background: "#0f0f0f",
-              border: "1px solid #333",
+              background: "#060609",
+              border: "1px solid #2a1118",
               color: "#fff"
             }}
           />
@@ -154,8 +154,8 @@ function Register() {
               width: "100%",
               padding: "0.6rem",
               marginBottom: "1.5rem",
-              background: "#0f0f0f",
-              border: "1px solid #333",
+              background: "#060609",
+              border: "1px solid #2a1118",
               color: "#fff"
             }}
           />
@@ -166,8 +166,8 @@ function Register() {
             style={{
               width: "100%",
               padding: "0.7rem",
-              background: "#2a2a2a",
-              border: "1px solid #333",
+              background: "#0b0b10",
+              border: "1px solid #2a1118",
               color: "#fff",
               cursor: loading ? "default" : "pointer"
             }}
@@ -183,7 +183,7 @@ function Register() {
               marginTop: "0.75rem",
               padding: "0.7rem",
               background: "transparent",
-              border: "1px solid #333",
+              border: "1px solid #2a1118",
               color: "#fff",
               cursor: "pointer"
             }}

@@ -8,6 +8,15 @@ import "./styles/responsive.css";
 
 import App from "./App.jsx";
 
+const applyUiPrefs = () => {
+  const motion = localStorage.getItem("pp_ui_motion") || "medium";
+  const contrast = localStorage.getItem("pp_ui_contrast") || "normal";
+  document.documentElement.dataset.motion = motion;
+  document.documentElement.dataset.contrast = contrast;
+};
+
+applyUiPrefs();
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>

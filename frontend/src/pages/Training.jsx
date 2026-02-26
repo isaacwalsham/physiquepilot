@@ -56,8 +56,8 @@ export default function Training() {
   }, []);
 
   const card = {
-    background: "#1e1e1e",
-    border: "1px solid #222",
+    background: "#050507",
+    border: "1px solid #2a1118",
     padding: "1rem"
   };
 
@@ -66,14 +66,14 @@ export default function Training() {
     padding: "0.6rem",
     background: "#111",
     color: "#fff",
-    border: "1px solid #333"
+    border: "1px solid #2a1118"
   };
 
   const smallBtn = (active) => ({
     padding: "0.55rem 0.8rem",
-    background: active ? "#2a2a2a" : "transparent",
+    background: active ? "#0b0b10" : "transparent",
     color: active ? "#fff" : "#aaa",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     cursor: "pointer",
     borderRadius: "10px",
     minWidth: "58px"
@@ -763,7 +763,7 @@ export default function Training() {
               padding: "0.75rem",
               background: "#111",
               color: "#fff",
-              border: "1px solid #333",
+              border: "1px solid #2a1118",
               borderRadius: "10px"
             }}
           >
@@ -811,9 +811,9 @@ export default function Training() {
               disabled={busy}
               style={{
                 padding: "0.7rem 1rem",
-                background: "#2a2a2a",
+                background: "#0b0b10",
                 color: "#fff",
-                border: "1px solid #333",
+                border: "1px solid #2a1118",
                 cursor: "pointer"
               }}
             >
@@ -827,7 +827,7 @@ export default function Training() {
                 padding: "0.7rem 1rem",
                 background: "transparent",
                 color: "#fff",
-                border: "1px solid #333",
+                border: "1px solid #2a1118",
                 cursor: "pointer"
               }}
             >
@@ -847,9 +847,9 @@ export default function Training() {
                 disabled={busy}
                 style={{
                   padding: "0.55rem 0.9rem",
-                  background: session.is_rest_day ? "transparent" : "#2a2a2a",
+                  background: session.is_rest_day ? "transparent" : "#0b0b10",
                   color: "#fff",
-                  border: "1px solid #333",
+                  border: "1px solid #2a1118",
                   cursor: "pointer"
                 }}
               >
@@ -910,9 +910,9 @@ export default function Training() {
                   disabled={busy}
                   style={{
                     padding: "0.65rem 1rem",
-                    background: "#2a2a2a",
+                    background: "#0b0b10",
                     color: "#fff",
-                    border: "1px solid #333",
+                    border: "1px solid #2a1118",
                     cursor: "pointer"
                   }}
                 >
@@ -931,7 +931,7 @@ export default function Training() {
                   const sets = setsByExercise[ex.id] || [];
 
                   return (
-                    <div key={ex.id} style={{ border: "1px solid #2a2a2a", padding: "0.9rem" }}>
+                    <div key={ex.id} style={{ border: "1px solid #0b0b10", padding: "0.9rem" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
                         <div style={{ fontWeight: 700 }}>{ex.name}</div>
 
@@ -939,21 +939,21 @@ export default function Training() {
                           <button
                             onClick={() => moveExercise(ex.id, -1)}
                             disabled={busy || idx === 0}
-                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #333", cursor: "pointer" }}
+                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #2a1118", cursor: "pointer" }}
                           >
                             ↑
                           </button>
                           <button
                             onClick={() => moveExercise(ex.id, 1)}
                             disabled={busy || idx === exercises.length - 1}
-                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #333", cursor: "pointer" }}
+                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #2a1118", cursor: "pointer" }}
                           >
                             ↓
                           </button>
                           <button
                             onClick={() => deleteExercise(ex.id)}
                             disabled={busy}
-                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#ff6b6b", border: "1px solid #333", cursor: "pointer" }}
+                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#ff6b6b", border: "1px solid #2a1118", cursor: "pointer" }}
                           >
                             Delete
                           </button>
@@ -967,9 +967,9 @@ export default function Training() {
                           disabled={busy}
                           style={{
                             padding: "0.45rem 0.8rem",
-                            background: "#2a2a2a",
+                            background: "#0b0b10",
                             color: "#fff",
-                            border: "1px solid #333",
+                            border: "1px solid #2a1118",
                             cursor: "pointer"
                           }}
                         >
@@ -1038,7 +1038,7 @@ export default function Training() {
                                   padding: "0.55rem 0.7rem",
                                   background: "transparent",
                                   color: "#ff6b6b",
-                                  border: "1px solid #333",
+                                  border: "1px solid #2a1118",
                                   cursor: "pointer"
                                 }}
                               >

@@ -289,7 +289,7 @@ return (
               setEditingId(null);
               resetInputs();
             }}
-            style={{ background: "#1e1e1e", color: "#fff", border: "1px solid #333", padding: "0.4rem 0.6rem" }}
+            style={{ background: "#050507", color: "#fff", border: "1px solid #2a1118", padding: "0.4rem 0.6rem" }}
           >
             <option value="kg">kg</option>
             <option value="lb">lb</option>
@@ -299,7 +299,7 @@ return (
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginTop: "1.5rem" }}>
-        <div style={{ background: "#1e1e1e", padding: "1rem", border: "1px solid #222" }}>
+        <div style={{ background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
           <div style={{ color: "#aaa" }}>Current weight</div>
           <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>
             {latest ? displayWeight(latest.weight_kg) : "—"}
@@ -309,7 +309,7 @@ return (
           </div>
         </div>
 
-        <div style={{ background: "#1e1e1e", padding: "1rem", border: "1px solid #222" }}>
+        <div style={{ background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
           <div style={{ color: "#aaa" }}>7-day average</div>
           <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>
             {avg7 !== null ? `${avg7} ${unit === "st" ? "lb (avg)" : unit}` : "—"}
@@ -319,7 +319,7 @@ return (
           </div>
         </div>
 
-        <div style={{ background: "#1e1e1e", padding: "1rem", border: "1px solid #222" }}>
+        <div style={{ background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
           <div style={{ color: "#aaa" }}>Today</div>
           <div style={{ fontSize: "1.2rem", marginTop: "0.4rem" }}>
             {loggedToday ? "Logged" : "Not logged"}
@@ -331,7 +331,7 @@ return (
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "1rem", marginTop: "1rem" }}>
-        <div style={{ background: "#1e1e1e", padding: "1rem", border: "1px solid #222" }}>
+        <div style={{ background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Trend</h2>
             <div style={{ color: "#666" }}>{logs.length ? `${logs.length} logs` : "No data"}</div>
@@ -343,7 +343,7 @@ return (
                 <XAxis dataKey="date" tick={{ fill: "#aaa", fontSize: 12 }} />
                 <YAxis tick={{ fill: "#aaa", fontSize: 12 }} />
                 <Tooltip
-                  contentStyle={{ background: "#111", border: "1px solid #333", color: "#fff" }}
+                  contentStyle={{ background: "#111", border: "1px solid #2a1118", color: "#fff" }}
                   labelStyle={{ color: "#aaa" }}
                 />
                 <Line type="monotone" dataKey="value" dot={false} />
@@ -352,7 +352,7 @@ return (
           </div>
         </div>
 
-        <div style={{ background: "#1e1e1e", padding: "1rem", border: "1px solid #222" }}>
+        <div style={{ background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
           <h2 style={{ margin: 0, fontSize: "1.1rem" }}>{editingId ? "Edit weight" : "Log today’s weight"}</h2>
 
           <div style={{ marginTop: "0.75rem" }}>
@@ -362,7 +362,7 @@ return (
                 value={weightKgInput}
                 onChange={(e) => setWeightKgInput(e.target.value)}
                 placeholder="e.g. 82.4"
-                style={{ width: "100%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #333" }}
+                style={{ width: "100%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #2a1118" }}
               />
             )}
 
@@ -372,7 +372,7 @@ return (
                 value={weightLbInput}
                 onChange={(e) => setWeightLbInput(e.target.value)}
                 placeholder="e.g. 181.7"
-                style={{ width: "100%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #333" }}
+                style={{ width: "100%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #2a1118" }}
               />
             )}
 
@@ -383,14 +383,14 @@ return (
                   value={weightStInput}
                   onChange={(e) => setWeightStInput(e.target.value)}
                   placeholder="st"
-                  style={{ width: "50%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #333" }}
+                  style={{ width: "50%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #2a1118" }}
                 />
                 <input
                   type="number"
                   value={weightStLbInput}
                   onChange={(e) => setWeightStLbInput(e.target.value)}
                   placeholder="lb"
-                  style={{ width: "50%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #333" }}
+                  style={{ width: "50%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #2a1118" }}
                 />
               </div>
             )}
@@ -403,7 +403,7 @@ return (
               <button
                 onClick={saveToday}
                 disabled={saving}
-                style={{ flex: 1, padding: "0.7rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+                style={{ flex: 1, padding: "0.7rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
               >
                 {saving ? "Saving..." : "Save today"}
               </button>
@@ -412,7 +412,7 @@ return (
                 <button
                   onClick={updateLog}
                   disabled={saving}
-                  style={{ flex: 1, padding: "0.7rem", background: "#2a2a2a", color: "#fff", border: "1px solid #333" }}
+                  style={{ flex: 1, padding: "0.7rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
                 >
                   {saving ? "Saving..." : "Update"}
                 </button>
@@ -422,7 +422,7 @@ return (
                     resetInputs();
                   }}
                   disabled={saving}
-                  style={{ padding: "0.7rem", background: "transparent", color: "#aaa", border: "1px solid #333" }}
+                  style={{ padding: "0.7rem", background: "transparent", color: "#aaa", border: "1px solid #2a1118" }}
                 >
                   Cancel
                 </button>
@@ -436,7 +436,7 @@ return (
         </div>
       </div>
 
-      <div style={{ marginTop: "1rem", background: "#1e1e1e", padding: "1rem", border: "1px solid #222" }}>
+      <div style={{ marginTop: "1rem", background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
         <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Recent entries</h2>
 
         <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.5rem" }}>
@@ -449,7 +449,7 @@ return (
                 alignItems: "center",
                 padding: "0.75rem",
                 background: "#111",
-                border: "1px solid #222"
+                border: "1px solid #2a1118"
               }}
             >
               <div>
@@ -460,13 +460,13 @@ return (
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
                   onClick={() => startEdit(l)}
-                  style={{ padding: "0.45rem 0.8rem", background: "transparent", color: "#fff", border: "1px solid #333" }}
+                  style={{ padding: "0.45rem 0.8rem", background: "transparent", color: "#fff", border: "1px solid #2a1118" }}
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => deleteLog(l.id)}
-                  style={{ padding: "0.45rem 0.8rem", background: "transparent", color: "#ff6b6b", border: "1px solid #333" }}
+                  style={{ padding: "0.45rem 0.8rem", background: "transparent", color: "#ff6b6b", border: "1px solid #2a1118" }}
                 >
                   Delete
                 </button>

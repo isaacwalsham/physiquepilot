@@ -294,8 +294,8 @@ function Coach() {
   const insights = buildInsights(weekStats);
 
   const card = {
-    background: "#1e1e1e",
-    border: "1px solid #222",
+    background: "#050507",
+    border: "1px solid #2a1118",
     padding: "1rem",
     borderRadius: "14px"
   };
@@ -320,7 +320,7 @@ function Coach() {
   const chatBox = {
     height: bp === "mobile" ? "320px" : "420px",
     overflowY: "auto",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     borderRadius: "12px",
     padding: "0.9rem",
     background: "#111"
@@ -332,8 +332,8 @@ function Coach() {
     marginRight: role === "user" ? 0 : "auto",
     padding: "0.6rem 0.75rem",
     borderRadius: "12px",
-    background: role === "user" ? "#1a1a1a" : "#0f0f0f",
-    border: "1px solid #222",
+    background: role === "user" ? "#08080d" : "#060609",
+    border: "1px solid #2a1118",
     color: "#fff",
     lineHeight: 1.45
   });
@@ -350,7 +350,7 @@ function Coach() {
     width: "100%",
     padding: "0.7rem 0.8rem",
     borderRadius: "12px",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     background: "#111",
     color: "#fff"
   };
@@ -358,8 +358,8 @@ function Coach() {
   const btn = {
     padding: "0.7rem 1rem",
     borderRadius: "12px",
-    border: "1px solid #333",
-    background: "#2a2a2a",
+    border: "1px solid #2a1118",
+    background: "#0b0b10",
     color: "#fff",
     cursor: "pointer",
     whiteSpace: "nowrap"
@@ -431,7 +431,7 @@ function Coach() {
                 style={{
                   padding: "0.75rem 0.85rem",
                   borderRadius: "12px",
-                  border: "1px solid #222",
+                  border: "1px solid #2a1118",
                   background: "#111",
                   color: i.type === "positive" ? "#b9f6ca" : i.type === "warning" ? "#ffb86b" : "#aaa"
                 }}

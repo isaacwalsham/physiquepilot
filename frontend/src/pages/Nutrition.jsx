@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
@@ -7,12 +8,16 @@ const API_URL = (
     .replace(/\/$/, "") ||
   (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
 );
+const IS_DEV = Boolean(import.meta.env.DEV);
 
 const dayLabel = {
   training: "Training day",
   rest: "Rest day",
   high: "High day"
 };
+
+const UNIT_OPTIONS = ["g", "kg", "ml", "l", "oz", "lb", "serv"];
+const MACRO_CODES = new Set(["energy_kcal", "protein_g", "carbs_g", "fat_g", "alcohol_g"]);
 
 const clampInt = (v, min, max) => {
   const n = Math.round(Number(v) || 0);
@@ -27,418 +32,463 @@ const clampNumber = (v, min, max, decimals = 2) => {
   return Math.round(clamped * p) / p;
 };
 
-const calcCalories = (p, c, f) => p * 4 + c * 4 + f * 9;
-
-const UNIT_OPTIONS = [
-  { value: "g", label: "g" },
-  { value: "kg", label: "kg" },
-  { value: "ml", label: "ml" },
-  { value: "l", label: "l" },
-  { value: "oz", label: "oz" },
-  { value: "lb", label: "lb" },
-  { value: "serv", label: "serv" }
-];
-
 const isPositiveNumber = (v) => {
   const n = Number(String(v || "").trim());
   return Number.isFinite(n) && n > 0;
 };
 
+const calcCalories = (p, c, f) => (Number(p) || 0) * 4 + (Number(c) || 0) * 4 + (Number(f) || 0) * 9;
+const pct = (value, total) => {
+  if (!Number.isFinite(Number(total)) || Number(total) <= 0) return 0;
+  return Math.max(0, Math.min(100, (Number(value) / Number(total)) * 100));
+};
+const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
+const formatNutrientAmount = (v) => {
+  const n = Number(v || 0);
+  if (!Number.isFinite(n) || n === 0) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 100) return String(Math.round(n * 10) / 10);
+  if (abs >= 10) return String(Math.round(n * 10) / 10);
+  if (abs >= 1) return String(Math.round(n * 100) / 100);
+  if (abs >= 0.1) return String(Math.round(n * 1000) / 1000);
+  return String(Math.round(n * 10000) / 10000);
+};
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
 export default function Nutrition() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const [userId, setUserId] = useState(null);
   const [tab, setTab] = useState("log");
   const [planTab, setPlanTab] = useState("targets");
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const [userId, setUserId] = useState(null);
-
   const [todayType, setTodayType] = useState("rest");
-  const [targets, setTargets] = useState({
-    training: null,
-    rest: null,
-    high: null
-  });
+  const [targets, setTargets] = useState({ training: null, rest: null, high: null });
+  const [editTargets, setEditTargets] = useState({ training: null, rest: null, high: null });
 
-  const [logNotes, setLogNotes] = useState("");
-
+  const [entries, setEntries] = useState([]);
   const [entryFood, setEntryFood] = useState("");
   const [entryQty, setEntryQty] = useState("");
   const [entryUnit, setEntryUnit] = useState("g");
   const [entryState, setEntryState] = useState("");
-  const [entries, setEntries] = useState([]);
+  const [entryFoodId, setEntryFoodId] = useState(null);
+  const [entryUserFoodId, setEntryUserFoodId] = useState(null);
 
-  const [entryFoodId, setEntryFoodId] = useState(null); // uuid of foods
-  const [entryUserFoodId, setEntryUserFoodId] = useState(null); // uuid of user_foods
-  const [foodQuery, setFoodQuery] = useState("");
   const [foodResults, setFoodResults] = useState([]);
   const [foodSearching, setFoodSearching] = useState(false);
   const [foodDropdownOpen, setFoodDropdownOpen] = useState(false);
 
-  const [dayNutrients, setDayNutrients] = useState([]); // [{code,label,unit,sort_group,sort_order,amount}]
-  const [dayNutrientsLoading, setDayNutrientsLoading] = useState(false);
-
-  const [logTotals, setLogTotals] = useState(null);
-  const [logWarnings, setLogWarnings] = useState([]);
-
+  const [logNotes, setLogNotes] = useState("");
   const [waterMl, setWaterMl] = useState(0);
   const [saltG, setSaltG] = useState(0);
 
-  const [editTargets, setEditTargets] = useState({
-    training: null,
-    rest: null,
-    high: null
-  });
+  const [logTotals, setLogTotals] = useState({ calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0, alcohol_g: 0 });
+  const [dayNutrients, setDayNutrients] = useState([]);
+  const [dayNutrientsLoading, setDayNutrientsLoading] = useState(false);
+  const [logWarnings, setLogWarnings] = useState([]);
+  const [debugInfo, setDebugInfo] = useState(null);
+  const [microGroupFilter, setMicroGroupFilter] = useState("all");
+  const [microTargetMode, setMicroTargetMode] = useState("rdi");
+  const [microTargetsByCode, setMicroTargetsByCode] = useState({});
+  const [microTargetDrafts, setMicroTargetDrafts] = useState({});
+  const [savingMicroTargets, setSavingMicroTargets] = useState(false);
+  const [microTargetWarnings, setMicroTargetWarnings] = useState([]);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
+  const todaysTargets = useMemo(() => targets?.[todayType] || null, [targets, todayType]);
 
-      const { data: userData, error: uErr } = await supabase.auth.getUser();
-      if (uErr) {
-        setError(uErr.message);
-        setLoading(false);
-        return;
-      }
+  const groupedMicros = useMemo(() => {
+    return Array.from(
+      dayNutrients
+        .filter((n) => !MACRO_CODES.has(String(n.code || "")))
+        .reduce((acc, n) => {
+          const key = n.sort_group || "Other";
+          if (!acc.has(key)) acc.set(key, []);
+          acc.get(key).push(n);
+          return acc;
+        }, new Map())
+    );
+  }, [dayNutrients]);
 
-      const user = userData?.user;
-      if (!user) {
-        setError("Not logged in.");
-        setLoading(false);
-        return;
-      }
-
-      setUserId(user.id);
-
-      // Load today's saved log + items (so refresh doesn't wipe the UI)
-      const todayIsoForLog = new Date().toISOString().slice(0, 10);
-      const { data: logRow, error: logErr } = await supabase
-        .from("daily_nutrition_logs")
-        .select("calories, protein_g, carbs_g, fats_g, notes, water_ml, salt_g")
-        .eq("user_id", user.id)
-        .eq("log_date", todayIsoForLog)
-        .maybeSingle();
-
-      if (!logErr && logRow) {
-        setLogTotals({
-          calories: logRow.calories ?? 0,
-          protein_g: logRow.protein_g ?? 0,
-          carbs_g: logRow.carbs_g ?? 0,
-          fats_g: logRow.fats_g ?? 0
-        });
-        setLogNotes(logRow.notes ?? "");
-        setWaterMl(Number.isFinite(Number(logRow.water_ml)) ? Number(logRow.water_ml) : 0);
-        setSaltG(logRow.salt_g == null ? 0 : Number(logRow.salt_g));
-      }
-
-      const { data: itemRows, error: itemsErr } = await supabase
-        .from("daily_nutrition_items")
-        .select("id, food_name, amount, unit, cooked_state, food_id, user_food_id")
-        .eq("user_id", user.id)
-        .eq("log_date", todayIsoForLog)
-        .order("created_at", { ascending: true });
-
-      if (!itemsErr && Array.isArray(itemRows) && itemRows.length > 0) {
-        setEntries(
-          itemRows.map((r) => ({
-            id: r.id,
-            food: r.food_name,
-            qty: Number(r.amount),
-            unit: r.unit,
-            state: r.cooked_state,
-            food_id: r.food_id ?? null,
-            user_food_id: r.user_food_id ?? null
-          }))
-        );
-      }
-
-      await loadDayNutrients(user.id, todayIsoForLog);
-  const normalizeFoodResult = (row, kind) => {
-    const name = String(row?.name || "").trim();
-    const brand = String(row?.brand || "").trim();
-    const label = brand ? `${name} — ${brand}` : name;
-    return {
-      kind, // 'food' | 'user_food'
-      id: row.id,
-      name,
-      brand: brand || null,
-      label
-    };
-  };
-
-  const searchFoods = async (uid, term) => {
-    const q = String(term || "").trim();
-    if (!q) {
-      setFoodResults([]);
-      setFoodDropdownOpen(false);
-      return;
-    }
-
-    setFoodSearching(true);
-    try {
-      // Simple ilike-based search (no pg_trgm required). We do two queries and merge.
-      const limit = 8;
-
-      const { data: globalFoods, error: gfErr } = await supabase
-        .from("foods")
-        .select("id, name, brand")
-        .ilike("name", `%${q}%`)
-        .order("name", { ascending: true })
-        .limit(limit);
-
-      if (gfErr) throw gfErr;
-
-      const { data: userFoods, error: ufErr } = await supabase
-        .from("user_foods")
-        .select("id, name, brand")
-        .eq("user_id", uid)
-        .ilike("name", `%${q}%`)
-        .order("name", { ascending: true })
-        .limit(limit);
-
-      if (ufErr) throw ufErr;
-
-      const merged = [
-        ...(Array.isArray(userFoods) ? userFoods.map((r) => normalizeFoodResult(r, "user_food")) : []),
-        ...(Array.isArray(globalFoods) ? globalFoods.map((r) => normalizeFoodResult(r, "food")) : [])
-      ];
-
-      // Deduplicate by (kind,id)
-      const seen = new Set();
-      const deduped = [];
-      for (const it of merged) {
-        const k = `${it.kind}:${it.id}`;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        deduped.push(it);
-      }
-
-      setFoodResults(deduped);
-      setFoodDropdownOpen(true);
-    } catch (e) {
-      // Don't hard-fail the page for search errors
-      console.error(e);
-      setFoodResults([]);
-      setFoodDropdownOpen(false);
-    } finally {
-      setFoodSearching(false);
-    }
-  };
-
-  const pickFoodResult = (res) => {
-    if (!res) return;
-    setEntryFood(res.label || res.name || "");
-    setFoodQuery(res.label || res.name || "");
-    setFoodDropdownOpen(false);
-
-    if (res.kind === "food") {
-      setEntryFoodId(res.id);
-      setEntryUserFoodId(null);
-    } else {
-      setEntryUserFoodId(res.id);
-      setEntryFoodId(null);
-    }
-  };
-
-  const loadDayNutrients = async (uid, isoDate) => {
-    if (!uid || !isoDate) return;
-    setDayNutrientsLoading(true);
-    try {
-      // Join via FK item_id -> daily_nutrition_items.id. Filter through embedded inner join.
-      const { data, error: nErr } = await supabase
-        .from("daily_nutrition_item_nutrients")
-        .select(
-          "nutrient_code, amount, nutrients(label, unit, sort_group, sort_order), daily_nutrition_items!inner(user_id, log_date)"
-        )
-        .eq("daily_nutrition_items.user_id", uid)
-        .eq("daily_nutrition_items.log_date", isoDate);
-
-      if (nErr) throw nErr;
-
-      const map = new Map();
-      for (const row of data || []) {
-        const code = row?.nutrient_code;
-        if (!code) continue;
-        const meta = row?.nutrients || {};
-        const prev = map.get(code) || {
-          code,
-          label: meta.label || code,
-          unit: meta.unit || "",
-          sort_group: meta.sort_group || "Other",
-          sort_order: Number.isFinite(Number(meta.sort_order)) ? Number(meta.sort_order) : 9999,
-          amount: 0
-        };
-        prev.amount += Number(row?.amount || 0);
-        map.set(code, prev);
-      }
-
-      const arr = Array.from(map.values()).sort((a, b) => {
-        if (a.sort_group !== b.sort_group) return String(a.sort_group).localeCompare(String(b.sort_group));
-        return (a.sort_order || 0) - (b.sort_order || 0);
+  const microSliderRows = useMemo(() => {
+    const rows = dayNutrients
+      .filter((n) => !MACRO_CODES.has(String(n.code || "")))
+      .slice()
+      .sort((a, b) => {
+        if (String(a.sort_group || "") !== String(b.sort_group || "")) {
+          return String(a.sort_group || "").localeCompare(String(b.sort_group || ""));
+        }
+        return Number(a.sort_order || 0) - Number(b.sort_order || 0);
       });
 
-      setDayNutrients(arr);
+    const maxByGroup = new Map();
+    for (const row of rows) {
+      const g = String(row.sort_group || "Other");
+      const cur = Number(maxByGroup.get(g) || 0);
+      maxByGroup.set(g, Math.max(cur, Number(row.amount || 0), 1));
+    }
 
-      // Also keep the old macro totals display in sync if we can.
-      const byCode = (c) => arr.find((x) => x.code === c)?.amount ?? 0;
-      const calories = Math.round(byCode("energy_kcal"));
-      const protein = Math.round(byCode("protein_g"));
-      const carbs = Math.round(byCode("carbs_g"));
-      const fats = Math.round(byCode("fat_g"));
-      if (calories || protein || carbs || fats) {
-        setLogTotals({ calories, protein_g: protein, carbs_g: carbs, fats_g: fats });
+    return rows.map((row) => {
+      const group = String(row.sort_group || "Other");
+      const max = Number(maxByGroup.get(group) || 1);
+      const target = Number(microTargetsByCode[row.code] ?? 0);
+      return {
+        ...row,
+        target_amount: target > 0 ? target : null,
+        sliderPct: target > 0 ? pct(Number(row.amount || 0), target) : pct(Number(row.amount || 0), max)
+      };
+    });
+  }, [dayNutrients, microTargetsByCode]);
+
+  const microGroups = useMemo(() => {
+    const groups = Array.from(new Set(microSliderRows.map((r) => String(r.sort_group || "Other"))));
+    return groups.sort((a, b) => a.localeCompare(b));
+  }, [microSliderRows]);
+
+  const visibleMicroRows = useMemo(() => {
+    if (microGroupFilter === "all") return microSliderRows;
+    return microSliderRows.filter((r) => String(r.sort_group || "Other") === microGroupFilter);
+  }, [microSliderRows, microGroupFilter]);
+
+  const macroProgress = useMemo(() => {
+    const t = todaysTargets || {};
+    const calsTarget = Number(t.calories || 0);
+    const proteinTarget = Number(t.protein_g || 0);
+    const carbsTarget = Number(t.carbs_g || 0);
+    const fatsTarget = Number(t.fats_g || 0);
+    return [
+      { key: "calories", label: "Calories", value: Number(logTotals.calories || 0), target: calsTarget, unit: "kcal", color: "#f4a261" },
+      { key: "protein_g", label: "Protein", value: Number(logTotals.protein_g || 0), target: proteinTarget, unit: "g", color: "#2a9d8f" },
+      { key: "carbs_g", label: "Carbs", value: Number(logTotals.carbs_g || 0), target: carbsTarget, unit: "g", color: "#e9c46a" },
+      { key: "fats_g", label: "Fats", value: Number(logTotals.fats_g || 0), target: fatsTarget, unit: "g", color: "#e76f51" }
+    ];
+  }, [logTotals, todaysTargets]);
+
+  const macroPieData = useMemo(() => {
+    const proteinKcal = Number(logTotals.protein_g || 0) * 4;
+    const carbsKcal = Number(logTotals.carbs_g || 0) * 4;
+    const fatsKcal = Number(logTotals.fats_g || 0) * 9;
+    const alcoholKcal = Number(logTotals.alcohol_g || 0) * 7;
+    return [
+      { name: "Protein", value: proteinKcal, color: "#2a9d8f" },
+      { name: "Carbs", value: carbsKcal, color: "#e9c46a" },
+      { name: "Fats", value: fatsKcal, color: "#e76f51" },
+      { name: "Alcohol", value: alcoholKcal, color: "#8b5cf6" }
+    ].filter((x) => x.value > 0);
+  }, [logTotals]);
+
+  const hasMacroPieData = macroPieData.length > 0;
+  const macroPieDisplayData = hasMacroPieData
+    ? macroPieData
+    : [
+        { name: "Protein", value: 1, color: "#f2f2f2" },
+        { name: "Carbs", value: 1, color: "#9c9c9c" },
+        { name: "Fats", value: 1, color: "#5a5a5a" },
+        { name: "Alcohol", value: 1, color: "#1f1f1f" }
+      ];
+
+  const loadTargets = async (uid) => {
+    const { data: tData, error: tErr } = await supabase
+      .from("nutrition_day_targets")
+      .select("day_type, calories, protein_g, carbs_g, fats_g")
+      .eq("user_id", uid);
+    if (tErr) throw tErr;
+
+    if (!tData || tData.length === 0) {
+      const r = await fetch(`${API_URL}/api/nutrition/init`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: uid })
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j?.error || "Failed to initialize nutrition.");
       }
-    } catch (e) {
-      console.error(e);
-      // keep existing UI; just clear nutrient list
-      setDayNutrients([]);
+      const { data: tData2, error: tErr2 } = await supabase
+        .from("nutrition_day_targets")
+        .select("day_type, calories, protein_g, carbs_g, fats_g")
+        .eq("user_id", uid);
+      if (tErr2) throw tErr2;
+      return tData2 || [];
+    }
+
+    return tData;
+  };
+
+  const mapTargets = (rows) => {
+    const base = {
+      training: { day_type: "training", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
+      rest: { day_type: "rest", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
+      high: { day_type: "high", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 }
+    };
+    (rows || []).forEach((row) => {
+      if (row?.day_type && base[row.day_type]) base[row.day_type] = row;
+    });
+    return base;
+  };
+
+  const loadDaySummary = async (uid, dateIso) => {
+    setDayNutrientsLoading(true);
+    try {
+      const r = await fetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`);
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load day summary.");
+
+      setEntries(
+        (j.items || []).map((it) => ({
+          id: it.id,
+          food: it.food_name,
+          qty: Number(it.amount || 0),
+          unit: it.unit,
+          state: it.cooked_state,
+          food_id: it.food_id || null,
+          user_food_id: it.user_food_id || null
+        }))
+      );
+      setLogTotals({
+        calories: Number(j?.totals?.calories || 0),
+        protein_g: Number(j?.totals?.protein_g || 0),
+        carbs_g: Number(j?.totals?.carbs_g || 0),
+        fats_g: Number(j?.totals?.fats_g || 0),
+        alcohol_g: Number(j?.totals?.alcohol_g || 0)
+      });
+      setDayNutrients(Array.isArray(j.nutrients) ? j.nutrients : []);
+      setLogNotes(String(j.notes || ""));
+      setWaterMl(Number.isFinite(Number(j.water_ml)) ? Number(j.water_ml) : 0);
+      setSaltG(Number.isFinite(Number(j.salt_g)) ? Number(j.salt_g) : 0);
+      setDebugInfo((prev) => ({
+        ...(prev || {}),
+        summary: j?.debug || null
+      }));
     } finally {
       setDayNutrientsLoading(false);
     }
   };
 
-      // Read profile to infer today type (fallback rest)
-      const todayIso = new Date().toISOString().slice(0, 10);
-      const { data: pData, error: pErr } = await supabase
-        .from("profiles")
-        .select("training_days, today_day_type, today_day_type_date")
-        .eq("user_id", user.id)
-        .maybeSingle();
+  const loadMicroTargets = async (uid) => {
+    const r = await fetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load micronutrient targets.");
 
-      if (pErr) {
-        setError(pErr.message);
+    const map = {};
+    for (const row of j.items || []) {
+      map[row.code] = Number(row.target_amount ?? 0);
+    }
+    setMicroTargetMode(String(j.mode || "rdi"));
+    setMicroTargetsByCode(map);
+    setMicroTargetDrafts(map);
+    setMicroTargetWarnings(Array.isArray(j.warnings) ? j.warnings : []);
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const { data: userData, error: uErr } = await supabase.auth.getUser();
+        if (uErr) throw uErr;
+        const user = userData?.user;
+        if (!user) throw new Error("Not logged in.");
+        setUserId(user.id);
+
+        const { data: pData, error: pErr } = await supabase
+          .from("profiles")
+          .select("training_days, today_day_type, today_day_type_date")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (pErr) throw pErr;
+
+        const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const inferred = Array.isArray(pData?.training_days) && pData.training_days.includes(dayMap[new Date().getDay()])
+          ? "training"
+          : "rest";
+        const dateIso = todayIso();
+        const storedType = pData?.today_day_type_date === dateIso ? pData?.today_day_type : null;
+        setTodayType(storedType || inferred);
+
+        const targetRows = await loadTargets(user.id);
+        const mapped = mapTargets(targetRows);
+        setTargets(mapped);
+        setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
+
+        await loadDaySummary(user.id, dateIso);
+        await loadMicroTargets(user.id);
+      } catch (e) {
+        setError(String(e?.message || e));
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const trainingDays = Array.isArray(pData?.training_days) ? pData.training_days : [];
-      const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const todayShort = dayMap[new Date().getDay()];
-      const inferred = trainingDays.includes(todayShort) ? "training" : "rest";
-      const storedType = pData?.today_day_type_date === todayIso ? pData?.today_day_type : null;
-      setTodayType(storedType || inferred);
-
-      // Read targets
-      const { data: tData, error: tErr } = await supabase
-        .from("nutrition_day_targets")
-        .select("day_type, calories, protein_g, carbs_g, fats_g")
-        .eq("user_id", user.id);
-
-      if (tErr) {
-        setError(tErr.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!tData || tData.length === 0) {
-        const r = await fetch(`${API_URL}/api/nutrition/init`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: user.id })
-        });
-
-        if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
-          setError(j?.error || "Failed to initialize nutrition.");
-          setLoading(false);
-          return;
-        }
-
-        const { data: tData2, error: tErr2 } = await supabase
-          .from("nutrition_day_targets")
-          .select("day_type, calories, protein_g, carbs_g, fats_g")
-          .eq("user_id", user.id);
-
-        if (tErr2) {
-          setError(tErr2.message);
-          setLoading(false);
-          return;
-        }
-
-        const mapped2 = {
-          training: { day_type: "training", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
-          rest: { day_type: "rest", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
-          high: { day_type: "high", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 }
-        };
-        (tData2 || []).forEach((row) => {
-          if (row?.day_type && mapped2[row.day_type]) mapped2[row.day_type] = row;
-        });
-        setTargets(mapped2);
-        setEditTargets({
-          training: { ...mapped2.training },
-          rest: { ...mapped2.rest },
-          high: { ...mapped2.high }
-        });
-
-        setLoading(false);
-        return;
-      }
-
-      const mapped = {
-        training: { day_type: "training", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
-        rest: { day_type: "rest", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 },
-        high: { day_type: "high", calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 }
-      };
-      (tData || []).forEach((row) => {
-        if (row?.day_type && mapped[row.day_type]) mapped[row.day_type] = row;
-      });
-
-      setTargets(mapped);
-      setEditTargets({
-        training: { ...mapped.training },
-        rest: { ...mapped.rest },
-        high: { ...mapped.high }
-      });
-
-      setLoading(false);
     };
 
     load();
   }, []);
 
-  const todaysTargets = useMemo(() => {
-    return targets?.[todayType] || null;
-  }, [targets, todayType]);
+  useEffect(() => {
+    if (!userId) return;
+    const q = String(entryFood || "").trim();
+    if (q.length < 2) {
+      setFoodResults([]);
+      setFoodDropdownOpen(false);
+      setFoodSearching(false);
+      return;
+    }
+
+    const handle = setTimeout(async () => {
+      setFoodSearching(true);
+      try {
+        const r = await fetch(
+          `${API_URL}/api/foods/search?q=${encodeURIComponent(q)}&user_id=${encodeURIComponent(userId)}&limit=10`
+        );
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j?.ok) throw new Error(j?.error || "Food search failed.");
+        setFoodResults(Array.isArray(j.items) ? j.items : []);
+        setFoodDropdownOpen(true);
+      } catch (_e) {
+        setFoodResults([]);
+        setFoodDropdownOpen(false);
+      } finally {
+        setFoodSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(handle);
+  }, [entryFood, userId]);
 
   const saveTodayType = async (nextType) => {
     if (!userId) return;
-    const todayIso = new Date().toISOString().slice(0, 10);
     setTodayType(nextType);
-
     const { error: e } = await supabase
       .from("profiles")
       .update({
         today_day_type: nextType,
-        today_day_type_date: todayIso,
+        today_day_type_date: todayIso(),
         training_day_type_override: true,
         nutrition_day_type_override: true
       })
       .eq("user_id", userId);
-
     if (e) setError(e.message);
+  };
+
+  const addEntry = () => {
+    const food = String(entryFood || "").trim();
+    const qty = Number(String(entryQty || "").trim());
+    if (!food || !Number.isFinite(qty) || qty <= 0 || !entryState) return;
+
+    setEntries((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        food,
+        qty,
+        unit: entryUnit,
+        state: entryState,
+        food_id: entryFoodId,
+        user_food_id: entryUserFoodId
+      }
+    ]);
+
+    setEntryFood("");
+    setEntryQty("");
+    setEntryUnit("g");
+    setEntryState("");
+    setEntryFoodId(null);
+    setEntryUserFoodId(null);
+    setFoodResults([]);
+    setFoodDropdownOpen(false);
+  };
+
+  const selectFoodResult = async (r) => {
+    const pickedName = String(r?.name || "").trim();
+    setEntryFood(pickedName);
+    setEntryFoodId(r?.food_id || null);
+    setEntryUserFoodId(r?.user_food_id || null);
+
+    if (!r?.food_id && !r?.user_food_id && r?.usda_fdc_id) {
+      setFoodSearching(true);
+      try {
+        const resp = await fetch(`${API_URL}/api/foods/resolve-usda`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fdc_id: r.usda_fdc_id })
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok || !body?.ok || !body?.food_id) {
+          throw new Error(body?.error || "Unable to load USDA food details.");
+        }
+        setEntryFoodId(body.food_id);
+        setEntryUserFoodId(null);
+        setEntryFood(String(body.name || pickedName || "").trim());
+      } catch (e) {
+        setError(String(e?.message || e));
+      } finally {
+        setFoodSearching(false);
+      }
+    }
+
+    setFoodDropdownOpen(false);
+  };
+
+  const saveLog = async () => {
+    if (!userId) return;
+    setSaving(true);
+    setError("");
+    setLogWarnings([]);
+
+    try {
+      const dateIso = todayIso();
+      const r = await fetch(`${API_URL}/api/nutrition/log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          log_date: dateIso,
+          notes: logNotes || null,
+          water_ml: waterMl || 0,
+          salt_g: saltG || 0,
+          items: entries.map((it) => ({
+            food: it.food,
+            qty: it.qty,
+            unit: it.unit,
+            state: it.state,
+            food_id: it.food_id || null,
+            user_food_id: it.user_food_id || null
+          }))
+        })
+      });
+
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to save nutrition log.");
+      setLogWarnings(Array.isArray(j.warnings) ? j.warnings : []);
+      setLastSavedAt(new Date());
+      setDebugInfo((prev) => ({
+        ...(prev || {}),
+        save: j?.debug || null
+      }));
+      await loadDaySummary(userId, dateIso);
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateEditField = (dayType, field, value) => {
     const maxCalories = 6000;
     const minCalories = 800;
 
-    const maxProtein = 400;
-    const maxCarbs = 800;
-    const maxFats = 250;
-
     setEditTargets((prev) => {
       const cur = prev?.[dayType];
       if (!cur) return prev;
-
       const next = { ...cur };
 
       if (field === "calories") next.calories = clampInt(value, minCalories, maxCalories);
-      if (field === "protein_g") next.protein_g = clampInt(value, 0, maxProtein);
-      if (field === "carbs_g") next.carbs_g = clampInt(value, 0, maxCarbs);
-      if (field === "fats_g") next.fats_g = clampInt(value, 0, maxFats);
-
+      if (field === "protein_g") next.protein_g = clampInt(value, 0, 400);
+      if (field === "carbs_g") next.carbs_g = clampInt(value, 0, 800);
+      if (field === "fats_g") next.fats_g = clampInt(value, 0, 250);
       if (field === "protein_g" || field === "carbs_g" || field === "fats_g") {
         next.calories = clampInt(calcCalories(next.protein_g, next.carbs_g, next.fats_g), minCalories, maxCalories);
       }
@@ -449,98 +499,93 @@ export default function Nutrition() {
 
   const saveTargets = async () => {
     if (!userId) return;
-    setError("");
     setSaving(true);
-
+    setError("");
     try {
-      const rows = ["training", "rest", "high"].map((dayType) => {
-        const t = editTargets[dayType];
-        return {
-          user_id: userId,
-          day_type: dayType,
-          calories: t?.calories ?? 0,
-          protein_g: t?.protein_g ?? 0,
-          carbs_g: t?.carbs_g ?? 0,
-          fats_g: t?.fats_g ?? 0
-        };
-      });
+      const rows = ["training", "rest", "high"].map((dayType) => ({
+        user_id: userId,
+        day_type: dayType,
+        protein_g: Number(editTargets?.[dayType]?.protein_g || 0),
+        carbs_g: Number(editTargets?.[dayType]?.carbs_g || 0),
+        fats_g: Number(editTargets?.[dayType]?.fats_g || 0)
+      })).map((row) => ({
+        ...row,
+        calories: calcCalories(row.protein_g, row.carbs_g, row.fats_g)
+      }));
+      const { error: e } = await supabase.from("nutrition_day_targets").upsert(rows, { onConflict: "user_id,day_type" });
+      if (e) throw e;
 
-      const { error: e } = await supabase
-        .from("nutrition_day_targets")
-        .upsert(rows, { onConflict: "user_id,day_type" });
-
-      if (e) {
-        setError(e.message);
-        setSaving(false);
-        return;
-      }
-
-      const mapped = {
-        training: { ...rows[0], day_type: "training" },
-        rest: { ...rows[1], day_type: "rest" },
-        high: { ...rows[2], day_type: "high" }
-      };
+      const mapped = mapTargets(rows);
       setTargets(mapped);
-      setSaving(false);
-    } catch (err) {
-      setError(String(err?.message || err));
+      setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
       setSaving(false);
     }
   };
 
-  const saveLog = async () => {
+  const saveMicroMode = async (nextMode) => {
     if (!userId) return;
+    setSavingMicroTargets(true);
     setError("");
-    setSaving(true);
-
-    const todayIso = new Date().toISOString().slice(0, 10);
-
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/log`, {
+      const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
-          log_date: todayIso,
-          notes: logNotes || null,
-          water_ml: waterMl || 0,
-          salt_g: saltG || 0,
-          items: (entries || []).map((it) => ({
-            ...it,
-            food_id: it.food_id ?? null,
-            user_food_id: it.user_food_id ?? null
-          }))
+          mode: nextMode,
+          overrides: []
         })
       });
-
       const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to save micronutrient mode.");
+      setMicroTargetMode(nextMode);
+      await loadMicroTargets(userId);
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setSavingMicroTargets(false);
+    }
+  };
 
-      if (!r.ok || !j?.ok) {
-        setError(j?.error || "Failed to save nutrition log.");
-        setSaving(false);
-        return;
-      }
+  const saveCustomMicroTargets = async () => {
+    if (!userId) return;
+    setSavingMicroTargets(true);
+    setError("");
+    try {
+      const overrides = Object.entries(microTargetDrafts)
+        .map(([nutrient_code, target_amount]) => ({
+          nutrient_code,
+          target_amount: Number(target_amount || 0)
+        }))
+        .filter((x) => Number.isFinite(x.target_amount) && x.target_amount >= 0);
 
-      setLogTotals({
-        calories: j.calories ?? 0,
-        protein_g: j.protein_g ?? 0,
-        carbs_g: j.carbs_g ?? 0,
-        fats_g: j.fats_g ?? 0
+      const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          mode: "custom",
+          overrides,
+          replace_overrides: true
+        })
       });
-      setLogWarnings(Array.isArray(j.warnings) ? j.warnings : []);
-
-      await loadDayNutrients(userId, todayIso);
-
-      setSaving(false);
-    } catch (err) {
-      setError(String(err?.message || err));
-      setSaving(false);
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to save custom micronutrient targets.");
+      setMicroTargetMode("custom");
+      await loadMicroTargets(userId);
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setSavingMicroTargets(false);
     }
   };
 
   const card = {
-    background: "#1e1e1e",
-    border: "1px solid #222",
+    background: "#050507",
+    border: "1px solid #2a1118",
     padding: "1rem",
     borderRadius: "10px"
   };
@@ -548,41 +593,26 @@ export default function Nutrition() {
   const field = {
     width: "100%",
     padding: "0.65rem",
-    background: "#111",
+    background: "#040406",
     color: "#fff",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     borderRadius: "10px"
   };
 
   const tabBtn = (active) => ({
     padding: "0.6rem 0.9rem",
-    border: "1px solid #222",
-    background: active ? "#1e1e1e" : "transparent",
+    border: "1px solid #2a1118",
+    background: active ? "#07080a" : "transparent",
     color: active ? "#fff" : "#aaa",
     cursor: "pointer",
     borderRadius: "10px"
   });
 
-  const shell = {
-    width: "100%",
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 360px",
-    gap: "1rem",
-    alignItems: "start"
-  };
-
-  const sidebarCard = {
-    ...card,
-    position: "sticky",
-    top: "0.75rem",
-    zIndex: 5
-  };
-
   const pill = (active) => ({
     padding: "0.4rem 0.65rem",
     borderRadius: "999px",
-    border: "1px solid #333",
-    background: active ? "#2a2a2a" : "transparent",
+    border: "1px solid #2a1118",
+    background: active ? "#111217" : "transparent",
     color: active ? "#fff" : "#aaa",
     cursor: "pointer",
     fontSize: "0.9rem"
@@ -590,9 +620,9 @@ export default function Nutrition() {
 
   const primaryBtn = (disabled) => ({
     padding: "0.65rem 1rem",
-    background: disabled ? "transparent" : "#2a2a2a",
+    background: disabled ? "transparent" : "#121318",
     color: disabled ? "#666" : "#fff",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     borderRadius: "10px",
     cursor: disabled ? "default" : "pointer"
   });
@@ -601,7 +631,7 @@ export default function Nutrition() {
     padding: "0.55rem 0.8rem",
     background: "transparent",
     color: "#aaa",
-    border: "1px solid #333",
+    border: "1px solid #2a1118",
     borderRadius: "10px",
     cursor: "pointer"
   };
@@ -610,135 +640,93 @@ export default function Nutrition() {
 
   return (
     <div className="nutrition-page" style={{ width: "100%" }}>
-      <div
-        className="nutrition-header"
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}
-      >
+      <div className="nutrition-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
         <div>
           <h1 style={{ margin: 0 }}>Nutrition</h1>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>Log daily. Plan your targets and (soon) generate meal plans.</div>
         </div>
 
         <div className="nutrition-tabs" style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button type="button" onClick={() => setTab("log")} style={tabBtn(tab === "log")}>
-            Log
-          </button>
-          <button type="button" onClick={() => setTab("plan")} style={tabBtn(tab === "plan")}>
-            Plan
-          </button>
-          <div style={{ color: "#666", minWidth: "90px", textAlign: "right" }}>{saving ? "Saving..." : "Saved"}</div>
+          <button type="button" onClick={() => setTab("log")} style={tabBtn(tab === "log")}>Log</button>
+          <button type="button" onClick={() => setTab("plan")} style={tabBtn(tab === "plan")}>Plan</button>
+          <div style={{ color: "#666", minWidth: "120px", textAlign: "right", fontSize: "0.86rem" }}>
+            {saving ? "Saving..." : lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+          </div>
         </div>
       </div>
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      <div className="nutrition-shell nutrition-log-grid" style={{ ...shell, marginTop: "1rem" }}>
-        {/* MAIN */}
+      <div className="nutrition-shell nutrition-log-grid" style={{ width: "100%", display: "grid", gap: "1rem", marginTop: "1rem" }}>
         <div className="nutrition-main" style={{ minWidth: 0 }}>
           {tab === "log" && (
             <div style={{ display: "grid", gap: "1rem" }}>
+              <div className="nutrition-log-top" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1rem", alignItems: "start" }}>
               <div style={card}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
                   <div>
                     <div style={{ fontWeight: 800 }}>Food log</div>
-                    <div style={{ color: "#aaa", marginTop: "0.35rem" }}>
-                      Log your food by typing it.
-                    </div>
+                    <div style={{ color: "#aaa", marginTop: "0.35rem" }}>Log your food throughout the day</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEntries([]);
-                      setEntryFood("");
-                      setEntryQty("");
-                      setEntryUnit("g");
-                      setEntryState("");
-                      setFoodQuery("");
-                      setEntryFoodId(null);
-                      setEntryUserFoodId(null);
-                      setFoodResults([]);
-                      setFoodDropdownOpen(false);
-                    }}
-                    style={subtleBtn}
-                  >
-                    Clear
-                  </button>
-                </div>
-
-                <div
-                  className="nutrition-entry-row"
-                  style={{
-                    marginTop: "0.9rem",
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) 120px 110px 170px 120px",
-                    gap: "0.6rem",
-                    alignItems: "center"
-                  }}
-                >
-                  <div style={{ position: "relative" }}>
-                    <input
-                      className="nutrition-entry-food"
-                      value={foodQuery}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setFoodQuery(v);
-                        setEntryFood(v);
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <button type="button" onClick={saveLog} disabled={saving} style={primaryBtn(saving)}>Save log</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEntries([]);
+                        setEntryFood("");
+                        setEntryQty("");
+                        setEntryUnit("g");
+                        setEntryState("");
                         setEntryFoodId(null);
                         setEntryUserFoodId(null);
-                        if (String(v || "").trim().length >= 2 && userId) {
-                          searchFoods(userId, v);
-                        } else {
-                          setFoodResults([]);
-                          setFoodDropdownOpen(false);
-                        }
+                        setFoodResults([]);
+                        setFoodDropdownOpen(false);
+                      }}
+                      style={subtleBtn}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.6rem" }}>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      value={entryFood}
+                      onChange={(e) => {
+                        setEntryFood(e.target.value);
+                        setEntryFoodId(null);
+                        setEntryUserFoodId(null);
                       }}
                       onFocus={() => {
                         if (foodResults.length > 0) setFoodDropdownOpen(true);
                       }}
                       onBlur={() => {
-                        // allow click selection
-                        setTimeout(() => setFoodDropdownOpen(false), 150);
+                        setTimeout(() => setFoodDropdownOpen(false), 140);
                       }}
-                      placeholder="e.g. rice, chicken breast, olive oil"
+                      placeholder="e.g. rice, chicken breast"
                       style={field}
                     />
 
                     {foodDropdownOpen && (foodSearching || foodResults.length > 0) && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "calc(100% + 6px)",
-                          left: 0,
-                          right: 0,
-                          background: "#111",
-                          border: "1px solid #333",
-                          borderRadius: "10px",
-                          zIndex: 20,
-                          overflow: "hidden"
-                        }}
-                      >
+                      <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "#050507", border: "1px solid #2a1118", borderRadius: "10px", zIndex: 20, overflow: "hidden" }}>
                         {foodSearching ? (
-                          <div style={{ padding: "0.65rem", color: "#888" }}>Searching…</div>
+                          <div style={{ padding: "0.65rem", color: "#888" }}>Searching...</div>
                         ) : (
                           foodResults.map((r) => (
                             <button
-                              key={`${r.kind}:${r.id}`}
+                              key={`${r.source}:${r.id}`}
                               type="button"
                               onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => pickFoodResult(r)}
-                              style={{
-                                width: "100%",
-                                textAlign: "left",
-                                padding: "0.65rem",
-                                background: "transparent",
-                                border: "none",
-                                color: "#fff",
-                                cursor: "pointer"
-                              }}
+                              onClick={() => selectFoodResult(r)}
+                              style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
                             >
-                              <div style={{ fontWeight: 700 }}>{r.label}</div>
-                              <div style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.15rem" }}>
-                                {r.kind === "user_food" ? "Your food" : "Global food"}
+                              <div style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
+                              <div style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.15rem", display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                                {r.locale ? ` • ${String(r.locale).toUpperCase()}` : ""}
+                                {r.kcal_per_100g != null ? ` • ${Math.round(Number(r.kcal_per_100g))} kcal/100g` : ""}
+                                {r.match_confidence != null ? ` • ${r.match_confidence}% match` : ""}
+                                {r.nutrient_coverage_count != null ? ` • ${r.nutrient_coverage_count} nutrients` : ""}
                               </div>
                             </button>
                           ))
@@ -747,64 +735,29 @@ export default function Nutrition() {
                     )}
                   </div>
 
-                  <input value={entryQty} onChange={(e) => setEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
+                  <div className="nutrition-entry-row" style={{ display: "grid", gridTemplateColumns: "140px 130px 1fr 120px", gap: "0.6rem", alignItems: "center" }}>
+                    <input value={entryQty} onChange={(e) => setEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
 
-                  <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={field}>
-                    {UNIT_OPTIONS.map((u) => (
-                      <option key={u.value} value={u.value}>
-                        {u.label}
-                      </option>
-                    ))}
-                  </select>
+                    <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={field}>
+                      {UNIT_OPTIONS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
 
-                  <div className="nutrition-entry-state" style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-start" }}>
-                    <button type="button" onClick={() => setEntryState("raw")} style={pill(entryState === "raw")}>
-                      Raw
-                    </button>
-                    <button type="button" onClick={() => setEntryState("cooked")} style={pill(entryState === "cooked")}>
-                      Cooked
+                    <div style={{ display: "flex", gap: "0.4rem" }}>
+                      <button type="button" onClick={() => setEntryState("raw")} style={pill(entryState === "raw")}>Raw</button>
+                      <button type="button" onClick={() => setEntryState("cooked")} style={pill(entryState === "cooked")}>Cooked</button>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState}
+                      onClick={addEntry}
+                      style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState)}
+                    >
+                      Add
                     </button>
                   </div>
-
-                  <button
-                    className="nutrition-entry-add"
-                    type="button"
-                    disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState}
-                    onClick={() => {
-                      const qty = Number(String(entryQty).trim());
-                      if (!String(entryFood || "").trim() || !Number.isFinite(qty) || qty <= 0 || !entryState) return;
-
-                      setEntries((prev) => [
-                        ...prev,
-                        {
-                          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                          food: String(entryFood).trim(),
-                          qty,
-                          unit: entryUnit,
-                          state: entryState,
-                          food_id: entryFoodId,
-                          user_food_id: entryUserFoodId
-                        }
-                      ]);
-
-                      setEntryFood("");
-                      setEntryQty("");
-                      setEntryUnit("g");
-                      setEntryState("");
-                      setFoodQuery("");
-                      setEntryFoodId(null);
-                      setEntryUserFoodId(null);
-                      setFoodResults([]);
-                      setFoodDropdownOpen(false);
-                    }}
-                    style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState)}
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.6rem" }}>
-                  Tip: you’ll be able to paste multi-items ("50g rice, 100g chicken") once the parser is wired up.
                 </div>
 
                 <div style={{ marginTop: "1rem", display: "grid", gap: "0.5rem" }}>
@@ -812,143 +765,254 @@ export default function Nutrition() {
                     <div style={{ color: "#666" }}>No items yet.</div>
                   ) : (
                     entries.map((it) => (
-                      <div
-                        key={it.id}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: "0.75rem",
-                          padding: "0.65rem 0.75rem",
-                          border: "1px solid #2a2a2a",
-                          borderRadius: "10px",
-                          background: "#151515"
-                        }}
-                      >
+                      <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", padding: "0.65rem 0.75rem", border: "1px solid #2a1118", borderRadius: "10px", background: "#050507" }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.food}</div>
                           <div style={{ color: "#888", fontSize: "0.9rem", marginTop: "0.2rem" }}>
-                            {it.qty}
-                            {it.unit} • {it.state === "raw" ? "Raw" : "Cooked"}
+                            {it.qty}{it.unit} • {it.state === "raw" ? "Raw" : "Cooked"}
                           </div>
                         </div>
-
-                        <button type="button" onClick={() => setEntries((prev) => prev.filter((x) => x.id !== it.id))} style={subtleBtn}>
-                          Remove
-                        </button>
+                        <button type="button" onClick={() => setEntries((prev) => prev.filter((x) => x.id !== it.id))} style={subtleBtn}>Remove</button>
                       </div>
                     ))
                   )}
                 </div>
 
                 <div style={{ marginTop: "1rem", display: "grid", gap: "0.6rem" }}>
-                  <div style={{ color: "#aaa" }}>Notes </div>
-                  <textarea
-                    value={logNotes}
-                    onChange={(e) => setLogNotes(e.target.value)}
-                    placeholder="Anything you want to remember about today…"
-                    style={{ ...field, minHeight: "110px", resize: "vertical" }}
-                  />
-
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button type="button" onClick={saveLog} disabled={saving} style={primaryBtn(saving)}>
-                      Save log
-                    </button>
+                  <div style={{ color: "#aaa" }}>Notes</div>
+                  <textarea value={logNotes} onChange={(e) => setLogNotes(e.target.value)} placeholder="Anything useful to remember today..." style={{ ...field, minHeight: "110px", resize: "vertical" }} />
+                </div>
+              </div>
+              <div style={{ ...card, background: "#040406", padding: "0.9rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>Day controls</div>
+                    <div style={{ color: "#666", marginTop: "0.25rem" }}>{dayLabel[todayType] || "Today"}</div>
                   </div>
 
-                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
-                    Save log estimates calories + macros from your items and stores today’s totals.
+                  <select value={todayType} onChange={(e) => saveTodayType(e.target.value)} style={{ ...field, width: "170px" }}>
+                    <option value="training">Training day</option>
+                    <option value="rest">Rest day</option>
+                    <option value="high">High day</option>
+                  </select>
+                </div>
+
+                <div style={{ marginTop: "0.85rem", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" }}>
+                  <div><div style={{ color: "#aaa" }}>Calories</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets?.calories ?? "—"}</div></div>
+                  <div><div style={{ color: "#aaa" }}>Protein</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets ? `${todaysTargets.protein_g}g` : "—"}</div></div>
+                  <div><div style={{ color: "#aaa" }}>Carbs</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets ? `${todaysTargets.carbs_g}g` : "—"}</div></div>
+                  <div><div style={{ color: "#aaa" }}>Fats</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets ? `${todaysTargets.fats_g}g` : "—"}</div></div>
+                </div>
+
+                <div style={{ height: "1px", background: "#2a1118", margin: "0.9rem 0" }} />
+                <div>
+                  <div style={{ fontWeight: 800 }}>Water & salt</div>
+                  <div style={{ marginTop: "0.7rem", display: "grid", gap: "0.75rem" }}>
+                    <div>
+                      <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Water (ml)</div>
+                      <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={field} />
+                    </div>
+                    <div>
+                      <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Salt (g)</div>
+                      <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={field} />
+                    </div>
                   </div>
                 </div>
               </div>
+              </div>
 
-              <div className="nutrition-macro-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "1rem" }}>
+              <div className="nutrition-macro-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "1rem" }}>
                 <div style={card}>
-                  <div style={{ fontWeight: 800 }}>Macros</div>
-                  {logTotals ? (
-                    <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.35rem", color: "#aaa" }}>
-                      <div>
-                        <b style={{ color: "#fff" }}>{logTotals.calories}</b> kcal
-                      </div>
-                      <div>
-                        P: <b style={{ color: "#fff" }}>{logTotals.protein_g}</b>g
-                      </div>
-                      <div>
-                        C: <b style={{ color: "#fff" }}>{logTotals.carbs_g}</b>g
-                      </div>
-                      <div>
-                        F: <b style={{ color: "#fff" }}>{logTotals.fats_g}</b>g
-                      </div>
-                      {dayNutrients.length > 0 && (
-                        <div style={{ marginTop: "0.35rem", color: "#666", fontSize: "0.9rem" }}>
-                          {(() => {
-                            const by = (c) => dayNutrients.find((x) => x.code === c)?.amount;
-                            const fiber = by("fiber_g");
-                            const sugars = by("sugars_g");
-                            const net = by("net_carbs_g");
-                            return (
-                              <div style={{ display: "grid", gap: "0.2rem" }}>
-                                {fiber != null && <div>Fibre: {Math.round(fiber * 10) / 10}g</div>}
-                                {sugars != null && <div>Sugars: {Math.round(sugars * 10) / 10}g</div>}
-                                {net != null && <div>Net carbs: {Math.round(net * 10) / 10}g</div>}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                      {logWarnings?.length > 0 && (
-                        <div style={{ marginTop: "0.5rem", color: "#666", fontSize: "0.9rem" }}>
-                          {logWarnings.map((w, idx) => (
-                            <div key={idx}>• {w}</div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ color: "#666", marginTop: "0.5rem" }}>Save your log to calculate macros.</div>
-                  )}
-                  {/* mount point for a future chart */}
-                  <div className="nutrition-macros-chart" style={{ marginTop: "0.85rem" }} />
-                </div>
-                <div style={card}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <div style={{ fontWeight: 800 }}>Micros</div>
-                    <div style={{ color: "#666", fontSize: "0.9rem" }}>{dayNutrientsLoading ? "Loading…" : ""}</div>
-                  </div>
-
-                  {dayNutrients.length === 0 ? (
-                    <div style={{ color: "#666", marginTop: "0.5rem" }}>Save your log to see micronutrients.</div>
-                  ) : (
-                    <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.75rem" }}>
-                      {Array.from(
-                        dayNutrients
-                          .filter((n) => !["energy_kcal", "protein_g", "carbs_g", "fat_g"].includes(n.code))
-                          .reduce((acc, n) => {
-                            const key = n.sort_group || "Other";
-                            if (!acc.has(key)) acc.set(key, []);
-                            acc.get(key).push(n);
-                            return acc;
-                          }, new Map())
-                      ).map(([group, items]) => (
-                        <div key={group} style={{ border: "1px solid #2a2a2a", borderRadius: "10px", padding: "0.65rem", background: "#151515" }}>
-                          <div style={{ fontWeight: 800, marginBottom: "0.35rem" }}>{group}</div>
-                          <div style={{ display: "grid", gap: "0.25rem", color: "#aaa", fontSize: "0.95rem" }}>
-                            {items
-                              .slice()
-                              .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-                              .map((n) => (
-                                <div key={n.code} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
-                                  <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</div>
-                                  <div style={{ color: "#fff", flexShrink: 0 }}>
-                                    {Math.round((Number(n.amount) || 0) * 100) / 100} {n.unit}
-                                  </div>
-                                </div>
-                              ))}
+                  <div style={{ fontWeight: 800 }}>Daily totals</div>
+                  <div style={{ marginTop: "0.8rem", display: "grid", gap: "0.55rem" }}>
+                    {macroProgress.map((m) => {
+                      const progress = pct(m.value, m.target || 0);
+                      return (
+                        <div key={m.key}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", color: "#bbb", marginBottom: "0.25rem" }}>
+                            <span>{m.label}</span>
+                            <span style={{ color: "#fff" }}>
+                              {m.value}/{m.target || 0} {m.unit}
+                            </span>
+                          </div>
+                          <div style={{ height: "10px", borderRadius: "999px", background: "#0f1014", overflow: "hidden" }}>
+                            <div
+                              style={{
+                                width: `${progress}%`,
+                                height: "100%",
+                                background: `linear-gradient(90deg, ${m.color}, ${m.color}cc)`,
+                                transition: "width 240ms ease"
+                              }}
+                            />
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: "0.65rem", color: "#bbb", fontSize: "0.92rem" }}>
+                    Alcohol: <span style={{ color: "#fff" }}>{round1(logTotals.alcohol_g)}g</span> ({Math.round(Number(logTotals.alcohol_g || 0) * 7)} kcal)
+                  </div>
+
+                  <div style={{ marginTop: "0.9rem", height: "180px", border: "1px solid #2a1118", borderRadius: "10px", background: "#050507", padding: "0.4rem" }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={macroPieDisplayData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={42}
+                          outerRadius={68}
+                          paddingAngle={2}
+                        >
+                          {macroPieDisplayData.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        {hasMacroPieData ? (
+                          <Tooltip
+                            formatter={(value) => [`${Math.round(Number(value || 0))} kcal`, ""]}
+                            contentStyle={{ background: "#050507", border: "1px solid #2a1118", borderRadius: "8px" }}
+                          />
+                        ) : null}
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {logWarnings.length > 0 && (
+                    <div style={{ marginTop: "0.6rem", color: "#666", fontSize: "0.9rem" }}>
+                      {logWarnings.map((w, idx) => (
+                        <div key={idx}>• {w}</div>
                       ))}
                     </div>
                   )}
+                </div>
+
+                <div style={card}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.8rem" }}>
+                    <div style={{ fontWeight: 800 }}>Micronutrients</div>
+                    <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                      {dayNutrientsLoading ? "Loading..." : `${visibleMicroRows.length} shown`}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "0.5rem", display: "grid", gap: "0.5rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                      <div style={{ color: "#888", fontSize: "0.85rem" }}>Target mode</div>
+                      <select
+                        value={microTargetMode}
+                        onChange={(e) => saveMicroMode(e.target.value)}
+                        disabled={savingMicroTargets}
+                        style={{ ...field, width: "180px", padding: "0.45rem" }}
+                      >
+                        <option value="rdi">RDI</option>
+                        <option value="bodyweight">Bodyweight</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    {microTargetWarnings.length > 0 ? (
+                      <div style={{ color: "#8a8a8a", fontSize: "0.83rem" }}>{microTargetWarnings[0]}</div>
+                    ) : null}
+                  </div>
+
+                  <div style={{ marginTop: "0.6rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                    <div style={{ color: "#888", fontSize: "0.85rem" }}>Group</div>
+                    <select
+                      value={microGroupFilter}
+                      onChange={(e) => setMicroGroupFilter(e.target.value)}
+                      style={{ ...field, width: "180px", padding: "0.45rem" }}
+                    >
+                      <option value="all">All groups</option>
+                      {microGroups.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {groupedMicros.length === 0 ? (
+                    <div style={{ color: "#666", marginTop: "0.5rem" }}>
+                      No micronutrients saved for today yet.
+                      {IS_DEV && (debugInfo?.save || debugInfo?.summary) ? (
+                        <div style={{ marginTop: "0.45rem", fontSize: "0.85rem", color: "#8a8a8a" }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowDiagnostics((prev) => !prev)}
+                            style={{ ...subtleBtn, padding: "0.35rem 0.55rem", fontSize: "0.8rem" }}
+                          >
+                            {showDiagnostics ? "Hide diagnostics" : "Show diagnostics"}
+                          </button>
+                          {showDiagnostics ? (
+                            <div style={{ marginTop: "0.4rem" }}>
+                              Save debug: DB items {debugInfo?.save?.db_item_count ?? 0}, AI items {debugInfo?.save?.ai_item_count ?? 0}, inserted micro rows {debugInfo?.save?.micronutrient_rows_inserted ?? 0}
+                              <br />
+                              Summary debug: micronutrient rows loaded {debugInfo?.summary?.micronutrient_row_count ?? 0}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          marginTop: "0.75rem",
+                          display: "grid",
+                          gap: "0.6rem",
+                          maxHeight: "360px",
+                          overflowY: "auto",
+                          paddingRight: "0.25rem"
+                        }}
+                      >
+                      {visibleMicroRows.map((n) => (
+                        <div key={n.code} style={{ border: "1px solid #231018", borderRadius: "10px", padding: "0.5rem 0.6rem", background: "#050507" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", color: "#aaa", fontSize: "0.9rem" }}>
+                            <div style={{ minWidth: 0, whiteSpace: "normal", lineHeight: 1.2 }}>
+                              <span style={{ color: "#fff" }}>{n.label}</span>
+                              <span style={{ color: "#777" }}> • {n.sort_group}</span>
+                            </div>
+                            <div style={{ color: "#fff", flexShrink: 0 }}>
+                              {formatNutrientAmount(n.amount)} / {formatNutrientAmount(n.target_amount ?? 0)} {n.unit}
+                            </div>
+                          </div>
+                          {microTargetMode === "custom" ? (
+                            <div style={{ marginTop: "0.35rem", display: "flex", justifyContent: "flex-end" }}>
+                              <input
+                                type="number"
+                                value={microTargetDrafts[n.code] ?? 0}
+                                onChange={(e) =>
+                                  setMicroTargetDrafts((prev) => ({
+                                    ...prev,
+                                    [n.code]: Math.max(0, Number(e.target.value || 0))
+                                  }))
+                                }
+                                style={{ ...field, width: "130px", padding: "0.45rem" }}
+                              />
+                            </div>
+                          ) : null}
+                          <div style={{ marginTop: "0.35rem", height: "10px", background: "#101217", borderRadius: "999px", overflow: "hidden" }}>
+                            <div
+                              style={{
+                                width: `${Number(n.amount || 0) <= 0 ? 0 : Math.max(2, n.sliderPct)}%`,
+                                height: "100%",
+                                background: "linear-gradient(90deg, #7dd3fc, #38bdf8)",
+                                transition: "width 240ms ease"
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      </div>
+                    </>
+                  )}
+                  {microTargetMode === "custom" ? (
+                    <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end" }}>
+                      <button type="button" onClick={saveCustomMicroTargets} disabled={savingMicroTargets} style={primaryBtn(savingMicroTargets)}>
+                        Save custom micronutrient targets
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -957,12 +1021,8 @@ export default function Nutrition() {
           {tab === "plan" && (
             <div style={{ display: "grid", gap: "1rem" }}>
               <div className="nutrition-plan-tabs nutrition-plan-subtabs" style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="button" onClick={() => setPlanTab("targets")} style={tabBtn(planTab === "targets")}>
-                  Targets
-                </button>
-                <button type="button" onClick={() => setPlanTab("meal_plan")} style={tabBtn(planTab === "meal_plan")}>
-                  Meal plan
-                </button>
+                <button type="button" onClick={() => setPlanTab("targets")} style={tabBtn(planTab === "targets")}>Targets</button>
+                <button type="button" onClick={() => setPlanTab("meal_plan")} style={tabBtn(planTab === "meal_plan")}>Meal plan</button>
               </div>
 
               {planTab === "targets" && (
@@ -970,20 +1030,14 @@ export default function Nutrition() {
                   {["training", "rest", "high"].map((dayType) => {
                     const t = editTargets?.[dayType];
                     if (!t) return null;
-
                     return (
                       <div key={dayType} style={card}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                          <div style={{ fontWeight: 800 }}>{dayLabel[dayType]}</div>
-                          <div style={{ color: "#666" }}>{dayType === "high" ? "+ carbs day" : ""}</div>
-                        </div>
-
+                        <div style={{ fontWeight: 800 }}>{dayLabel[dayType]}</div>
                         <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.65rem" }}>
                           <div>
                             <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Calories</div>
                             <input type="number" value={t.calories} onChange={(e) => updateEditField(dayType, "calories", e.target.value)} style={field} />
                           </div>
-
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.5rem" }}>
                             <div>
                               <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Protein (g)</div>
@@ -998,17 +1052,13 @@ export default function Nutrition() {
                               <input type="number" value={t.fats_g} onChange={(e) => updateEditField(dayType, "fats_g", e.target.value)} style={field} />
                             </div>
                           </div>
-
-                          <div style={{ color: "#666", fontSize: "0.9rem" }}>Calories auto-sync to macros (to satisfy your DB constraints). Saving is manual.</div>
                         </div>
                       </div>
                     );
                   })}
 
                   <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
-                    <button type="button" onClick={saveTargets} style={primaryBtn(false)}>
-                      Save targets
-                    </button>
+                    <button type="button" onClick={saveTargets} style={primaryBtn(false)}>Save targets</button>
                   </div>
                 </div>
               )}
@@ -1016,73 +1066,13 @@ export default function Nutrition() {
               {planTab === "meal_plan" && (
                 <div style={card}>
                   <div style={{ fontWeight: 800 }}>Meal plan</div>
-                  <div style={{ color: "#aaa", marginTop: "0.5rem" }}>Next step: generate meals based on today’s targets, preferences, and training time.</div>
-                  <div style={{ marginTop: "1rem", color: "#666" }}>
-                    Placeholder for now — we’ll implement the meal blocks + alternatives after the logging and targets flows are solid.
-                  </div>
+                  <div style={{ color: "#aaa", marginTop: "0.5rem" }}>Meal plan generation can be layered on top now that deterministic logging is in place.</div>
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* SIDEBAR */}
-        <div className="nutrition-sidebar" style={{ minWidth: 0 }}>
-          <div className="nutrition-sidebar-card nutrition-sticky" style={sidebarCard}>
-            <div className="nutrition-sticky-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-              <div>
-                <div style={{ fontWeight: 800 }}>Today’s target</div>
-                <div style={{ color: "#666", marginTop: "0.25rem" }}>{dayLabel[todayType] || "Today"}</div>
-              </div>
-
-              <select value={todayType} onChange={(e) => saveTodayType(e.target.value)} style={{ ...field, width: "170px" }}>
-                <option value="training">Training day</option>
-                <option value="rest">Rest day</option>
-                <option value="high">High day</option>
-              </select>
-            </div>
-
-            <div
-              className="nutrition-sidebar-targets-grid nutrition-sticky-grid"
-              style={{ marginTop: "0.85rem", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" }}
-            >
-              <div>
-                <div style={{ color: "#aaa" }}>Calories</div>
-                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets?.calories ?? "—"}</div>
-              </div>
-              <div>
-                <div style={{ color: "#aaa" }}>Protein</div>
-                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.protein_g}g` : "—"}</div>
-              </div>
-              <div>
-                <div style={{ color: "#aaa" }}>Carbs</div>
-                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.carbs_g}g` : "—"}</div>
-              </div>
-              <div>
-                <div style={{ color: "#aaa" }}>Fats</div>
-                <div style={{ marginTop: "0.25rem", fontSize: "1.15rem" }}>{todaysTargets ? `${todaysTargets.fats_g}g` : "—"}</div>
-              </div>
-            </div>
-
-            <div style={{ height: "1px", background: "#2a2a2a", margin: "0.9rem 0" }} />
-
-            <div>
-              <div style={{ fontWeight: 800 }}>Water & salt</div>
-              <div style={{ color: "#aaa", marginTop: "0.35rem" }}></div>
-
-              <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.75rem" }}>
-                <div>
-                  <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Water (ml)</div>
-                  <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={field} />
-                </div>
-                <div>
-                  <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Salt (g)</div>
-                  <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={field} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
