@@ -43,7 +43,7 @@ function Landing() {
     top: 0,
     zIndex: 20,
     backdropFilter: "blur(10px)",
-    background: "rgba(15,15,15,0.85)"
+    background: "rgba(5,5,7,0.95)"
   };
 
   const headerInner = {
@@ -101,7 +101,7 @@ function Landing() {
 
   const panel = {
     border: "1px solid #2a1118",
-    background: "#111",
+    background: "#050507",
     padding: "2rem",
     borderRadius: "16px",
     minHeight: "240px",

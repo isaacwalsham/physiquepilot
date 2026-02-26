@@ -117,30 +117,63 @@ const ageFromDob = (dob) => {
 
 const rdiBaseByCode = {
   energy_kcal: { any: 2000 },
-  protein_g: { male: 56, female: 46, any: 50 },
-  fat_g: { any: 70 },
-  carbs_g: { any: 275 },
-  fiber_g: { male: 38, female: 25, any: 30 },
-  sugars_g: { any: 50 },
-  sodium_mg: { any: 2300 },
-  salt_g: { any: 6 },
-  potassium_mg: { male: 3400, female: 2600, any: 3000 },
-  phosphorus_mg: { any: 700 },
-  magnesium_mg: { male: 420, female: 320, any: 350 },
-  iron_mg: { male: 8, female: 18, any: 12 },
-  zinc_mg: { male: 11, female: 8, any: 10 },
+  water_g: { male: 3700, female: 2700, any: 3200 },
+  caffeine_mg: { male: 400, female: 400, any: 400 },
+  carbs_g: { male: 130, female: 130, any: 130 },
+  fiber_g: { male: 38, female: 25, any: 31.5 },
+  added_sugars_g: { male: 50, female: 50, any: 50 },
+  fat_g: { male: null, female: null, any: null },
+  monounsaturated_g: { male: null, female: null, any: null },
+  monounsaturated_fat_g: { male: null, female: null, any: null },
+  polyunsaturated_g: { male: null, female: null, any: null },
+  polyunsaturated_fat_g: { male: null, female: null, any: null },
+  omega3_g: { male: 1.6, female: 1.1, any: 1.35 },
+  omega_3_g: { male: 1.6, female: 1.1, any: 1.35 },
+  omega6_g: { male: 17, female: 12, any: 14.5 },
+  omega_6_g: { male: 17, female: 12, any: 14.5 },
+  sat_fat_g: { male: 20, female: 20, any: 20 },
+  saturated_fat_g: { male: 20, female: 20, any: 20 },
+  trans_fat_g: { male: 0, female: 0, any: 0 },
+  cholesterol_mg: { male: 300, female: 300, any: 300 },
+  protein_g: { male: 56, female: 46, any: 51 },
+  cystine_g: { male: 0.525, female: 0.45, any: 0.4875 },
+  histidine_g: { male: 0.7, female: 0.6, any: 0.65 },
+  isoleucine_g: { male: 1.4, female: 1.2, any: 1.3 },
+  leucine_g: { male: 2.73, female: 2.34, any: 2.535 },
+  lysine_g: { male: 2.1, female: 1.8, any: 1.95 },
+  methionine_g: { male: 0.525, female: 0.45, any: 0.4875 },
+  phenylalanine_g: { male: 0.875, female: 0.75, any: 0.8125 },
+  threonine_g: { male: 1.05, female: 0.9, any: 0.975 },
+  tryptophan_g: { male: 0.28, female: 0.24, any: 0.26 },
+  tyrosine_g: { male: 0.875, female: 0.75, any: 0.8125 },
+  valine_g: { male: 1.82, female: 1.56, any: 1.69 },
+  thiamin_b1_mg: { male: 1.2, female: 1.1, any: 1.15 },
+  riboflavin_b2_mg: { male: 1.3, female: 1.1, any: 1.2 },
   vitamin_b3_mg: { male: 16, female: 14, any: 15 },
-  vitamin_b6_mg: { any: 1.3 },
-  vitamin_b12_ug: { any: 2.4 },
-  histidine_g: { any: 0.7 },
-  isoleucine_g: { any: 1.4 },
-  leucine_g: { any: 2.94 },
-  lysine_g: { any: 2.1 },
-  methionine_cystine_g: { any: 1.05 },
-  phenylalanine_tyrosine_g: { any: 1.75 },
-  threonine_g: { any: 1.05 },
-  tryptophan_g: { any: 0.28 },
-  valine_g: { any: 1.82 },
+  pantothenic_b5_mg: { male: 5, female: 5, any: 5 },
+  vitamin_b6_mg: { male: 1.3, female: 1.3, any: 1.3 },
+  vitamin_b12_ug: { male: 2.4, female: 2.4, any: 2.4 },
+  folate_ug: { male: 400, female: 400, any: 400 },
+  vitamin_a_ug: { male: 900, female: 700, any: 800 },
+  vitamin_c_mg: { male: 90, female: 75, any: 82.5 },
+  vitamin_d_ug: { male: 15, female: 15, any: 15 }, // 600 IU
+  vitamin_d_iu: { male: 600, female: 600, any: 600 },
+  vitamin_e_mg: { male: 15, female: 15, any: 15 },
+  vitamin_k_ug: { male: 120, female: 90, any: 105 },
+  calcium_mg: { male: 1000, female: 1000, any: 1000 },
+  copper_mg: { male: 0.9, female: 0.9, any: 0.9 },
+  iron_mg: { male: 8, female: 18, any: 13 },
+  magnesium_mg: { male: 400, female: 310, any: 355 },
+  manganese_mg: { male: 2.3, female: 1.8, any: 2.05 },
+  phosphorus_mg: { male: 700, female: 700, any: 700 },
+  potassium_mg: { male: 3400, female: 2600, any: 3000 },
+  selenium_ug: { male: 55, female: 55, any: 55 },
+  sodium_mg: { male: 1500, female: 1500, any: 1500 },
+  salt_g: { male: 3.75, female: 3.75, any: 3.75 },
+  zinc_mg: { male: 11, female: 8, any: 9.5 },
+  vitamin_b1_mg: { male: 1.2, female: 1.1, any: 1.15 },
+  vitamin_b2_mg: { male: 1.3, female: 1.1, any: 1.2 },
+  vitamin_b5_mg: { male: 5, female: 5, any: 5 },
   alcohol_g: { any: 0 }
 };
 
@@ -183,7 +216,10 @@ const computeRdiTarget = ({ code, sex }) => {
   const row = rdiBaseByCode[code];
   if (!row) return null;
   const sx = resolveSexKey(sex);
-  return toNum(row[sx] ?? row.any ?? null) || null;
+  const raw = row[sx] ?? row.any ?? null;
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 };
 
 const computeBodyweightTarget = ({ code, sex, weightKg }) => {
@@ -1378,14 +1414,32 @@ app.get("/api/foods/search", async (req, res) => {
     const localeFilter = locale === "any" ? null : locale.toLowerCase();
     const includeUsda = String(req.query.include_usda || "1") !== "0";
 
-    const [foodsRes, usdaRemote] = await Promise.all([
+    const safePattern = `%${term.replace(/[%_]/g, " ").trim()}%`;
+    const mergeUniqueById = (rows = []) => {
+      const m = new Map();
+      for (const row of rows || []) {
+        if (row?.id && !m.has(row.id)) m.set(row.id, row);
+      }
+      return Array.from(m.values());
+    };
+
+    const [foodsNameRes, foodsBrandRes, usdaRemote] = await Promise.all([
       supabase
         .from("foods")
         .select("id, name, brand, locale, source, barcode")
-        .or(`name.ilike.%${term}%,brand.ilike.%${term}%`)
+        .ilike("name", safePattern)
         .limit(limit * 4),
+      supabase
+        .from("foods")
+        .select("id, name, brand, locale, source, barcode")
+        .ilike("brand", safePattern)
+        .limit(limit * 2),
       includeUsda ? searchUsdaFoods({ term, limit: Math.min(8, limit) }) : Promise.resolve([])
     ]);
+    const foodsRes = {
+      data: mergeUniqueById([...(foodsNameRes.data || []), ...(foodsBrandRes.data || [])]),
+      error: foodsNameRes.error || foodsBrandRes.error || null
+    };
     const foods = foodsRes.data;
     const fErr = foodsRes.error;
 
@@ -1393,14 +1447,24 @@ app.get("/api/foods/search", async (req, res) => {
 
     let userFoods = [];
     if (user_id) {
-      const { data: uFoods, error: uErr } = await supabase
-        .from("user_foods")
-        .select("id, name, brand")
-        .eq("user_id", user_id)
-        .or(`name.ilike.%${term}%,brand.ilike.%${term}%`)
-        .limit(limit * 2);
-      if (uErr) return res.status(400).json({ ok: false, error: uErr.message });
-      userFoods = Array.isArray(uFoods) ? uFoods : [];
+      const [uNameRes, uBrandRes] = await Promise.all([
+        supabase
+          .from("user_foods")
+          .select("id, name, brand")
+          .eq("user_id", user_id)
+          .ilike("name", safePattern)
+          .limit(limit * 2),
+        supabase
+          .from("user_foods")
+          .select("id, name, brand")
+          .eq("user_id", user_id)
+          .ilike("brand", safePattern)
+          .limit(limit * 2)
+      ]);
+      if (uNameRes.error || uBrandRes.error) {
+        return res.status(400).json({ ok: false, error: String(uNameRes.error?.message || uBrandRes.error?.message || "Food search failed") });
+      }
+      userFoods = mergeUniqueById([...(uNameRes.data || []), ...(uBrandRes.data || [])]);
     }
 
     const filteredFoods = (foods || []).filter((row) => {

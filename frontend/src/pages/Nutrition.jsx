@@ -16,7 +16,7 @@ const dayLabel = {
   high: "High day"
 };
 
-const UNIT_OPTIONS = ["g", "kg", "ml", "l", "oz", "lb", "serv"];
+const UNIT_OPTIONS = ["g", "ml", "l", "oz", "lb", "serv"];
 const MACRO_CODES = new Set(["energy_kcal", "protein_g", "carbs_g", "fat_g", "alcohol_g"]);
 
 const clampInt = (v, min, max) => {
@@ -54,6 +54,44 @@ const formatNutrientAmount = (v) => {
   return String(Math.round(n * 10000) / 10000);
 };
 
+const NUTRIENT_LABEL_OVERRIDES = {
+  omega3_g: "Omega 3",
+  omega6_g: "Omega 6",
+  omega_3_g: "Omega 3",
+  omega_6_g: "Omega 6",
+  monounsaturated_g: "Monounsaturated Fat",
+  polyunsaturated_g: "Polyunsaturated Fat",
+  sat_fat_g: "Saturated Fat",
+  trans_fat_g: "Trans Fat",
+  added_sugars_g: "Added Sugars",
+  net_carbs_g: "Net Carbs"
+};
+
+const displayNutrientLabel = (code, label) => {
+  const c = String(code || "").trim();
+  if (NUTRIENT_LABEL_OVERRIDES[c]) return NUTRIENT_LABEL_OVERRIDES[c];
+  const raw = String(label || "").trim();
+  if (!raw || raw === c) {
+    return c
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (m) => m.toUpperCase());
+  }
+  return raw;
+};
+
+const displayNutrientGroup = (code, group) => {
+  const g = String(group || "").trim();
+  if (g && g.toLowerCase() !== "usda nutrients") return g;
+  const c = String(code || "");
+  if (["omega3_g", "omega6_g", "omega_3_g", "omega_6_g", "fat_g", "sat_fat_g", "trans_fat_g", "monounsaturated_g", "polyunsaturated_g", "cholesterol_mg"].includes(c)) return "Lipids";
+  if (["protein_g", "cystine_g", "histidine_g", "isoleucine_g", "leucine_g", "lysine_g", "methionine_g", "phenylalanine_g", "threonine_g", "tryptophan_g", "tyrosine_g", "valine_g"].includes(c)) return "Protein";
+  if (["thiamin_b1_mg", "riboflavin_b2_mg", "vitamin_b3_mg", "pantothenic_b5_mg", "vitamin_b6_mg", "vitamin_b12_ug", "folate_ug", "vitamin_a_ug", "vitamin_c_mg", "vitamin_d_ug", "vitamin_e_mg", "vitamin_k_ug"].includes(c)) return "Vitamins";
+  if (["calcium_mg", "copper_mg", "iron_mg", "magnesium_mg", "manganese_mg", "phosphorus_mg", "potassium_mg", "selenium_ug", "sodium_mg", "zinc_mg"].includes(c)) return "Minerals";
+  if (["carbs_g", "fiber_g", "starch_g", "sugars_g", "added_sugars_g", "net_carbs_g"].includes(c)) return "Carbohydrates";
+  if (["energy_kcal", "alcohol_g", "caffeine_mg", "water_g"].includes(c)) return "General";
+  return "Other";
+};
+
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export default function Nutrition() {
@@ -73,7 +111,7 @@ export default function Nutrition() {
   const [entryFood, setEntryFood] = useState("");
   const [entryQty, setEntryQty] = useState("");
   const [entryUnit, setEntryUnit] = useState("g");
-  const [entryState, setEntryState] = useState("");
+  const [entryState, setEntryState] = useState("raw");
   const [entryFoodId, setEntryFoodId] = useState(null);
   const [entryUserFoodId, setEntryUserFoodId] = useState(null);
 
@@ -161,10 +199,10 @@ export default function Nutrition() {
     const carbsTarget = Number(t.carbs_g || 0);
     const fatsTarget = Number(t.fats_g || 0);
     return [
-      { key: "calories", label: "Calories", value: Number(logTotals.calories || 0), target: calsTarget, unit: "kcal", color: "#f4a261" },
-      { key: "protein_g", label: "Protein", value: Number(logTotals.protein_g || 0), target: proteinTarget, unit: "g", color: "#2a9d8f" },
-      { key: "carbs_g", label: "Carbs", value: Number(logTotals.carbs_g || 0), target: carbsTarget, unit: "g", color: "#e9c46a" },
-      { key: "fats_g", label: "Fats", value: Number(logTotals.fats_g || 0), target: fatsTarget, unit: "g", color: "#e76f51" }
+      { key: "calories", label: "Calories", value: Number(logTotals.calories || 0), target: calsTarget, unit: "kcal", color: "#ff6b88" },
+      { key: "protein_g", label: "Protein", value: Number(logTotals.protein_g || 0), target: proteinTarget, unit: "g", color: "#ff3e6c" },
+      { key: "carbs_g", label: "Carbs", value: Number(logTotals.carbs_g || 0), target: carbsTarget, unit: "g", color: "#d61f52" },
+      { key: "fats_g", label: "Fats", value: Number(logTotals.fats_g || 0), target: fatsTarget, unit: "g", color: "#9e1338" }
     ];
   }, [logTotals, todaysTargets]);
 
@@ -174,10 +212,10 @@ export default function Nutrition() {
     const fatsKcal = Number(logTotals.fats_g || 0) * 9;
     const alcoholKcal = Number(logTotals.alcohol_g || 0) * 7;
     return [
-      { name: "Protein", value: proteinKcal, color: "#2a9d8f" },
-      { name: "Carbs", value: carbsKcal, color: "#e9c46a" },
-      { name: "Fats", value: fatsKcal, color: "#e76f51" },
-      { name: "Alcohol", value: alcoholKcal, color: "#8b5cf6" }
+      { name: "Protein", value: proteinKcal, grams: Number(logTotals.protein_g || 0), color: "#ff3e6c" },
+      { name: "Carbs", value: carbsKcal, grams: Number(logTotals.carbs_g || 0), color: "#d61f52" },
+      { name: "Fats", value: fatsKcal, grams: Number(logTotals.fats_g || 0), color: "#9e1338" },
+      { name: "Alcohol", value: alcoholKcal, grams: Number(logTotals.alcohol_g || 0), color: "#7a102c" }
     ].filter((x) => x.value > 0);
   }, [logTotals]);
 
@@ -376,7 +414,7 @@ export default function Nutrition() {
   const addEntry = () => {
     const food = String(entryFood || "").trim();
     const qty = Number(String(entryQty || "").trim());
-    if (!food || !Number.isFinite(qty) || qty <= 0 || !entryState) return;
+    if (!food || !Number.isFinite(qty) || qty <= 0) return;
 
     setEntries((prev) => [
       ...prev,
@@ -394,7 +432,7 @@ export default function Nutrition() {
     setEntryFood("");
     setEntryQty("");
     setEntryUnit("g");
-    setEntryState("");
+    setEntryState("raw");
     setEntryFoodId(null);
     setEntryUserFoodId(null);
     setFoodResults([]);
@@ -676,7 +714,7 @@ export default function Nutrition() {
                         setEntryFood("");
                         setEntryQty("");
                         setEntryUnit("g");
-                        setEntryState("");
+                        setEntryState("raw");
                         setEntryFoodId(null);
                         setEntryUserFoodId(null);
                         setFoodResults([]);
@@ -722,12 +760,6 @@ export default function Nutrition() {
                               style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
                             >
                               <div style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
-                              <div style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.15rem", display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-                                {r.locale ? ` • ${String(r.locale).toUpperCase()}` : ""}
-                                {r.kcal_per_100g != null ? ` • ${Math.round(Number(r.kcal_per_100g))} kcal/100g` : ""}
-                                {r.match_confidence != null ? ` • ${r.match_confidence}% match` : ""}
-                                {r.nutrient_coverage_count != null ? ` • ${r.nutrient_coverage_count} nutrients` : ""}
-                              </div>
                             </button>
                           ))
                         )}
@@ -735,7 +767,7 @@ export default function Nutrition() {
                     )}
                   </div>
 
-                  <div className="nutrition-entry-row" style={{ display: "grid", gridTemplateColumns: "140px 130px 1fr 120px", gap: "0.6rem", alignItems: "center" }}>
+                  <div className="nutrition-entry-row" style={{ display: "grid", gridTemplateColumns: "140px 130px 120px", gap: "0.6rem", alignItems: "center" }}>
                     <input value={entryQty} onChange={(e) => setEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
 
                     <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={field}>
@@ -744,16 +776,11 @@ export default function Nutrition() {
                       ))}
                     </select>
 
-                    <div style={{ display: "flex", gap: "0.4rem" }}>
-                      <button type="button" onClick={() => setEntryState("raw")} style={pill(entryState === "raw")}>Raw</button>
-                      <button type="button" onClick={() => setEntryState("cooked")} style={pill(entryState === "cooked")}>Cooked</button>
-                    </div>
-
                     <button
                       type="button"
-                      disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState}
+                      disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty)}
                       onClick={addEntry}
-                      style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || !entryState)}
+                      style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty))}
                     >
                       Add
                     </button>
@@ -769,7 +796,7 @@ export default function Nutrition() {
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.food}</div>
                           <div style={{ color: "#888", fontSize: "0.9rem", marginTop: "0.2rem" }}>
-                            {it.qty}{it.unit} • {it.state === "raw" ? "Raw" : "Cooked"}
+                            {it.qty}{it.unit}
                           </div>
                         </div>
                         <button type="button" onClick={() => setEntries((prev) => prev.filter((x) => x.id !== it.id))} style={subtleBtn}>Remove</button>
@@ -871,8 +898,15 @@ export default function Nutrition() {
                         </Pie>
                         {hasMacroPieData ? (
                           <Tooltip
-                            formatter={(value) => [`${Math.round(Number(value || 0))} kcal`, ""]}
-                            contentStyle={{ background: "#050507", border: "1px solid #2a1118", borderRadius: "8px" }}
+                            formatter={(value, name, ctx) => {
+                              const grams = Number(ctx?.payload?.grams || 0);
+                              return [`${Math.round(Number(value || 0))} kcal • ${round1(grams)} g`, String(name || "")];
+                            }}
+                            contentStyle={{ background: "#050507", border: "1px solid #2a1118", borderRadius: "8px", color: "#fff" }}
+                            itemStyle={{ color: "#fff" }}
+                            labelStyle={{ color: "#fff" }}
+                            wrapperStyle={{ zIndex: 30, pointerEvents: "none" }}
+                            cursor={false}
                           />
                         ) : null}
                       </PieChart>
@@ -969,11 +1003,13 @@ export default function Nutrition() {
                         <div key={n.code} style={{ border: "1px solid #231018", borderRadius: "10px", padding: "0.5rem 0.6rem", background: "#050507" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", color: "#aaa", fontSize: "0.9rem" }}>
                             <div style={{ minWidth: 0, whiteSpace: "normal", lineHeight: 1.2 }}>
-                              <span style={{ color: "#fff" }}>{n.label}</span>
-                              <span style={{ color: "#777" }}> • {n.sort_group}</span>
+                              <span style={{ color: "#fff" }}>{displayNutrientLabel(n.code, n.label)}</span>
+                              <span style={{ color: "#777" }}> • {displayNutrientGroup(n.code, n.sort_group)}</span>
                             </div>
                             <div style={{ color: "#fff", flexShrink: 0 }}>
-                              {formatNutrientAmount(n.amount)} / {formatNutrientAmount(n.target_amount ?? 0)} {n.unit}
+                              {formatNutrientAmount(n.amount)} {n.unit}
+                              {" / "}
+                              {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${n.unit}` : "N/T"}
                             </div>
                           </div>
                           {microTargetMode === "custom" ? (
@@ -996,7 +1032,7 @@ export default function Nutrition() {
                               style={{
                                 width: `${Number(n.amount || 0) <= 0 ? 0 : Math.max(2, n.sliderPct)}%`,
                                 height: "100%",
-                                background: "linear-gradient(90deg, #7dd3fc, #38bdf8)",
+                                background: "linear-gradient(90deg, #8a0f2e, #de2952)",
                                 transition: "width 240ms ease"
                               }}
                             />
