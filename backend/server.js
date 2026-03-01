@@ -548,6 +548,165 @@ const ALLOWED_TRACKED_NUTRIENT_CODES = new Set([
   "calcium_mg", "copper_mg", "iron_mg", "magnesium_mg", "manganese_mg", "phosphorus_mg", "potassium_mg", "selenium_ug", "sodium_mg", "zinc_mg"
 ]);
 
+const RAW_TO_CANONICAL_NUTRIENT_CODE = {
+  vitamin_b1_mg: "thiamin_b1_mg",
+  vitamin_b2_mg: "riboflavin_b2_mg",
+  vitamin_b5_mg: "pantothenic_b5_mg",
+  saturated_fat_g: "sat_fat_g",
+  monounsaturated_fat_g: "monounsaturated_g",
+  polyunsaturated_fat_g: "polyunsaturated_g",
+  omega_3_g: "omega3_g",
+  omega_6_g: "omega6_g",
+  usda_1008: "energy_kcal",
+  usda_221: "alcohol_g",
+  usda_262: "caffeine_mg",
+  usda_1051: "water_g",
+  usda_1005: "carbs_g",
+  usda_1079: "fiber_g",
+  usda_2092: "starch_g",
+  usda_2000: "sugars_g",
+  usda_1235: "added_sugars_g",
+  usda_1004: "fat_g",
+  usda_645: "monounsaturated_g",
+  usda_646: "polyunsaturated_g",
+  usda_1258: "sat_fat_g",
+  usda_1257: "trans_fat_g",
+  usda_1253: "cholesterol_mg",
+  usda_1003: "protein_g",
+  usda_1227: "cystine_g",
+  usda_1221: "histidine_g",
+  usda_1222: "isoleucine_g",
+  usda_1223: "leucine_g",
+  usda_1224: "lysine_g",
+  usda_1225: "methionine_g",
+  usda_1226: "phenylalanine_g",
+  usda_1228: "threonine_g",
+  usda_1220: "tryptophan_g",
+  usda_1232: "tyrosine_g",
+  usda_1233: "valine_g",
+  usda_1165: "thiamin_b1_mg",
+  usda_1166: "riboflavin_b2_mg",
+  usda_1167: "vitamin_b3_mg",
+  usda_1170: "pantothenic_b5_mg",
+  usda_1175: "vitamin_b6_mg",
+  usda_1178: "vitamin_b12_ug",
+  usda_1177: "folate_ug",
+  usda_1106: "vitamin_a_ug",
+  usda_1162: "vitamin_c_mg",
+  usda_1110: "vitamin_d_ug",
+  usda_1109: "vitamin_e_mg",
+  usda_1185: "vitamin_k_ug",
+  usda_1087: "calcium_mg",
+  usda_1088: "copper_mg",
+  usda_1089: "iron_mg",
+  usda_1090: "magnesium_mg",
+  usda_1098: "manganese_mg",
+  usda_1091: "phosphorus_mg",
+  usda_1092: "potassium_mg",
+  usda_1103: "selenium_ug",
+  usda_1093: "sodium_mg",
+  usda_1095: "zinc_mg"
+};
+
+const OMEGA3_USDA_CODES = ["usda_1270", "usda_1271", "usda_1278", "usda_1279", "usda_1280"];
+const OMEGA6_USDA_CODES = ["usda_1269", "usda_1272", "usda_1273", "usda_1274"];
+
+const AMINO_ACID_ESTIMATE_FACTORS_FROM_PROTEIN = {
+  histidine_g: 0.03,
+  isoleucine_g: 0.06,
+  leucine_g: 0.12,
+  lysine_g: 0.105,
+  methionine_g: 0.022,
+  cystine_g: 0.012,
+  phenylalanine_g: 0.055,
+  tyrosine_g: 0.045,
+  threonine_g: 0.051,
+  tryptophan_g: 0.013,
+  valine_g: 0.067
+};
+
+const COMBINED_AMINO_ACID_SPLITS = {
+  methionine_cystine_g: [
+    { code: "methionine_g", ratio: 0.022 / (0.022 + 0.012) },
+    { code: "cystine_g", ratio: 0.012 / (0.022 + 0.012) }
+  ],
+  phenylalanine_tyrosine_g: [
+    { code: "phenylalanine_g", ratio: 0.055 / (0.055 + 0.045) },
+    { code: "tyrosine_g", ratio: 0.045 / (0.055 + 0.045) }
+  ]
+};
+
+const normalizeTrackedNutrientAmountMap = (inputMap) => {
+  const amounts = new Map();
+  for (const [rawCode, rawAmount] of inputMap.entries()) {
+    const codeRaw = String(rawCode || "").trim();
+    const code = RAW_TO_CANONICAL_NUTRIENT_CODE[codeRaw] || codeRaw;
+    if (!code) continue;
+    amounts.set(code, toNum(amounts.get(code)) + toNum(rawAmount));
+  }
+
+  if (toNum(amounts.get("net_carbs_g")) <= 0) {
+    const carbs = toNum(amounts.get("carbs_g"));
+    const fiber = toNum(amounts.get("fiber_g"));
+    if (carbs > 0 || fiber > 0) {
+      amounts.set("net_carbs_g", Math.max(0, carbs - fiber));
+    }
+  }
+
+  if (toNum(amounts.get("omega3_g")) <= 0) {
+    const derivedOmega3 = OMEGA3_USDA_CODES.reduce((acc, code) => acc + toNum(inputMap.get(code)), 0);
+    if (derivedOmega3 > 0) amounts.set("omega3_g", derivedOmega3);
+  }
+  if (toNum(amounts.get("omega6_g")) <= 0) {
+    const derivedOmega6 = OMEGA6_USDA_CODES.reduce((acc, code) => acc + toNum(inputMap.get(code)), 0);
+    if (derivedOmega6 > 0) amounts.set("omega6_g", derivedOmega6);
+  }
+
+  for (const [combinedCode, splitRows] of Object.entries(COMBINED_AMINO_ACID_SPLITS)) {
+    const combinedAmount = toNum(amounts.get(combinedCode));
+    if (combinedAmount <= 0) continue;
+    for (const split of splitRows) {
+      const existing = toNum(amounts.get(split.code));
+      if (existing > 0) continue;
+      amounts.set(split.code, combinedAmount * split.ratio);
+    }
+  }
+
+  const proteinG = toNum(amounts.get("protein_g"));
+  if (proteinG > 0) {
+    for (const [code, factor] of Object.entries(AMINO_ACID_ESTIMATE_FACTORS_FROM_PROTEIN)) {
+      const existing = toNum(amounts.get(code));
+      if (existing > 0) continue;
+      amounts.set(code, proteinG * factor);
+    }
+  }
+
+  return amounts;
+};
+
+const normalizePer100gNutrientRows = (rows = []) => {
+  const amountMap = new Map();
+  for (const row of rows || []) {
+    const code = String(row?.nutrient_code || "").trim();
+    if (!code) continue;
+    amountMap.set(code, toNum(amountMap.get(code)) + toNum(row?.amount_per_100g));
+  }
+  const normalizedMap = normalizeTrackedNutrientAmountMap(amountMap);
+  return Array.from(normalizedMap.entries()).map(([nutrient_code, amount_per_100g]) => ({
+    nutrient_code,
+    amount_per_100g
+  }));
+};
+
+const estimateAminoRowsFromProtein = (proteinG) => {
+  const protein = Math.max(0, toNum(proteinG));
+  if (protein <= 0) return [];
+  return Object.entries(AMINO_ACID_ESTIMATE_FACTORS_FROM_PROTEIN).map(([nutrient_code, factor]) => ({
+    nutrient_code,
+    amount: protein * factor
+  }));
+};
+
 const normalizeText = (x) =>
   String(x || "")
     .trim()
@@ -613,8 +772,10 @@ const canonicalCodeFromUsdaNutrient = ({ nutrientNumber, nutrientName, unitName 
   if (name === "valine") return "valine_g";
   if (name === "methionine") return "methionine_g";
   if (name === "cystine") return "cystine_g";
+  if (name.includes("methionine") && name.includes("cystine")) return "methionine_cystine_g";
   if (name === "phenylalanine") return "phenylalanine_g";
   if (name === "tyrosine") return "tyrosine_g";
+  if (name.includes("phenylalanine") && name.includes("tyrosine")) return "phenylalanine_tyrosine_g";
   if (name.includes("fatty acids, total omega-3") || ["1270", "1271", "1278", "1279", "1280"].includes(number)) return "omega3_g";
   if (name.includes("fatty acids, total omega-6") || ["1269", "1272", "1273", "1274"].includes(number)) return "omega6_g";
 
@@ -715,6 +876,8 @@ const importUsdaFoodByFdcId = async ({ fdcId }) => {
     if (derivedOmega6 > 0) combined.set("omega6_g", derivedOmega6);
   }
 
+  const normalizedCombined = normalizeTrackedNutrientAmountMap(combined);
+
   const { data: insertedFood, error: foodErr } = await supabase
     .from("foods")
     .insert({
@@ -731,7 +894,7 @@ const importUsdaFoodByFdcId = async ({ fdcId }) => {
   const nutrientMetaPayload = [];
   const nutrientValuePayload = [];
 
-  for (const [code, amount] of combined.entries()) {
+  for (const [code, amount] of normalizedCombined.entries()) {
     if (!ALLOWED_TRACKED_NUTRIENT_CODES.has(code)) continue;
     const sample = normalized.find((r) => r.code === code);
     const label = sample?.nutrient_name || code;
@@ -815,41 +978,73 @@ const findDeterministicFoodRefByName = async ({ user_id, food_name, matchCache }
   const token = String(food_name || "").trim().split(/\s+/).filter(Boolean)[0] || "";
   const tokenPattern = ilikePattern(token);
 
-  const [userFoodsRes, foodsRes, userFoodsTokenRes, foodsTokenRes] = await Promise.all([
+  const [userFoodsNameRes, userFoodsBrandRes, foodsNameRes, foodsBrandRes, userFoodsTokenNameRes, userFoodsTokenBrandRes, foodsTokenNameRes, foodsTokenBrandRes] = await Promise.all([
     user_id
       ? supabase
           .from("user_foods")
           .select("id, name, brand")
           .eq("user_id", user_id)
-          .or(`name.ilike.${fullPattern},brand.ilike.${fullPattern}`)
+          .ilike("name", fullPattern)
+          .limit(12)
+      : Promise.resolve({ data: [], error: null }),
+    user_id
+      ? supabase
+          .from("user_foods")
+          .select("id, name, brand")
+          .eq("user_id", user_id)
+          .ilike("brand", fullPattern)
           .limit(12)
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("foods")
       .select("id, name, brand")
-      .or(`name.ilike.${fullPattern},brand.ilike.${fullPattern}`)
+      .ilike("name", fullPattern)
+      .limit(24),
+    supabase
+      .from("foods")
+      .select("id, name, brand")
+      .ilike("brand", fullPattern)
       .limit(24),
     user_id && token
       ? supabase
           .from("user_foods")
           .select("id, name, brand")
           .eq("user_id", user_id)
-          .or(`name.ilike.${tokenPattern},brand.ilike.${tokenPattern}`)
+          .ilike("name", tokenPattern)
+          .limit(12)
+      : Promise.resolve({ data: [], error: null }),
+    user_id && token
+      ? supabase
+          .from("user_foods")
+          .select("id, name, brand")
+          .eq("user_id", user_id)
+          .ilike("brand", tokenPattern)
           .limit(12)
       : Promise.resolve({ data: [], error: null }),
     token
       ? supabase
           .from("foods")
           .select("id, name, brand")
-          .or(`name.ilike.${tokenPattern},brand.ilike.${tokenPattern}`)
+          .ilike("name", tokenPattern)
+          .limit(24)
+      : Promise.resolve({ data: [], error: null }),
+    token
+      ? supabase
+          .from("foods")
+          .select("id, name, brand")
+          .ilike("brand", tokenPattern)
           .limit(24)
       : Promise.resolve({ data: [], error: null })
   ]);
 
-  if (userFoodsRes.error) throw new Error(userFoodsRes.error.message);
-  if (foodsRes.error) throw new Error(foodsRes.error.message);
-  if (userFoodsTokenRes.error) throw new Error(userFoodsTokenRes.error.message);
-  if (foodsTokenRes.error) throw new Error(foodsTokenRes.error.message);
+  if (userFoodsNameRes.error) throw new Error(userFoodsNameRes.error.message);
+  if (userFoodsBrandRes.error) throw new Error(userFoodsBrandRes.error.message);
+  if (foodsNameRes.error) throw new Error(foodsNameRes.error.message);
+  if (foodsBrandRes.error) throw new Error(foodsBrandRes.error.message);
+  if (userFoodsTokenNameRes.error) throw new Error(userFoodsTokenNameRes.error.message);
+  if (userFoodsTokenBrandRes.error) throw new Error(userFoodsTokenBrandRes.error.message);
+  if (foodsTokenNameRes.error) throw new Error(foodsTokenNameRes.error.message);
+  if (foodsTokenBrandRes.error) throw new Error(foodsTokenBrandRes.error.message);
 
   const mergeUniqueById = (rows = []) => {
     const m = new Map();
@@ -859,8 +1054,18 @@ const findDeterministicFoodRefByName = async ({ user_id, food_name, matchCache }
     return Array.from(m.values());
   };
 
-  const userFoods = mergeUniqueById([...(userFoodsRes.data || []), ...(userFoodsTokenRes.data || [])]);
-  const foods = mergeUniqueById([...(foodsRes.data || []), ...(foodsTokenRes.data || [])]);
+  const userFoods = mergeUniqueById([
+    ...(userFoodsNameRes.data || []),
+    ...(userFoodsBrandRes.data || []),
+    ...(userFoodsTokenNameRes.data || []),
+    ...(userFoodsTokenBrandRes.data || [])
+  ]);
+  const foods = mergeUniqueById([
+    ...(foodsNameRes.data || []),
+    ...(foodsBrandRes.data || []),
+    ...(foodsTokenNameRes.data || []),
+    ...(foodsTokenBrandRes.data || [])
+  ]);
   const userFoodIds = userFoods.map((r) => r.id).filter(Boolean);
   const foodIds = foods.map((r) => r.id).filter(Boolean);
 
@@ -1031,7 +1236,24 @@ const fetchDaySummary = async ({ user_id, log_date }) => {
 
   totals.alcohol_g = Math.max(0, Math.round(toNum(amountByCode.get("alcohol_g")) * 10) / 10);
 
+  const fallbackUnitForCode = (code) => {
+    if (code.endsWith("_mg")) return "mg";
+    if (code.endsWith("_ug")) return "ug";
+    if (code.endsWith("_kcal")) return "kcal";
+    return "g";
+  };
+  const fallbackSortGroupForCode = (code) => {
+    if (["energy_kcal", "alcohol_g", "caffeine_mg", "water_g"].includes(code)) return "General";
+    if (["carbs_g", "fiber_g", "starch_g", "sugars_g", "added_sugars_g", "net_carbs_g"].includes(code)) return "Carbohydrates";
+    if (["fat_g", "monounsaturated_g", "polyunsaturated_g", "omega3_g", "omega6_g", "sat_fat_g", "trans_fat_g", "cholesterol_mg"].includes(code)) return "Lipids";
+    if (["protein_g", "cystine_g", "histidine_g", "isoleucine_g", "leucine_g", "lysine_g", "methionine_g", "phenylalanine_g", "threonine_g", "tryptophan_g", "tyrosine_g", "valine_g"].includes(code)) return "Protein";
+    if (["thiamin_b1_mg", "riboflavin_b2_mg", "vitamin_b3_mg", "pantothenic_b5_mg", "vitamin_b6_mg", "vitamin_b12_ug", "folate_ug", "vitamin_a_ug", "vitamin_c_mg", "vitamin_d_ug", "vitamin_e_mg", "vitamin_k_ug"].includes(code)) return "Vitamins";
+    if (["calcium_mg", "copper_mg", "iron_mg", "magnesium_mg", "manganese_mg", "phosphorus_mg", "potassium_mg", "selenium_ug", "sodium_mg", "zinc_mg"].includes(code)) return "Minerals";
+    return "Other";
+  };
+
   const nutrientCodes = new Set([
+    ...Array.from(ALLOWED_TRACKED_NUTRIENT_CODES),
     ...allMeta.map((m) => String(m.code || "")),
     ...Array.from(amountByCode.keys())
   ]);
@@ -1044,8 +1266,8 @@ const fetchDaySummary = async ({ user_id, log_date }) => {
       return {
         code,
         label: meta.label || code,
-        unit: meta.unit || "",
-        sort_group: meta.sort_group || "Other",
+        unit: meta.unit || fallbackUnitForCode(code),
+        sort_group: meta.sort_group || fallbackSortGroupForCode(code),
         sort_order: Number.isFinite(Number(meta.sort_order)) ? Number(meta.sort_order) : 9999,
         amount: toNum(amountByCode.get(code))
       };
@@ -1196,6 +1418,7 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
           food_id: resolvedItem.food_id,
           user_food_id: resolvedItem.user_food_id
         });
+        per100gRows = normalizePer100gNutrientRows(per100gRows);
         nutrientCache.set(cacheKey, per100gRows);
       }
 
@@ -1215,6 +1438,7 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
               food_id: resolvedItem.food_id,
               user_food_id: resolvedItem.user_food_id
             });
+            per100gRows = normalizePer100gNutrientRows(per100gRows);
             nutrientCache.set(retryCacheKey, per100gRows);
           }
           if (Array.isArray(per100gRows) && per100gRows.length > 0 && micronutrientRowCount(per100gRows) > 0) {
@@ -1278,12 +1502,16 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
           carbs_g: Math.max(0, Math.round(toNum(matched?.carbs_g))),
           fats_g: Math.max(0, Math.round(toNum(matched?.fats_g)))
         };
+        const estimatedAminoRows = estimateAminoRowsFromProtein(macros.protein_g);
+        if (estimatedAminoRows.length > 0) {
+          warnings.push(`"${it.food_name}": amino acids estimated from protein because deterministic micronutrients were unavailable.`);
+        }
         stagedItems.push({
           ...it,
           grams: await resolveItemGrams({ item: it, conversionCache }),
           source: "ai",
           macros,
-          scaledRows: []
+          scaledRows: estimatedAminoRows
         });
       }
     }
@@ -1324,8 +1552,10 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
         return res.status(400).json({ ok: false, error: insErr.message });
       }
 
-      if (staged.source === "db" && staged.scaledRows.length > 0) {
-        dbItemCount += 1;
+      if (staged.source === "db") dbItemCount += 1;
+      if (staged.source === "ai") aiItemCount += 1;
+
+      if (staged.scaledRows.length > 0) {
         const payload = staged.scaledRows.map((r) => ({
           item_id: itemId,
           nutrient_code: r.nutrient_code,
@@ -1339,10 +1569,6 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
         }
         nutrientRowsInserted += payload.length;
         micronutrientRowsInserted += payload.filter((r) => !MACRO_NUTRIENT_CODES.has(String(r.nutrient_code || ""))).length;
-      } else if (staged.source === "db") {
-        dbItemCount += 1;
-      } else {
-        aiItemCount += 1;
       }
 
       totalCalories += staged.macros.calories;
@@ -1411,10 +1637,13 @@ app.get("/api/foods/search", async (req, res) => {
     if (!term) return res.json({ ok: true, items: [] });
 
     const normalizedTerm = term.toLowerCase();
+    const normalizedTermWords = normalizedTerm.split(/[^a-z0-9]+/).filter(Boolean);
     const localeFilter = locale === "any" ? null : locale.toLowerCase();
     const includeUsda = String(req.query.include_usda || "1") !== "0";
 
     const safePattern = `%${term.replace(/[%_]/g, " ").trim()}%`;
+    const firstToken = normalizedTermWords[0] || "";
+    const tokenPattern = firstToken ? `%${firstToken.replace(/[%_]/g, " ").trim()}%` : null;
     const mergeUniqueById = (rows = []) => {
       const m = new Map();
       for (const row of rows || []) {
@@ -1423,22 +1652,41 @@ app.get("/api/foods/search", async (req, res) => {
       return Array.from(m.values());
     };
 
-    const [foodsNameRes, foodsBrandRes, usdaRemote] = await Promise.all([
+    const [foodsNameRes, foodsBrandRes, foodsTokenNameRes, foodsTokenBrandRes, usdaRemote] = await Promise.all([
       supabase
         .from("foods")
         .select("id, name, brand, locale, source, barcode")
         .ilike("name", safePattern)
-        .limit(limit * 4),
+        .limit(limit * 3),
       supabase
         .from("foods")
         .select("id, name, brand, locale, source, barcode")
         .ilike("brand", safePattern)
         .limit(limit * 2),
+      tokenPattern
+        ? supabase
+            .from("foods")
+            .select("id, name, brand, locale, source, barcode")
+            .ilike("name", tokenPattern)
+            .limit(limit * 2)
+        : Promise.resolve({ data: [], error: null }),
+      tokenPattern
+        ? supabase
+            .from("foods")
+            .select("id, name, brand, locale, source, barcode")
+            .ilike("brand", tokenPattern)
+            .limit(limit)
+        : Promise.resolve({ data: [], error: null }),
       includeUsda ? searchUsdaFoods({ term, limit: Math.min(8, limit) }) : Promise.resolve([])
     ]);
     const foodsRes = {
-      data: mergeUniqueById([...(foodsNameRes.data || []), ...(foodsBrandRes.data || [])]),
-      error: foodsNameRes.error || foodsBrandRes.error || null
+      data: mergeUniqueById([
+        ...(foodsNameRes.data || []),
+        ...(foodsBrandRes.data || []),
+        ...(foodsTokenNameRes.data || []),
+        ...(foodsTokenBrandRes.data || [])
+      ]),
+      error: foodsNameRes.error || foodsBrandRes.error || foodsTokenNameRes.error || foodsTokenBrandRes.error || null
     };
     const foods = foodsRes.data;
     const fErr = foodsRes.error;
@@ -1447,7 +1695,7 @@ app.get("/api/foods/search", async (req, res) => {
 
     let userFoods = [];
     if (user_id) {
-      const [uNameRes, uBrandRes] = await Promise.all([
+      const [uNameRes, uBrandRes, uTokenNameRes, uTokenBrandRes] = await Promise.all([
         supabase
           .from("user_foods")
           .select("id, name, brand")
@@ -1459,13 +1707,45 @@ app.get("/api/foods/search", async (req, res) => {
           .select("id, name, brand")
           .eq("user_id", user_id)
           .ilike("brand", safePattern)
-          .limit(limit * 2)
+          .limit(limit * 2),
+        tokenPattern
+          ? supabase
+              .from("user_foods")
+              .select("id, name, brand")
+              .eq("user_id", user_id)
+              .ilike("name", tokenPattern)
+              .limit(limit * 2)
+          : Promise.resolve({ data: [], error: null }),
+        tokenPattern
+          ? supabase
+              .from("user_foods")
+              .select("id, name, brand")
+              .eq("user_id", user_id)
+              .ilike("brand", tokenPattern)
+              .limit(limit)
+          : Promise.resolve({ data: [], error: null })
       ]);
-      if (uNameRes.error || uBrandRes.error) {
-        return res.status(400).json({ ok: false, error: String(uNameRes.error?.message || uBrandRes.error?.message || "Food search failed") });
+      if (uNameRes.error || uBrandRes.error || uTokenNameRes.error || uTokenBrandRes.error) {
+        return res.status(400).json({
+          ok: false,
+          error: String(uNameRes.error?.message || uBrandRes.error?.message || uTokenNameRes.error?.message || uTokenBrandRes.error?.message || "Food search failed")
+        });
       }
-      userFoods = mergeUniqueById([...(uNameRes.data || []), ...(uBrandRes.data || [])]);
+      userFoods = mergeUniqueById([
+        ...(uNameRes.data || []),
+        ...(uBrandRes.data || []),
+        ...(uTokenNameRes.data || []),
+        ...(uTokenBrandRes.data || [])
+      ]);
     }
+
+    const normalizeWords = (x) =>
+      String(x || "")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean);
+    const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
+    const termWordSet = new Set(normalizedTermWords.map(singularize));
 
     const filteredFoods = (foods || []).filter((row) => {
       if (!localeFilter) return true;
@@ -1577,14 +1857,19 @@ app.get("/api/foods/search", async (req, res) => {
 
     const withRank = items.map((item) => {
       const name = String(item?.name || "").toLowerCase();
+      const nameWords = normalizeWords(name).map(singularize);
+      const nameWordSet = new Set(nameWords);
       const brand = String(item?.brand || "").trim();
       const itemLocale = String(item?.locale || "").toLowerCase();
-      const startsWith = name.startsWith(normalizedTerm) ? 0 : 1;
-      const includes = name.includes(normalizedTerm) ? 0 : 1;
+      const exact = name === normalizedTerm ? 1 : 0;
+      const startsWith = name.startsWith(normalizedTerm) ? 1 : 0;
+      const includes = normalizedTerm && name.includes(normalizedTerm) ? 1 : 0;
+      const tokenHits = Array.from(termWordSet).reduce((acc, token) => acc + (nameWordSet.has(token) ? 1 : 0), 0);
+      const tokenMisses = Math.max(0, termWordSet.size - tokenHits);
       const wholeFood = brand ? 1 : 0;
       const localePenalty = localeFilter ? (itemLocale === localeFilter ? 0 : 1) : 0;
       const sourcePenalty = item.source === "user" ? -1 : 0;
-      const usdaRemotePenalty = item.source === "usda_remote" ? 0.5 : 0;
+      const usdaRemotePenalty = item.source === "usda_remote" ? 0.1 : 0;
       const usdaBoost = String(item.source_name || "").toLowerCase() === "usda" ? -2 : 0;
       const coveragePenalty = 1 - Math.min(1, toNum(item.nutrient_coverage_ratio));
       return {
@@ -1595,21 +1880,26 @@ app.get("/api/foods/search", async (req, res) => {
             100,
             Math.round(
               100 -
-                (wholeFood * 18 + startsWith * 24 + includes * 18 + coveragePenalty * 25 + localePenalty * 8) +
-                sourcePenalty * 4 +
-                usdaBoost * 4
+                (wholeFood * 14 + startsWith * 10 + includes * 8 + coveragePenalty * 20 + localePenalty * 8 + tokenMisses * 12) +
+                sourcePenalty * 5 +
+                usdaBoost * 3 +
+                exact * 16 +
+                tokenHits * 9
             )
           )
         ),
         _rank:
-          sourcePenalty * 100 +
-          usdaRemotePenalty * 20 +
+          sourcePenalty * 120 +
+          usdaRemotePenalty * 8 +
           usdaBoost * 40 +
-          wholeFood * 20 +
-          startsWith * 14 +
-          includes * 10 +
-          coveragePenalty * 30 +
-          localePenalty * 5
+          wholeFood * 16 +
+          localePenalty * 5 +
+          coveragePenalty * 20 +
+          startsWith * 7 +
+          includes * 5 -
+          exact * 24 -
+          tokenHits * 10 +
+          tokenMisses * 8
       };
     });
 

@@ -18,6 +18,7 @@ const dayLabel = {
 
 const UNIT_OPTIONS = ["g", "ml", "l", "oz", "lb", "serv"];
 const MACRO_CODES = new Set(["energy_kcal", "protein_g", "carbs_g", "fat_g", "alcohol_g"]);
+const HIDDEN_MICRO_CODES = new Set(["net_carbs_g"]);
 
 const clampInt = (v, min, max) => {
   const n = Math.round(Number(v) || 0);
@@ -55,10 +56,49 @@ const formatNutrientAmount = (v) => {
 };
 
 const NUTRIENT_LABEL_OVERRIDES = {
+  caffeine_mg: "Caffeine",
+  water_g: "Water",
+  fiber_g: "Dietary Fibre",
+  starch_g: "Starch",
+  sugars_g: "Sugars",
   omega3_g: "Omega 3",
   omega6_g: "Omega 6",
   omega_3_g: "Omega 3",
   omega_6_g: "Omega 6",
+  cholesterol_mg: "Cholesterol",
+  histidine_g: "Histidine",
+  isoleucine_g: "Isoleucine",
+  leucine_g: "Leucine",
+  lysine_g: "Lysine",
+  methionine_g: "Methionine",
+  cystine_g: "Cystine",
+  phenylalanine_g: "Phenylalanine",
+  threonine_g: "Threonine",
+  tryptophan_g: "Tryptophan",
+  tyrosine_g: "Tyrosine",
+  valine_g: "Valine",
+  thiamin_b1_mg: "B1",
+  riboflavin_b2_mg: "B2",
+  vitamin_b3_mg: "B3",
+  pantothenic_b5_mg: "B5",
+  vitamin_b6_mg: "B6",
+  folate_ug: "B9",
+  vitamin_b12_ug: "B12",
+  vitamin_a_ug: "Vitamin A",
+  vitamin_c_mg: "Vitamin C",
+  vitamin_d_ug: "Vitamin D",
+  vitamin_e_mg: "Vitamin E",
+  vitamin_k_ug: "Vitamin K",
+  calcium_mg: "Calcium",
+  copper_mg: "Copper",
+  iron_mg: "Iron",
+  magnesium_mg: "Magnesium",
+  manganese_mg: "Manganese",
+  phosphorus_mg: "Phosphorus",
+  potassium_mg: "Potassium",
+  selenium_ug: "Selenium",
+  sodium_mg: "Sodium",
+  zinc_mg: "Zinc",
   monounsaturated_g: "Monounsaturated Fat",
   polyunsaturated_g: "Polyunsaturated Fat",
   sat_fat_g: "Saturated Fat",
@@ -67,10 +107,53 @@ const NUTRIENT_LABEL_OVERRIDES = {
   net_carbs_g: "Net Carbs"
 };
 
+const NUTRIENT_LABEL_TEXT_OVERRIDES = {
+  "vitamin e (alpha-tocopherol)": "Vitamin E",
+  "vitamin d (d2 + d3)": "Vitamin D",
+  "vitamin d (d2 + d3), international units": "Vitamin D",
+  "vitamin k (phylloquinone)": "Vitamin K",
+  "(phylloquinone)": "Vitamin K",
+  "total dietary fiber (aoac 2011.25)": "Dietary Fibre",
+  "total ascorbic acid": "Vitamin C",
+  "pantothenic acid": "B5",
+  "pantheotic acid": "B5"
+};
+
+const VITAMIN_B_ORDER = {
+  thiamin_b1_mg: 1,
+  riboflavin_b2_mg: 2,
+  vitamin_b3_mg: 3,
+  pantothenic_b5_mg: 5,
+  vitamin_b6_mg: 6,
+  folate_ug: 9,
+  vitamin_b12_ug: 12
+};
+
+const GROUP_SORT_ORDER = {
+  General: 1,
+  Carbohydrates: 2,
+  Lipids: 3,
+  Protein: 4,
+  Vitamins: 5,
+  Minerals: 6,
+  Other: 7
+};
+
+const formatNutrientUnit = (unit) => {
+  const u = String(unit || "").trim().toLowerCase();
+  if (!u) return "";
+  if (u === "international units" || u === "international unit" || u === "iu") return "IU";
+  if (u === "microgram" || u === "micrograms") return "ug";
+  if (u === "milligram" || u === "milligrams") return "mg";
+  return unit;
+};
+
 const displayNutrientLabel = (code, label) => {
   const c = String(code || "").trim();
   if (NUTRIENT_LABEL_OVERRIDES[c]) return NUTRIENT_LABEL_OVERRIDES[c];
   const raw = String(label || "").trim();
+  const normalizedRaw = raw.toLowerCase();
+  if (NUTRIENT_LABEL_TEXT_OVERRIDES[normalizedRaw]) return NUTRIENT_LABEL_TEXT_OVERRIDES[normalizedRaw];
   if (!raw || raw === c) {
     return c
       .replace(/_/g, " ")
@@ -92,7 +175,23 @@ const displayNutrientGroup = (code, group) => {
   return "Other";
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const nutrientSortKey = (row) => {
+  const group = displayNutrientGroup(row?.code, row?.sort_group);
+  return {
+    groupOrder: GROUP_SORT_ORDER[group] || 99,
+    group,
+    sortOrder: Number(row?.sort_order || 0),
+    bOrder: VITAMIN_B_ORDER[row?.code] || 999
+  };
+};
+
+const todayIso = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+};
 
 export default function Nutrition() {
   const [loading, setLoading] = useState(true);
@@ -118,6 +217,8 @@ export default function Nutrition() {
   const [foodResults, setFoodResults] = useState([]);
   const [foodSearching, setFoodSearching] = useState(false);
   const [foodDropdownOpen, setFoodDropdownOpen] = useState(false);
+  const [entryResolving, setEntryResolving] = useState(false);
+  const [entryFoodLocked, setEntryFoodLocked] = useState(false);
 
   const [logNotes, setLogNotes] = useState("");
   const [waterMl, setWaterMl] = useState(0);
@@ -128,6 +229,7 @@ export default function Nutrition() {
   const [dayNutrientsLoading, setDayNutrientsLoading] = useState(false);
   const [logWarnings, setLogWarnings] = useState([]);
   const [debugInfo, setDebugInfo] = useState(null);
+  const [toast, setToast] = useState(null);
   const [microGroupFilter, setMicroGroupFilter] = useState("all");
   const [microTargetMode, setMicroTargetMode] = useState("rdi");
   const [microTargetsByCode, setMicroTargetsByCode] = useState({});
@@ -139,10 +241,34 @@ export default function Nutrition() {
 
   const todaysTargets = useMemo(() => targets?.[todayType] || null, [targets, todayType]);
 
+  const pushToast = (message, type = "info") => {
+    const msg = String(message || "").trim();
+    if (!msg) return;
+    setToast({ id: Date.now(), message: msg, type });
+  };
+
+  const userFacingFoodLookupError = (errLike) => {
+    const msg = String(errLike?.message || errLike || "");
+    if (
+      msg.includes("USDA food lookup failed (404)") ||
+      msg.includes("Unable to load USDA food details")
+    ) {
+      return "Food not found. Try another result or a simpler search term.";
+    }
+    return "";
+  };
+
+  useEffect(() => {
+    if (!toast?.id) return;
+    const handle = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(handle);
+  }, [toast?.id]);
+
   const groupedMicros = useMemo(() => {
     return Array.from(
       dayNutrients
         .filter((n) => !MACRO_CODES.has(String(n.code || "")))
+        .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")))
         .reduce((acc, n) => {
           const key = n.sort_group || "Other";
           if (!acc.has(key)) acc.set(key, []);
@@ -155,12 +281,24 @@ export default function Nutrition() {
   const microSliderRows = useMemo(() => {
     const rows = dayNutrients
       .filter((n) => !MACRO_CODES.has(String(n.code || "")))
+      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")))
       .slice()
       .sort((a, b) => {
-        if (String(a.sort_group || "") !== String(b.sort_group || "")) {
-          return String(a.sort_group || "").localeCompare(String(b.sort_group || ""));
+        const ka = nutrientSortKey(a);
+        const kb = nutrientSortKey(b);
+        if (ka.groupOrder !== kb.groupOrder) {
+          return ka.groupOrder - kb.groupOrder;
         }
-        return Number(a.sort_order || 0) - Number(b.sort_order || 0);
+        if (ka.group !== kb.group) {
+          return String(ka.group).localeCompare(String(kb.group));
+        }
+        if (ka.group === "Vitamins" && ka.bOrder !== kb.bOrder) {
+          return ka.bOrder - kb.bOrder;
+        }
+        if (ka.sortOrder !== kb.sortOrder) {
+          return ka.sortOrder - kb.sortOrder;
+        }
+        return String(displayNutrientLabel(a.code, a.label)).localeCompare(String(displayNutrientLabel(b.code, b.label)));
       });
 
     const maxByGroup = new Map();
@@ -367,6 +505,11 @@ export default function Nutrition() {
 
   useEffect(() => {
     if (!userId) return;
+    if (entryFoodLocked) {
+      setFoodDropdownOpen(false);
+      setFoodSearching(false);
+      return;
+    }
     const q = String(entryFood || "").trim();
     if (q.length < 2) {
       setFoodResults([]);
@@ -394,7 +537,7 @@ export default function Nutrition() {
     }, 200);
 
     return () => clearTimeout(handle);
-  }, [entryFood, userId]);
+  }, [entryFood, userId, entryFoodLocked]);
 
   const saveTodayType = async (nextType) => {
     if (!userId) return;
@@ -411,43 +554,151 @@ export default function Nutrition() {
     if (e) setError(e.message);
   };
 
-  const addEntry = () => {
+  const resolveFoodFromInput = async ({ food, currentFoodId, currentUserFoodId }) => {
+    if (currentFoodId || currentUserFoodId || !userId) {
+      return {
+        food_id: currentFoodId || null,
+        user_food_id: currentUserFoodId || null,
+        food_name: food
+      };
+    }
+
+    const query = String(food || "").trim();
+    if (!query) return { food_id: null, user_food_id: null, food_name: food };
+
+    const r = await fetch(
+      `${API_URL}/api/foods/search?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(userId)}&limit=8`
+    );
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || "Food search failed.");
+    const items = Array.isArray(j.items) ? j.items : [];
+    if (items.length === 0) return { food_id: null, user_food_id: null, food_name: food };
+
+    const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const qNorm = norm(query);
+    const scored = items.map((it, idx) => {
+      const n = norm(it?.name);
+      const exact = n === qNorm ? 1 : 0;
+      const starts = n.startsWith(qNorm) ? 1 : 0;
+      const contains = qNorm && n.includes(qNorm) ? 1 : 0;
+      const confidence = Number(it?.match_confidence || 0);
+      const sourceBoost = it?.source === "user" ? 2 : String(it?.source_name || "").toLowerCase() === "usda" ? 1 : 0;
+      return {
+        it,
+        idx,
+        score: exact * 100 + starts * 30 + contains * 12 + confidence * 0.4 + sourceBoost * 3
+      };
+    });
+    scored.sort((a, b) => b.score - a.score || a.idx - b.idx);
+    const chosen = scored[0]?.it;
+    if (!chosen) return { food_id: null, user_food_id: null, food_name: food };
+
+    if (!chosen.food_id && !chosen.user_food_id && chosen.usda_fdc_id) {
+      const resp = await fetch(`${API_URL}/api/foods/resolve-usda`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fdc_id: chosen.usda_fdc_id })
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok || !body?.ok || !body?.food_id) {
+        throw new Error(body?.error || "Unable to load USDA food details.");
+      }
+      return {
+        food_id: body.food_id,
+        user_food_id: null,
+        food_name: String(body.name || chosen.name || food).trim()
+      };
+    }
+
+    return {
+      food_id: chosen.food_id || null,
+      user_food_id: chosen.user_food_id || null,
+      food_name: String(chosen.name || food).trim()
+    };
+  };
+
+  const addEntry = async () => {
     const food = String(entryFood || "").trim();
     const qty = Number(String(entryQty || "").trim());
     if (!food || !Number.isFinite(qty) || qty <= 0) return;
 
-    setEntries((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    setEntryResolving(true);
+    setError("");
+    try {
+      const resolved = await resolveFoodFromInput({
         food,
-        qty,
-        unit: entryUnit,
-        state: entryState,
-        food_id: entryFoodId,
-        user_food_id: entryUserFoodId
-      }
-    ]);
+        currentFoodId: entryFoodId,
+        currentUserFoodId: entryUserFoodId
+      });
 
-    setEntryFood("");
-    setEntryQty("");
-    setEntryUnit("g");
-    setEntryState("raw");
-    setEntryFoodId(null);
-    setEntryUserFoodId(null);
-    setFoodResults([]);
-    setFoodDropdownOpen(false);
+      setEntries((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          food: resolved.food_name || food,
+          qty,
+          unit: entryUnit,
+          state: entryState,
+          food_id: resolved.food_id,
+          user_food_id: resolved.user_food_id
+        }
+      ]);
+
+      setEntryFood("");
+      setEntryQty("");
+      setEntryUnit("g");
+      setEntryState("raw");
+      setEntryFoodId(null);
+      setEntryUserFoodId(null);
+      setEntryFoodLocked(false);
+      setFoodResults([]);
+      setFoodDropdownOpen(false);
+    } catch (e) {
+      const friendly = userFacingFoodLookupError(e);
+      if (friendly) {
+        pushToast(`${friendly} Added as typed item; nutrients will be estimated if needed.`, "warning");
+        setError("");
+        setEntries((prev) => [
+          ...prev,
+          {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            food,
+            qty,
+            unit: entryUnit,
+            state: entryState,
+            food_id: null,
+            user_food_id: null
+          }
+        ]);
+        setEntryFood("");
+        setEntryQty("");
+        setEntryUnit("g");
+        setEntryState("raw");
+        setEntryFoodId(null);
+        setEntryUserFoodId(null);
+        setEntryFoodLocked(false);
+        setFoodResults([]);
+        setFoodDropdownOpen(false);
+      } else {
+        setError(String(e?.message || e));
+      }
+    } finally {
+      setEntryResolving(false);
+    }
   };
 
   const selectFoodResult = async (r) => {
     const pickedName = String(r?.name || "").trim();
-    setEntryFood(pickedName);
-    setEntryFoodId(r?.food_id || null);
-    setEntryUserFoodId(r?.user_food_id || null);
+    setEntryResolving(true);
+    setError("");
+    try {
+      setEntryFoodLocked(true);
+      setEntryFood(pickedName);
+      setEntryFoodId(r?.food_id || null);
+      setEntryUserFoodId(r?.user_food_id || null);
 
-    if (!r?.food_id && !r?.user_food_id && r?.usda_fdc_id) {
-      setFoodSearching(true);
-      try {
+      if (!r?.food_id && !r?.user_food_id && r?.usda_fdc_id) {
+        setFoodSearching(true);
         const resp = await fetch(`${API_URL}/api/foods/resolve-usda`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -460,14 +711,25 @@ export default function Nutrition() {
         setEntryFoodId(body.food_id);
         setEntryUserFoodId(null);
         setEntryFood(String(body.name || pickedName || "").trim());
-      } catch (e) {
-        setError(String(e?.message || e));
-      } finally {
-        setFoodSearching(false);
       }
+      setFoodDropdownOpen(false);
+    } catch (e) {
+      const friendly = userFacingFoodLookupError(e);
+      if (friendly) {
+        pushToast(`${friendly} You can still add this as a typed item.`, "warning");
+        setError("");
+        setEntryFood(pickedName);
+        setEntryFoodId(null);
+        setEntryUserFoodId(null);
+        setEntryFoodLocked(false);
+      } else {
+        setError(String(e?.message || e));
+      }
+    } finally {
+      setFoodSearching(false);
+      setFoodDropdownOpen(false);
+      setEntryResolving(false);
     }
-
-    setFoodDropdownOpen(false);
   };
 
   const saveLog = async () => {
@@ -692,6 +954,26 @@ export default function Nutrition() {
         </div>
       </div>
 
+      {toast?.message ? (
+        <div
+          style={{
+            position: "fixed",
+            top: "18px",
+            right: "18px",
+            zIndex: 1200,
+            padding: "0.7rem 0.85rem",
+            borderRadius: "10px",
+            border: "1px solid #3d1a23",
+            background: toast.type === "warning" ? "#2d1217" : "#121318",
+            color: "#fff",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            maxWidth: "360px"
+          }}
+        >
+          {toast.message}
+        </div>
+      ) : null}
+
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
       <div className="nutrition-shell nutrition-log-grid" style={{ width: "100%", display: "grid", gap: "1rem", marginTop: "1rem" }}>
@@ -717,6 +999,7 @@ export default function Nutrition() {
                         setEntryState("raw");
                         setEntryFoodId(null);
                         setEntryUserFoodId(null);
+                        setEntryFoodLocked(false);
                         setFoodResults([]);
                         setFoodDropdownOpen(false);
                       }}
@@ -733,11 +1016,12 @@ export default function Nutrition() {
                       value={entryFood}
                       onChange={(e) => {
                         setEntryFood(e.target.value);
+                        setEntryFoodLocked(false);
                         setEntryFoodId(null);
                         setEntryUserFoodId(null);
                       }}
                       onFocus={() => {
-                        if (foodResults.length > 0) setFoodDropdownOpen(true);
+                        if (!entryFoodLocked && foodResults.length > 0) setFoodDropdownOpen(true);
                       }}
                       onBlur={() => {
                         setTimeout(() => setFoodDropdownOpen(false), 140);
@@ -778,11 +1062,11 @@ export default function Nutrition() {
 
                     <button
                       type="button"
-                      disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty)}
+                      disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || entryResolving}
                       onClick={addEntry}
-                      style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty))}
+                      style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || entryResolving)}
                     >
-                      Add
+                      {entryResolving ? "Resolving..." : "Add"}
                     </button>
                   </div>
                 </div>
@@ -1007,9 +1291,9 @@ export default function Nutrition() {
                               <span style={{ color: "#777" }}> • {displayNutrientGroup(n.code, n.sort_group)}</span>
                             </div>
                             <div style={{ color: "#fff", flexShrink: 0 }}>
-                              {formatNutrientAmount(n.amount)} {n.unit}
+                              {formatNutrientAmount(n.amount)} {formatNutrientUnit(n.unit)}
                               {" / "}
-                              {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${n.unit}` : "N/T"}
+                              {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${formatNutrientUnit(n.unit)}` : "N/T"}
                             </div>
                           </div>
                           {microTargetMode === "custom" ? (
