@@ -2881,27 +2881,36 @@ app.post("/api/foods/resolve-best", async (req, res) => {
       });
     }
 
-    const searchPasses = preferRemote
-      ? [
-          { locale: locale || "en-gb", include_usda: 0, include_off: 1, limit: 10 },
-          { locale: "any", include_usda: 0, include_off: 0, limit: 8 },
-          { locale: locale || "en-gb", include_usda: 1, include_off: 1, limit: 10 }
-        ]
-      : [
-          { locale: "any", include_usda: 0, include_off: 0, limit: 8 },
-          { locale: locale || "en-gb", include_usda: 0, include_off: 1, limit: 10 },
-          { locale: locale || "en-gb", include_usda: 1, include_off: 1, limit: 10 }
-        ];
-
     let items = [];
-    for (const pass of searchPasses) {
-      const searchR = await fetch(
-        `http://127.0.0.1:${PORT}/api/foods/search?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(user_id)}&locale=${encodeURIComponent(pass.locale)}&limit=${encodeURIComponent(pass.limit)}&include_usda=${encodeURIComponent(pass.include_usda)}&include_off=${encodeURIComponent(pass.include_off)}`
-      );
-      const searchJ = await searchR.json().catch(() => ({}));
-      if (!searchR.ok || !searchJ?.ok) continue;
-      items = Array.isArray(searchJ.items) ? searchJ.items : [];
-      if (items.length > 0) break;
+    const typeaheadR = await fetch(
+      `http://127.0.0.1:${PORT}/api/foods/typeahead?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(user_id)}&limit=10`
+    );
+    const typeaheadJ = await typeaheadR.json().catch(() => ({}));
+    if (typeaheadR.ok && typeaheadJ?.ok) {
+      items = Array.isArray(typeaheadJ.items) ? typeaheadJ.items : [];
+    }
+
+    if (items.length === 0) {
+      const searchPasses = preferRemote
+        ? [
+            { locale: locale || "en-gb", include_usda: 0, include_off: 1, limit: 10 },
+            { locale: "any", include_usda: 0, include_off: 0, limit: 8 },
+            { locale: locale || "en-gb", include_usda: 1, include_off: 1, limit: 10 }
+          ]
+        : [
+            { locale: "any", include_usda: 0, include_off: 0, limit: 8 },
+            { locale: locale || "en-gb", include_usda: 0, include_off: 1, limit: 10 },
+            { locale: locale || "en-gb", include_usda: 1, include_off: 1, limit: 10 }
+          ];
+      for (const pass of searchPasses) {
+        const searchR = await fetch(
+          `http://127.0.0.1:${PORT}/api/foods/search?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(user_id)}&locale=${encodeURIComponent(pass.locale)}&limit=${encodeURIComponent(pass.limit)}&include_usda=${encodeURIComponent(pass.include_usda)}&include_off=${encodeURIComponent(pass.include_off)}&fast=1`
+        );
+        const searchJ = await searchR.json().catch(() => ({}));
+        if (!searchR.ok || !searchJ?.ok) continue;
+        items = Array.isArray(searchJ.items) ? searchJ.items : [];
+        if (items.length > 0) break;
+      }
     }
     if (items.length === 0) {
       return res.json({ ok: true, resolved: null, fallback: null, warning: "No database match found." });

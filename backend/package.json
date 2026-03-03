@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "import:cofid": "python3 scripts/extract_cofid.py && node scripts/import_cofid_json.js"
   },
   "keywords": [],
   "author": "",
