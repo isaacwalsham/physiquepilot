@@ -20,6 +20,7 @@ const nutritionLimiter = rateLimit({
 });
 
 const parseCache = new LRUCache({ max: 500, ttl: 1000 * 60 * 60 });
+const foodSearchCache = new LRUCache({ max: 1500, ttl: 1000 * 60 });
 
 const hashPayload = (items, notes) => {
   const s = JSON.stringify({ items, notes: notes || "" });
@@ -67,6 +68,7 @@ app.use(express.json());
 const toNum = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
 
 const normalizeUnit = (unit) => String(unit || "").trim().toLowerCase();
+const DB_ALLOWED_UNITS = new Set(["g", "kg", "oz", "lb", "ml", "l"]);
 
 const qtyToGrams = ({ qty, unit }) => {
   const q = toNum(qty);
@@ -81,6 +83,24 @@ const qtyToGrams = ({ qty, unit }) => {
   if (u === "l") return q * 1000;
 
   return null;
+};
+
+const estimateItemUnitGrams = ({ food_name, unit }) => {
+  const u = normalizeUnit(unit);
+  if (!["item", "items", "each", "ea", "serv", "serving", "servings"].includes(u)) return null;
+  const name = String(food_name || "").toLowerCase();
+
+  if (name.includes("egg")) {
+    if (name.includes("white")) return 33;
+    if (name.includes("yolk")) return 17;
+    return 50;
+  }
+  if (name.includes("banana")) return 118;
+  if (name.includes("apple")) return 182;
+  if (name.includes("orange")) return 131;
+
+  // Conservative generic fallback for unknown item-sized entries.
+  return u === "serv" || u === "serving" || u === "servings" ? 100 : 75;
 };
 
 const scalePer100g = (amountPer100g, grams) => {
@@ -465,6 +485,9 @@ const resolveItemGrams = async ({ item, conversionCache }) => {
   const direct = qtyToGrams({ qty: item.amount, unit: item.unit });
   if (direct != null) return direct;
 
+  const estimatedDirect = estimateItemUnitGrams({ food_name: item.food_name, unit: item.unit });
+  if (estimatedDirect != null) return estimatedDirect * toNum(item.amount);
+
   if (!(item.food_id || item.user_food_id)) return null;
   const gramsPerUnit = await fetchUnitConversionGrams({
     food_id: item.food_id,
@@ -473,7 +496,38 @@ const resolveItemGrams = async ({ item, conversionCache }) => {
     conversionCache
   });
   if (gramsPerUnit == null) return null;
-  return gramsPerUnit * toNum(item.amount);
+  const fromTable = gramsPerUnit * toNum(item.amount);
+  // Guard against obviously bad serving conversion rows (e.g. tiny fractions for whole items).
+  if (normalizeUnit(item.unit) === "serv" && fromTable > 0 && fromTable < 5) {
+    const estimatedFallback = estimateItemUnitGrams({ food_name: item.food_name, unit: item.unit });
+    if (estimatedFallback != null) return estimatedFallback * toNum(item.amount);
+  }
+  return fromTable;
+};
+
+const normalizeItemForPersistence = (stagedItem) => {
+  const originalUnit = normalizeUnit(stagedItem?.unit);
+  const originalAmount = toNum(stagedItem?.amount);
+  const grams = toNum(stagedItem?.grams);
+  if (DB_ALLOWED_UNITS.has(originalUnit)) {
+    return {
+      amount: originalAmount,
+      unit: originalUnit,
+      source_text: null
+    };
+  }
+  if (grams > 0) {
+    return {
+      amount: grams,
+      unit: "g",
+      source_text: `original_amount=${originalAmount};original_unit=${originalUnit || "unknown"}`
+    };
+  }
+  return {
+    amount: originalAmount,
+    unit: "g",
+    source_text: `original_amount=${originalAmount};original_unit=${originalUnit || "unknown"};coerced_without_grams=1`
+  };
 };
 
 const MACRO_FROM_NUTRIENT_CODE = {
@@ -547,6 +601,9 @@ const ALLOWED_TRACKED_NUTRIENT_CODES = new Set([
   "thiamin_b1_mg", "riboflavin_b2_mg", "vitamin_b3_mg", "pantothenic_b5_mg", "vitamin_b6_mg", "vitamin_b12_ug", "folate_ug", "vitamin_a_ug", "vitamin_c_mg", "vitamin_d_ug", "vitamin_e_mg", "vitamin_k_ug",
   "calcium_mg", "copper_mg", "iron_mg", "magnesium_mg", "manganese_mg", "phosphorus_mg", "potassium_mg", "selenium_ug", "sodium_mg", "zinc_mg"
 ]);
+const NON_MACRO_TRACKED_NUTRIENT_CODES = KEY_NUTRIENT_CODES.filter(
+  (code) => !MACRO_NUTRIENT_CODES.has(code) && code !== "alcohol_g"
+);
 
 const RAW_TO_CANONICAL_NUTRIENT_CODE = {
   vitamin_b1_mg: "thiamin_b1_mg",
@@ -698,6 +755,45 @@ const normalizePer100gNutrientRows = (rows = []) => {
   }));
 };
 
+const listMissingTrackedMicronutrients = (rows = []) => {
+  const present = new Set(
+    (rows || [])
+      .map((r) => String(r?.nutrient_code || "").trim())
+      .filter((code) => ALLOWED_TRACKED_NUTRIENT_CODES.has(code))
+  );
+  return NON_MACRO_TRACKED_NUTRIENT_CODES.filter((code) => !present.has(code));
+};
+
+const mergePer100gRowsWithFallback = ({ primaryRows = [], fallbackRows = [] }) => {
+  const primaryMap = new Map();
+  for (const row of primaryRows || []) {
+    const code = String(row?.nutrient_code || "").trim();
+    if (!code || !ALLOWED_TRACKED_NUTRIENT_CODES.has(code)) continue;
+    primaryMap.set(code, toNum(row?.amount_per_100g));
+  }
+
+  const fallbackMap = new Map();
+  for (const row of fallbackRows || []) {
+    const code = String(row?.nutrient_code || "").trim();
+    if (!code || !ALLOWED_TRACKED_NUTRIENT_CODES.has(code)) continue;
+    fallbackMap.set(code, toNum(row?.amount_per_100g));
+  }
+
+  let injectedCount = 0;
+  for (const code of NON_MACRO_TRACKED_NUTRIENT_CODES) {
+    if (primaryMap.has(code)) continue;
+    if (!fallbackMap.has(code)) continue;
+    primaryMap.set(code, fallbackMap.get(code));
+    injectedCount += 1;
+  }
+
+  const merged = Array.from(primaryMap.entries()).map(([nutrient_code, amount_per_100g]) => ({
+    nutrient_code,
+    amount_per_100g
+  }));
+  return { merged, injectedCount };
+};
+
 const estimateAminoRowsFromProtein = (proteinG) => {
   const protein = Math.max(0, toNum(proteinG));
   if (protein <= 0) return [];
@@ -711,6 +807,49 @@ const normalizeText = (x) =>
   String(x || "")
     .trim()
     .toLowerCase();
+
+const withTimeout = async (promiseFactory, timeoutMs, fallbackValue) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await promiseFactory(controller.signal);
+  } catch (_e) {
+    return fallbackValue;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const SEARCH_STOP_WORDS = new Set([
+  "a", "an", "and", "or", "the", "with", "without", "in", "on", "at", "to", "for",
+  "of", "from", "by", "whole", "fresh", "raw", "cooked", "boiled", "fried", "roasted"
+]);
+
+const buildSearchTermVariants = (term) => {
+  const base = String(term || "").trim().toLowerCase();
+  if (!base) return [];
+  const variants = new Set([base]);
+  const replacements = [
+    [/mince/g, "ground"],
+    [/ground/g, "mince"]
+  ];
+  for (const [from, to] of replacements) {
+    if (from.test(base)) variants.add(base.replace(from, to));
+  }
+  return Array.from(variants).slice(0, 3);
+};
+
+const normalizeUkFoodQuery = (term) => {
+  let out = String(term || "").trim().toLowerCase();
+  if (!out) return "";
+  out = out.replace(/\bbrocolli\b/g, "broccoli");
+  out = out.replace(/\bchilli\b/g, "chili");
+  out = out.replace(/\bmince\b/g, "ground");
+  out = out.replace(/\b(\d+)\s*%\s*fat\b/g, "$1 percent fat");
+  out = out.replace(/\b(\d+)\s*%\b/g, "$1 percent");
+  out = out.replace(/\s+/g, " ").trim();
+  return out;
+};
 
 const slugCode = (x) =>
   String(x || "")
@@ -1143,6 +1282,86 @@ const findDeterministicFoodRefByName = async ({ user_id, food_name, matchCache }
   return out;
 };
 
+const findMicronutrientDonorRowsByName = async ({ food_name, exclude_food_id = null, donorCache }) => {
+  const key = normalizedFoodKey(food_name);
+  if (!key) return [];
+  if (donorCache.has(key)) return donorCache.get(key);
+
+  const fullPattern = ilikePattern(food_name);
+  const token = String(food_name || "").trim().split(/\s+/).filter(Boolean)[0] || "";
+  const tokenPattern = ilikePattern(token);
+
+  const [foodsNameRes, foodsTokenRes] = await Promise.all([
+    supabase
+      .from("foods")
+      .select("id, name, brand, source")
+      .ilike("name", fullPattern)
+      .limit(40),
+    token
+      ? supabase
+          .from("foods")
+          .select("id, name, brand, source")
+          .ilike("name", tokenPattern)
+          .limit(40)
+      : Promise.resolve({ data: [], error: null })
+  ]);
+
+  if (foodsNameRes.error) throw new Error(foodsNameRes.error.message);
+  if (foodsTokenRes.error) throw new Error(foodsTokenRes.error.message);
+
+  const dedup = new Map();
+  for (const row of [...(foodsNameRes.data || []), ...(foodsTokenRes.data || [])]) {
+    if (!row?.id) continue;
+    if (exclude_food_id && row.id === exclude_food_id) continue;
+    if (!dedup.has(row.id)) dedup.set(row.id, row);
+  }
+  const candidates = Array.from(dedup.values());
+  const ids = candidates.map((c) => c.id).filter(Boolean);
+  if (ids.length === 0) {
+    donorCache.set(key, []);
+    return [];
+  }
+
+  const { data: nutrientRows, error: nutrientErr } = await supabase
+    .from("food_nutrients")
+    .select("food_id, nutrient_code, amount_per_100g")
+    .in("food_id", ids)
+    .in("nutrient_code", KEY_NUTRIENT_CODES);
+  if (nutrientErr) throw new Error(nutrientErr.message);
+
+  const byFood = new Map();
+  for (const row of nutrientRows || []) {
+    const foodId = row?.food_id;
+    if (!foodId) continue;
+    if (!byFood.has(foodId)) byFood.set(foodId, []);
+    byFood.get(foodId).push({
+      nutrient_code: row.nutrient_code,
+      amount_per_100g: row.amount_per_100g
+    });
+  }
+
+  const donor = candidates
+    .map((candidate) => {
+      const rows = normalizePer100gNutrientRows(byFood.get(candidate.id) || []);
+      const coverage = NON_MACRO_TRACKED_NUTRIENT_CODES.length - listMissingTrackedMicronutrients(rows).length;
+      const nameNorm = normalizedFoodKey(candidate.name);
+      const exactBoost = nameNorm === key ? 25 : 0;
+      const startsBoost = nameNorm.startsWith(key) ? 15 : 0;
+      const includesBoost = key && nameNorm.includes(key) ? 8 : 0;
+      const genericBoost = candidate.brand ? 0 : 3;
+      const usdaBoost = String(candidate.source || "").toLowerCase() === "usda" ? 10 : 0;
+      const offPenalty = String(candidate.source || "").toLowerCase() === "openfoodfacts" ? -6 : 0;
+      const score = coverage * 2 + exactBoost + startsBoost + includesBoost + genericBoost + usdaBoost + offPenalty;
+      return { rows, score };
+    })
+    .filter((x) => x.rows.length > 0)
+    .sort((a, b) => b.score - a.score)[0];
+
+  const out = donor?.rows || [];
+  donorCache.set(key, out);
+  return out;
+};
+
 const macroTotalsFromNutrients = (scaledRows = []) => {
   const totals = { calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0, alcohol_g: 0 };
   let hasEnergyRow = false;
@@ -1282,7 +1501,7 @@ const fetchDaySummary = async ({ user_id, log_date }) => {
   return { totals, nutrients, items };
 };
 
-const searchUsdaFoods = async ({ term, limit = 8 }) => {
+const searchUsdaFoods = async ({ term, limit = 8, signal = undefined }) => {
   if (!USDA_API_KEY) return [];
   const payload = {
     query: String(term || "").trim(),
@@ -1295,7 +1514,8 @@ const searchUsdaFoods = async ({ term, limit = 8 }) => {
   const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal
   });
   if (!r.ok) return [];
   const j = await r.json().catch(() => ({}));
@@ -1311,6 +1531,291 @@ const searchUsdaFoods = async ({ term, limit = 8 }) => {
     nutrient_coverage_count: null,
     nutrient_coverage_ratio: null
   })).filter((x) => x.name);
+};
+
+const normalizeOffUnit = (u) =>
+  String(u || "")
+    .replace("µ", "u")
+    .trim()
+    .toLowerCase();
+
+const convertOffAmountToTargetUnit = ({ amount, fromUnit, targetUnit }) => {
+  const n = toNum(amount);
+  if (!Number.isFinite(n)) return 0;
+  const from = normalizeOffUnit(fromUnit);
+  const target = normalizeOffUnit(targetUnit);
+  if (!target || from === target || !from) return n;
+
+  const gramsLike = new Set(["g", "gram", "grams"]);
+  const mgLike = new Set(["mg", "milligram", "milligrams"]);
+  const ugLike = new Set(["ug", "mcg", "microgram", "micrograms"]);
+
+  if (gramsLike.has(from) && mgLike.has(target)) return n * 1000;
+  if (gramsLike.has(from) && ugLike.has(target)) return n * 1000000;
+  if (mgLike.has(from) && gramsLike.has(target)) return n / 1000;
+  if (mgLike.has(from) && ugLike.has(target)) return n * 1000;
+  if (ugLike.has(from) && gramsLike.has(target)) return n / 1000000;
+  if (ugLike.has(from) && mgLike.has(target)) return n / 1000;
+  return n;
+};
+
+const parseOffNutrimentsToCanonicalMap = (nutriments = {}) => {
+  const out = new Map();
+  const add = (key100g, code, targetUnit = "g", fallbackUnit = "g") => {
+    const raw = nutriments?.[key100g];
+    if (raw == null || raw === "") return;
+    const unitKey = String(key100g).replace(/_100g$/, "_unit");
+    const fromUnit = nutriments?.[unitKey] || fallbackUnit;
+    const converted = convertOffAmountToTargetUnit({ amount: raw, fromUnit, targetUnit });
+    out.set(code, Math.max(0, toNum(out.get(code)) + toNum(converted)));
+  };
+
+  add("energy-kcal_100g", "energy_kcal", "kcal", "kcal");
+  add("proteins_100g", "protein_g", "g", "g");
+  add("carbohydrates_100g", "carbs_g", "g", "g");
+  add("fat_100g", "fat_g", "g", "g");
+  add("fiber_100g", "fiber_g", "g", "g");
+  add("sugars_100g", "sugars_g", "g", "g");
+  add("sodium_100g", "sodium_mg", "mg", "g");
+  add("salt_100g", "salt_g", "g", "g");
+  add("saturated-fat_100g", "sat_fat_g", "g", "g");
+  add("trans-fat_100g", "trans_fat_g", "g", "g");
+  add("cholesterol_100g", "cholesterol_mg", "mg", "g");
+  add("monounsaturated-fat_100g", "monounsaturated_g", "g", "g");
+  add("polyunsaturated-fat_100g", "polyunsaturated_g", "g", "g");
+  add("omega-3-fat_100g", "omega3_g", "g", "g");
+  add("omega-6-fat_100g", "omega6_g", "g", "g");
+
+  add("vitamin-a_100g", "vitamin_a_ug", "ug", "ug");
+  add("vitamin-c_100g", "vitamin_c_mg", "mg", "mg");
+  add("vitamin-d_100g", "vitamin_d_ug", "ug", "ug");
+  add("vitamin-e_100g", "vitamin_e_mg", "mg", "mg");
+  add("vitamin-k_100g", "vitamin_k_ug", "ug", "ug");
+  add("vitamin-b1_100g", "thiamin_b1_mg", "mg", "mg");
+  add("vitamin-b2_100g", "riboflavin_b2_mg", "mg", "mg");
+  add("vitamin-b6_100g", "vitamin_b6_mg", "mg", "mg");
+  add("vitamin-b12_100g", "vitamin_b12_ug", "ug", "ug");
+  add("vitamin-pp_100g", "vitamin_b3_mg", "mg", "mg");
+  add("pantothenic-acid_100g", "pantothenic_b5_mg", "mg", "mg");
+  add("folates_100g", "folate_ug", "ug", "ug");
+
+  add("calcium_100g", "calcium_mg", "mg", "mg");
+  add("copper_100g", "copper_mg", "mg", "mg");
+  add("iron_100g", "iron_mg", "mg", "mg");
+  add("magnesium_100g", "magnesium_mg", "mg", "mg");
+  add("manganese_100g", "manganese_mg", "mg", "mg");
+  add("phosphorus_100g", "phosphorus_mg", "mg", "mg");
+  add("potassium_100g", "potassium_mg", "mg", "mg");
+  add("selenium_100g", "selenium_ug", "ug", "ug");
+  add("zinc_100g", "zinc_mg", "mg", "mg");
+  add("caffeine_100g", "caffeine_mg", "mg", "mg");
+  add("water_100g", "water_g", "g", "g");
+
+  if (toNum(out.get("net_carbs_g")) <= 0) {
+    const carbs = toNum(out.get("carbs_g"));
+    const fiber = toNum(out.get("fiber_g"));
+    if (carbs > 0 || fiber > 0) out.set("net_carbs_g", Math.max(0, carbs - fiber));
+  }
+  if (toNum(out.get("sodium_mg")) <= 0 && toNum(out.get("salt_g")) > 0) {
+    out.set("sodium_mg", toNum(out.get("salt_g")) * 393.4);
+  }
+
+  return normalizeTrackedNutrientAmountMap(out);
+};
+
+const searchOpenFoodFactsFoods = async ({ term, limit = 8, country = "united-kingdom", signal = undefined }) => {
+  const q = String(term || "").trim();
+  if (!q) return [];
+  const normalizeWords = (x) =>
+    String(x || "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+  const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
+  const queryTokensRaw = normalizeWords(q).map(singularize).filter((w) => !SEARCH_STOP_WORDS.has(w));
+  const queryTokens = queryTokensRaw.length > 0 ? queryTokensRaw : normalizeWords(q).map(singularize);
+  const queryNorm = queryTokens.join(" ");
+  const requiredHits = queryTokens.length >= 3 ? 2 : queryTokens.length >= 2 ? 2 : 1;
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=${Math.min(80, Math.max(20, Number(limit) * 4))}&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(country)}`;
+  const r = await fetch(url, {
+    headers: {
+      "User-Agent": "PhysiquePilot/1.0 (nutrition search; contact: support@physiquepilot.com)"
+    },
+    signal
+  });
+  if (!r.ok) return [];
+  const j = await r.json().catch(() => ({}));
+  const products = Array.isArray(j?.products) ? j.products : [];
+  return products
+    .map((p) => {
+      const name = String(p?.product_name_en || p?.product_name || "").trim();
+      const brand = String(p?.brands || "").split(",")[0]?.trim() || null;
+      const text = `${name} ${brand || ""}`.toLowerCase();
+      const textTokens = new Set(normalizeWords(text).map(singularize));
+      const tokenHits = queryTokens.reduce((acc, t) => acc + (textTokens.has(t) ? 1 : 0), 0);
+      const phraseHit = queryNorm ? text.includes(queryNorm) : false;
+      return {
+      off_code: String(p?.code || "").trim(),
+      name,
+      brand,
+      source_name: "openfoodfacts",
+      source: "off_remote",
+      locale: "en-gb",
+      kcal_per_100g: toNum(p?.nutriments?.["energy-kcal_100g"]) || null,
+      nutrient_coverage_count: null,
+      nutrient_coverage_ratio: null,
+      _token_hits: tokenHits,
+      _phrase_hit: phraseHit ? 1 : 0
+    };
+    })
+    .filter((x) => x.off_code && x.name)
+    .filter((x) => x._phrase_hit > 0 || x._token_hits >= requiredHits)
+    .sort((a, b) => {
+      if (a._phrase_hit !== b._phrase_hit) return b._phrase_hit - a._phrase_hit;
+      if (a._token_hits !== b._token_hits) return b._token_hits - a._token_hits;
+      return String(a.name).localeCompare(String(b.name));
+    })
+    .slice(0, Math.max(1, Number(limit)))
+    .map(({ _token_hits, _phrase_hit, ...rest }) => rest);
+};
+
+const safeSearchUsdaFoods = async ({ timeoutMs = 3800, ...args }) =>
+  withTimeout((signal) => searchUsdaFoods({ ...args, signal }), timeoutMs, []);
+
+const safeSearchOpenFoodFactsFoods = async ({ timeoutMs = 3800, ...args }) =>
+  withTimeout((signal) => searchOpenFoodFactsFoods({ ...args, signal }), timeoutMs, []);
+
+const fetchOpenFoodFactsProductByCode = async (code) => {
+  const c = String(code || "").trim();
+  if (!c) throw new Error("off_code is required");
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(c)}.json`;
+  const r = await fetch(url, {
+    headers: {
+      "User-Agent": "PhysiquePilot/1.0 (nutrition import; contact: support@physiquepilot.com)"
+    }
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error(`OFF product lookup failed (${r.status}): ${txt || r.statusText}`);
+  }
+  const j = await r.json().catch(() => ({}));
+  if (j?.status !== 1 || !j?.product) throw new Error("Open Food Facts product not found.");
+  return j.product;
+};
+
+const importOpenFoodFactsProductByCode = async ({ offCode }) => {
+  const marker = `off:${String(offCode || "").trim()}`;
+  const { data: existing, error: existingErr } = await supabase
+    .from("foods")
+    .select("id, name")
+    .eq("source", "openfoodfacts")
+    .eq("barcode", marker)
+    .maybeSingle();
+  if (existingErr) throw new Error(existingErr.message);
+  if (existing?.id) return { food_id: existing.id, name: existing.name, reused: true };
+
+  const product = await fetchOpenFoodFactsProductByCode(offCode);
+  const name = String(product?.product_name_en || product?.product_name || "").trim();
+  if (!name) throw new Error("OFF product has no name.");
+  const brand = String(product?.brands || "").split(",")[0]?.trim() || null;
+  const locale = "en-gb";
+  const nutrientsMap = parseOffNutrimentsToCanonicalMap(product?.nutriments || {});
+
+  const { data: insertedFood, error: foodErr } = await supabase
+    .from("foods")
+    .insert({
+      name,
+      brand,
+      barcode: marker,
+      locale,
+      source: "openfoodfacts"
+    })
+    .select("id, name")
+    .single();
+  if (foodErr) throw new Error(foodErr.message);
+
+  const nutrientMetaPayload = [];
+  const nutrientValuePayload = [];
+  for (const [code, amount] of nutrientsMap.entries()) {
+    if (!ALLOWED_TRACKED_NUTRIENT_CODES.has(code)) continue;
+    nutrientMetaPayload.push({
+      code,
+      label: code,
+      unit: code.endsWith("_mg") ? "mg" : code.endsWith("_ug") ? "ug" : code.endsWith("_kcal") ? "kcal" : "g",
+      sort_group: sortGroupFromUnitAndName({ code, unitName: "", nutrientName: code }),
+      sort_order: 9000
+    });
+    nutrientValuePayload.push({
+      food_id: insertedFood.id,
+      nutrient_code: code,
+      amount_per_100g: Math.max(0, toNum(amount))
+    });
+  }
+
+  if (nutrientMetaPayload.length > 0) {
+    const { error: metaErr } = await supabase
+      .from("nutrients")
+      .upsert(nutrientMetaPayload, { onConflict: "code" });
+    if (metaErr) throw new Error(metaErr.message);
+  }
+
+  if (nutrientValuePayload.length > 0) {
+    const { error: valueErr } = await supabase
+      .from("food_nutrients")
+      .upsert(nutrientValuePayload, { onConflict: "food_id,nutrient_code" });
+    if (valueErr) throw new Error(valueErr.message);
+  }
+
+  return { food_id: insertedFood.id, name: insertedFood.name, reused: false };
+};
+
+const pickBestCandidateWithAI = async ({ query, candidates = [] }) => {
+  if (!OPENAI_API_KEY || !Array.isArray(candidates) || candidates.length === 0) return null;
+  const schema = {
+    name: "best_food_match",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        selected_index: { type: "integer", minimum: 0 },
+        confidence: { type: "number", minimum: 0, maximum: 1 },
+        reason: { type: "string" }
+      },
+      required: ["selected_index", "confidence", "reason"]
+    }
+  };
+  const prompt = [
+    "Pick the best food match for the user query.",
+    "Prefer exact branded UK matches, then closest generic equivalent.",
+    `Query: ${query}`,
+    `Candidates: ${JSON.stringify(candidates.map((c, idx) => ({ idx, name: c.name, brand: c.brand || null, source: c.source, locale: c.locale || null })))}`,
+    "Return selected_index for best candidate."
+  ].join("\n");
+
+  const r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        { role: "system", content: "You choose the best nutrition food database match." },
+        { role: "user", content: prompt }
+      ],
+      text: { format: { type: "json_schema", name: schema.name, schema: schema.schema, strict: true } }
+    })
+  });
+  if (!r.ok) return null;
+  const j = await r.json().catch(() => ({}));
+  const first = j?.output?.[0]?.content?.[0];
+  if (!first || first.type !== "output_text" || !first.text) return null;
+  const parsed = JSON.parse(first.text);
+  const idx = Number(parsed?.selected_index);
+  if (!Number.isInteger(idx) || idx < 0 || idx >= candidates.length) return null;
+  return { index: idx, confidence: toNum(parsed?.confidence), reason: String(parsed?.reason || "") };
 };
 
 app.get("/api/health", (req, res) => {
@@ -1380,6 +1885,7 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
     const nutrientCache = new Map();
     const conversionCache = new Map();
     const matchCache = new Map();
+    const donorCache = new Map();
     const stagedItems = [];
     const aiCandidates = [];
 
@@ -1453,8 +1959,29 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
         continue;
       }
 
+      const missingBefore = listMissingTrackedMicronutrients(per100gRows);
+      if (missingBefore.length > 0) {
+        const donorRows = await findMicronutrientDonorRowsByName({
+          food_name: resolvedItem.food_name,
+          exclude_food_id: resolvedItem.food_id || null,
+          donorCache
+        });
+        if (donorRows.length > 0) {
+          const merged = mergePer100gRowsWithFallback({
+            primaryRows: per100gRows,
+            fallbackRows: donorRows
+          });
+          per100gRows = merged.merged;
+          if (merged.injectedCount > 0) {
+            warnings.push(
+              `"${resolvedItem.food_name}": filled ${merged.injectedCount} missing micronutrients using closest verified reference profile.`
+            );
+          }
+        }
+      }
+
       if (micronutrientRowCount(per100gRows) === 0) {
-        warnings.push(`"${resolvedItem.food_name}": deterministic macros found, but no micronutrients exist for this food profile yet.`);
+        warnings.push(`"${resolvedItem.food_name}": deterministic macros found, but micronutrients were unavailable after fallback.`);
       }
 
       const scaledRows = per100gRows
@@ -1528,15 +2055,16 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
 
     for (const staged of stagedItems) {
       const itemId = crypto.randomUUID();
+      const persisted = normalizeItemForPersistence(staged);
       const row = {
         id: itemId,
         user_id,
         log_date,
         food_name: staged.food_name,
-        amount: staged.amount,
-        unit: staged.unit,
+        amount: persisted.amount,
+        unit: persisted.unit,
         cooked_state: staged.cooked_state,
-        source_text: null,
+        source_text: persisted.source_text,
         source: staged.source,
         food_id: staged.food_id || null,
         user_food_id: staged.food_id ? null : staged.user_food_id || null,
@@ -1623,27 +2151,25 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
   }
 });
 
-app.get("/api/foods/search", async (req, res) => {
+app.get("/api/foods/typeahead", async (req, res) => {
   try {
-    const term = String(req.query.q || "").trim();
+    res.set("Cache-Control", "no-store");
+    const qRaw = String(req.query.q || "").trim();
     const user_id = String(req.query.user_id || req.query.userId || "").trim();
-    const localeRaw = String(req.query.locale || "any").trim().toLowerCase();
-    const locale =
-      localeRaw === "us" ? "en-us" :
-      localeRaw === "uk" ? "en-gb" :
-      localeRaw;
-    const limit = Math.min(30, Math.max(1, Number(req.query.limit || 12)));
+    const limit = Math.min(20, Math.max(1, Number(req.query.limit || 10)));
+    if (qRaw.length < 2) return res.json({ ok: true, items: [] });
 
-    if (!term) return res.json({ ok: true, items: [] });
+    const q = normalizeUkFoodQuery(qRaw);
+    const cacheKey = `typeahead|${q}|${user_id}|${limit}`;
+    const cached = foodSearchCache.get(cacheKey);
+    if (cached) return res.json(cached);
 
-    const normalizedTerm = term.toLowerCase();
-    const normalizedTermWords = normalizedTerm.split(/[^a-z0-9]+/).filter(Boolean);
-    const localeFilter = locale === "any" ? null : locale.toLowerCase();
-    const includeUsda = String(req.query.include_usda || "1") !== "0";
+    const words = q.split(/[^a-z0-9]+/).filter(Boolean);
+    const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
+    const terms = Array.from(new Set(words.map(singularize))).slice(0, 3);
+    const pattern = `%${q.replace(/[%_]/g, " ")}%`;
+    const tokenPatterns = terms.map((t) => `%${t.replace(/[%_]/g, " ")}%`);
 
-    const safePattern = `%${term.replace(/[%_]/g, " ").trim()}%`;
-    const firstToken = normalizedTermWords[0] || "";
-    const tokenPattern = firstToken ? `%${firstToken.replace(/[%_]/g, " ").trim()}%` : null;
     const mergeUniqueById = (rows = []) => {
       const m = new Map();
       for (const row of rows || []) {
@@ -1652,7 +2178,185 @@ app.get("/api/foods/search", async (req, res) => {
       return Array.from(m.values());
     };
 
-    const [foodsNameRes, foodsBrandRes, foodsTokenNameRes, foodsTokenBrandRes, usdaRemote] = await Promise.all([
+    const [foodsByName, foodsByBrand, foodTokenRows, userByName, userByBrand, userTokenRows] = await Promise.all([
+      supabase.from("foods").select("id,name,brand,locale,source,barcode").ilike("name", pattern).limit(limit * 2),
+      supabase.from("foods").select("id,name,brand,locale,source,barcode").ilike("brand", pattern).limit(limit),
+      tokenPatterns.length > 0
+        ? Promise.all(
+            tokenPatterns.map((p) =>
+              supabase.from("foods").select("id,name,brand,locale,source,barcode").ilike("name", p).limit(limit)
+            )
+          )
+        : Promise.resolve([]),
+      user_id
+        ? supabase.from("user_foods").select("id,name,brand").eq("user_id", user_id).ilike("name", pattern).limit(limit * 2)
+        : Promise.resolve({ data: [], error: null }),
+      user_id
+        ? supabase.from("user_foods").select("id,name,brand").eq("user_id", user_id).ilike("brand", pattern).limit(limit)
+        : Promise.resolve({ data: [], error: null }),
+      user_id && tokenPatterns.length > 0
+        ? Promise.all(
+            tokenPatterns.map((p) =>
+              supabase.from("user_foods").select("id,name,brand").eq("user_id", user_id).ilike("name", p).limit(limit)
+            )
+          )
+        : Promise.resolve([])
+    ]);
+
+    const firstErr =
+      foodsByName.error ||
+      foodsByBrand.error ||
+      (foodTokenRows || []).find((r) => r?.error)?.error ||
+      userByName.error ||
+      userByBrand.error ||
+      (userTokenRows || []).find((r) => r?.error)?.error ||
+      null;
+    if (firstErr) return res.status(400).json({ ok: false, error: firstErr.message });
+
+    const localFoods = mergeUniqueById([
+      ...(foodsByName.data || []),
+      ...(foodsByBrand.data || []),
+      ...(foodTokenRows || []).flatMap((r) => r?.data || [])
+    ]).map((x) => ({
+      id: x.id,
+      name: x.name,
+      brand: x.brand || null,
+      source: "global",
+      source_name: x.source || "db",
+      food_id: x.id,
+      user_food_id: null,
+      usda_fdc_id: String(x?.barcode || "").startsWith("fdc:") ? String(x.barcode).slice(4) : null
+    }));
+
+    const userFoods = mergeUniqueById([
+      ...(userByName.data || []),
+      ...(userByBrand.data || []),
+      ...(userTokenRows || []).flatMap((r) => r?.data || [])
+    ]).map((x) => ({
+      id: x.id,
+      name: x.name,
+      brand: x.brand || null,
+      source: "user",
+      source_name: "user",
+      food_id: null,
+      user_food_id: x.id
+    }));
+
+    let remoteOff = [];
+    if (localFoods.length + userFoods.length < Math.ceil(limit / 2)) {
+      const offRows = await safeSearchOpenFoodFactsFoods({
+        term: q,
+        limit: Math.min(8, limit),
+        country: "united-kingdom",
+        timeoutMs: 900
+      });
+      remoteOff = (offRows || []).map((x) => ({
+        id: `off:${x.off_code}`,
+        name: x.name,
+        brand: x.brand,
+        source: "off_remote",
+        source_name: "openfoodfacts",
+        food_id: null,
+        user_food_id: null,
+        off_code: String(x.off_code)
+      }));
+    }
+
+    const normalizeWords = (x) => String(x || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(singularize);
+    const queryTerms = terms.length > 0 ? terms : words.map(singularize);
+    const requiredHits = queryTerms.length >= 2 ? 2 : 1;
+
+    const dedupeByNameBrand = (rows = []) => {
+      const m = new Map();
+      for (const row of rows) {
+        const key = `${normalizedFoodKey(row?.name)}|${normalizedFoodKey(row?.brand || "")}`;
+        if (!m.has(key)) m.set(key, row);
+      }
+      return Array.from(m.values());
+    };
+
+    const scored = dedupeByNameBrand([...userFoods, ...localFoods, ...remoteOff])
+      .map((item) => {
+        const name = String(item?.name || "").toLowerCase();
+        const brand = String(item?.brand || "").toLowerCase();
+        const tokens = new Set([...normalizeWords(name), ...normalizeWords(brand)]);
+        const tokenHits = queryTerms.reduce((acc, t) => acc + (tokens.has(t) ? 1 : 0), 0);
+        const allTermsHit = queryTerms.length > 0 && queryTerms.every((t) => tokens.has(t));
+        const phraseHit = name.includes(q) ? 1 : 0;
+        const exact = normalizedFoodKey(name) === normalizedFoodKey(q) ? 1 : 0;
+        const sourceBonus = item.source === "user" ? 20 : item.source === "global" ? 10 : 0;
+        const score = exact * 100 + phraseHit * 30 + tokenHits * 20 + (allTermsHit ? 45 : 0) + sourceBonus;
+        const relevant = allTermsHit || tokenHits >= requiredHits || phraseHit === 1 || exact === 1;
+        return { ...item, match_confidence: Math.max(0, Math.min(100, score)), _score: score, _relevant: relevant };
+      })
+      .filter((x) => x._relevant)
+      .sort((a, b) => b._score - a._score)
+      .slice(0, limit)
+      .map(({ _score, _relevant, ...rest }) => rest);
+
+    const payload = { ok: true, items: scored };
+    foodSearchCache.set(cacheKey, payload, { ttl: 1000 * 45 });
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/foods/search", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const term = String(req.query.q || "").trim();
+    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    const localeRaw = String(req.query.locale || "any").trim().toLowerCase();
+    const locale =
+      localeRaw === "us" ? "en-us" :
+      localeRaw === "uk" ? "en-gb" :
+      localeRaw;
+    const limit = Math.min(30, Math.max(1, Number(req.query.limit || 12)));
+    const fastMode = String(req.query.fast || "0") === "1";
+    const includeUsda = String(req.query.include_usda || "1") !== "0";
+    const includeOff = String(req.query.include_off || "1") !== "0";
+    const searchCacheKey = [
+      "v2",
+      term.toLowerCase(),
+      user_id || "",
+      locale,
+      String(limit),
+      includeUsda ? "1" : "0",
+      includeOff ? "1" : "0",
+      fastMode ? "1" : "0"
+    ].join("|");
+    const cachedSearch = foodSearchCache.get(searchCacheKey);
+    if (cachedSearch) return res.json(cachedSearch);
+
+    if (!term) return res.json({ ok: true, items: [] });
+
+    const normalizeWords = (x) =>
+      String(x || "")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean);
+    const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
+    const normalizedTerm = term.toLowerCase();
+    const normalizedTermWords = normalizeWords(normalizedTerm);
+    const localeFilter = locale === "any" ? null : locale.toLowerCase();
+
+    const safePattern = `%${term.replace(/[%_]/g, " ").trim()}%`;
+    const informativeWordsRaw = normalizedTermWords.map(singularize).filter((w) => !SEARCH_STOP_WORDS.has(w));
+    const effectiveWords = informativeWordsRaw.length > 0 ? informativeWordsRaw : normalizedTermWords.map(singularize);
+    const tokenPatterns = Array.from(new Set(effectiveWords))
+      .slice(0, 3)
+      .map((token) => `%${token.replace(/[%_]/g, " ").trim()}%`)
+      .filter(Boolean);
+    const mergeUniqueById = (rows = []) => {
+      const m = new Map();
+      for (const row of rows || []) {
+        if (row?.id && !m.has(row.id)) m.set(row.id, row);
+      }
+      return Array.from(m.values());
+    };
+
+    const [foodsNameRes, foodsBrandRes, foodsTokenNameResList, foodsTokenBrandResList] = await Promise.all([
       supabase
         .from("foods")
         .select("id, name, brand, locale, source, barcode")
@@ -1663,30 +2367,40 @@ app.get("/api/foods/search", async (req, res) => {
         .select("id, name, brand, locale, source, barcode")
         .ilike("brand", safePattern)
         .limit(limit * 2),
-      tokenPattern
-        ? supabase
-            .from("foods")
-            .select("id, name, brand, locale, source, barcode")
-            .ilike("name", tokenPattern)
-            .limit(limit * 2)
-        : Promise.resolve({ data: [], error: null }),
-      tokenPattern
-        ? supabase
-            .from("foods")
-            .select("id, name, brand, locale, source, barcode")
-            .ilike("brand", tokenPattern)
-            .limit(limit)
-        : Promise.resolve({ data: [], error: null }),
-      includeUsda ? searchUsdaFoods({ term, limit: Math.min(8, limit) }) : Promise.resolve([])
+      tokenPatterns.length > 0
+        ? Promise.all(
+            tokenPatterns.map((p) =>
+              supabase
+                .from("foods")
+                .select("id, name, brand, locale, source, barcode")
+                .ilike("name", p)
+                .limit(limit * 2)
+            )
+          )
+        : Promise.resolve([]),
+      tokenPatterns.length > 0
+        ? Promise.all(
+            tokenPatterns.map((p) =>
+              supabase
+                .from("foods")
+                .select("id, name, brand, locale, source, barcode")
+                .ilike("brand", p)
+                .limit(limit)
+            )
+          )
+        : Promise.resolve([]),
     ]);
+    const flattenData = (resList = []) => resList.flatMap((r) => (Array.isArray(r?.data) ? r.data : []));
+    const firstError = (...errs) => errs.find(Boolean) || null;
+    const tokenFoodError = (foodsTokenNameResList || []).find((r) => r?.error)?.error || (foodsTokenBrandResList || []).find((r) => r?.error)?.error || null;
     const foodsRes = {
       data: mergeUniqueById([
         ...(foodsNameRes.data || []),
         ...(foodsBrandRes.data || []),
-        ...(foodsTokenNameRes.data || []),
-        ...(foodsTokenBrandRes.data || [])
+        ...flattenData(foodsTokenNameResList),
+        ...flattenData(foodsTokenBrandResList)
       ]),
-      error: foodsNameRes.error || foodsBrandRes.error || foodsTokenNameRes.error || foodsTokenBrandRes.error || null
+      error: firstError(foodsNameRes.error, foodsBrandRes.error, tokenFoodError)
     };
     const foods = foodsRes.data;
     const fErr = foodsRes.error;
@@ -1695,7 +2409,7 @@ app.get("/api/foods/search", async (req, res) => {
 
     let userFoods = [];
     if (user_id) {
-      const [uNameRes, uBrandRes, uTokenNameRes, uTokenBrandRes] = await Promise.all([
+      const [uNameRes, uBrandRes, uTokenNameResList, uTokenBrandResList] = await Promise.all([
         supabase
           .from("user_foods")
           .select("id, name, brand")
@@ -1708,44 +2422,80 @@ app.get("/api/foods/search", async (req, res) => {
           .eq("user_id", user_id)
           .ilike("brand", safePattern)
           .limit(limit * 2),
-        tokenPattern
-          ? supabase
-              .from("user_foods")
-              .select("id, name, brand")
-              .eq("user_id", user_id)
-              .ilike("name", tokenPattern)
-              .limit(limit * 2)
-          : Promise.resolve({ data: [], error: null }),
-        tokenPattern
-          ? supabase
-              .from("user_foods")
-              .select("id, name, brand")
-              .eq("user_id", user_id)
-              .ilike("brand", tokenPattern)
-              .limit(limit)
-          : Promise.resolve({ data: [], error: null })
+        tokenPatterns.length > 0
+          ? Promise.all(
+              tokenPatterns.map((p) =>
+                supabase
+                  .from("user_foods")
+                  .select("id, name, brand")
+                  .eq("user_id", user_id)
+                  .ilike("name", p)
+                  .limit(limit * 2)
+              )
+            )
+          : Promise.resolve([]),
+        tokenPatterns.length > 0
+          ? Promise.all(
+              tokenPatterns.map((p) =>
+                supabase
+                  .from("user_foods")
+                  .select("id, name, brand")
+                  .eq("user_id", user_id)
+                  .ilike("brand", p)
+                  .limit(limit)
+              )
+            )
+          : Promise.resolve([])
       ]);
-      if (uNameRes.error || uBrandRes.error || uTokenNameRes.error || uTokenBrandRes.error) {
+      const tokenUserError = (uTokenNameResList || []).find((r) => r?.error)?.error || (uTokenBrandResList || []).find((r) => r?.error)?.error || null;
+      if (uNameRes.error || uBrandRes.error || tokenUserError) {
         return res.status(400).json({
           ok: false,
-          error: String(uNameRes.error?.message || uBrandRes.error?.message || uTokenNameRes.error?.message || uTokenBrandRes.error?.message || "Food search failed")
+          error: String(uNameRes.error?.message || uBrandRes.error?.message || tokenUserError?.message || "Food search failed")
         });
       }
       userFoods = mergeUniqueById([
         ...(uNameRes.data || []),
         ...(uBrandRes.data || []),
-        ...(uTokenNameRes.data || []),
-        ...(uTokenBrandRes.data || [])
+        ...flattenData(uTokenNameResList),
+        ...flattenData(uTokenBrandResList)
       ]);
     }
 
-    const normalizeWords = (x) =>
-      String(x || "")
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter(Boolean);
-    const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
-    const termWordSet = new Set(normalizedTermWords.map(singularize));
+    const localCandidateCount = (foods || []).length + (userFoods || []).length;
+    const shouldFetchRemote = (includeUsda || includeOff) && (!fastMode || localCandidateCount === 0);
+    let usdaRemote = [];
+    let offRemote = [];
+    if (shouldFetchRemote) {
+      const variants = buildSearchTermVariants(term).slice(0, fastMode ? 2 : 3);
+      const country = locale === "en-gb" ? "united-kingdom" : "united-states";
+      const remoteTimeoutMs = fastMode ? 1400 : 3800;
+      const remoteRuns = await Promise.all(
+        variants.map(async (variantTerm) => {
+          const [usdaRows, offRows] = await Promise.all([
+            includeUsda ? safeSearchUsdaFoods({ term: variantTerm, limit: Math.min(8, limit), timeoutMs: remoteTimeoutMs }) : Promise.resolve([]),
+            includeOff ? safeSearchOpenFoodFactsFoods({ term: variantTerm, limit: Math.min(8, limit), country, timeoutMs: remoteTimeoutMs }) : Promise.resolve([])
+          ]);
+          return { usdaRows, offRows };
+        })
+      );
+      const usdaById = new Map();
+      const offByCode = new Map();
+      for (const run of remoteRuns) {
+        for (const row of run.usdaRows || []) {
+          const key = String(row?.usda_fdc_id || "");
+          if (key && !usdaById.has(key)) usdaById.set(key, row);
+        }
+        for (const row of run.offRows || []) {
+          const key = String(row?.off_code || "");
+          if (key && !offByCode.has(key)) offByCode.set(key, row);
+        }
+      }
+      usdaRemote = Array.from(usdaById.values()).slice(0, Math.min(8, limit));
+      offRemote = Array.from(offByCode.values()).slice(0, Math.min(8, limit));
+    }
+    const termWordSet = new Set(effectiveWords);
+    const queryTerms = Array.from(termWordSet);
 
     const filteredFoods = (foods || []).filter((row) => {
       if (!localeFilter) return true;
@@ -1756,47 +2506,49 @@ app.get("/api/foods/search", async (req, res) => {
     const userFoodIds = userFoods.map((x) => x.id).filter(Boolean);
 
     let foodEnergyRows = [];
-    if (foodIds.length > 0) {
-      const { data: eRows, error: eErr } = await supabase
-        .from("food_nutrients")
-        .select("food_id, amount_per_100g")
-        .in("food_id", foodIds)
-        .eq("nutrient_code", "energy_kcal");
-      if (eErr) return res.status(400).json({ ok: false, error: eErr.message });
-      foodEnergyRows = Array.isArray(eRows) ? eRows : [];
-    }
-
     let foodCoverageRows = [];
-    if (foodIds.length > 0) {
-      const { data: cRows, error: cErr } = await supabase
-        .from("food_nutrients")
-        .select("food_id, nutrient_code")
-        .in("food_id", foodIds)
-        .in("nutrient_code", KEY_NUTRIENT_CODES);
-      if (cErr) return res.status(400).json({ ok: false, error: cErr.message });
-      foodCoverageRows = Array.isArray(cRows) ? cRows : [];
-    }
-
     let userFoodEnergyRows = [];
-    if (userFoodIds.length > 0) {
-      const { data: ueRows, error: ueErr } = await supabase
-        .from("user_food_nutrients")
-        .select("user_food_id, amount_per_100g")
-        .in("user_food_id", userFoodIds)
-        .eq("nutrient_code", "energy_kcal");
-      if (ueErr) return res.status(400).json({ ok: false, error: ueErr.message });
-      userFoodEnergyRows = Array.isArray(ueRows) ? ueRows : [];
-    }
-
     let userFoodCoverageRows = [];
-    if (userFoodIds.length > 0) {
-      const { data: ucRows, error: ucErr } = await supabase
-        .from("user_food_nutrients")
-        .select("user_food_id, nutrient_code")
-        .in("user_food_id", userFoodIds)
-        .in("nutrient_code", KEY_NUTRIENT_CODES);
-      if (ucErr) return res.status(400).json({ ok: false, error: ucErr.message });
-      userFoodCoverageRows = Array.isArray(ucRows) ? ucRows : [];
+    if (!fastMode) {
+      if (foodIds.length > 0) {
+        const { data: eRows, error: eErr } = await supabase
+          .from("food_nutrients")
+          .select("food_id, amount_per_100g")
+          .in("food_id", foodIds)
+          .eq("nutrient_code", "energy_kcal");
+        if (eErr) return res.status(400).json({ ok: false, error: eErr.message });
+        foodEnergyRows = Array.isArray(eRows) ? eRows : [];
+      }
+
+      if (foodIds.length > 0) {
+        const { data: cRows, error: cErr } = await supabase
+          .from("food_nutrients")
+          .select("food_id, nutrient_code")
+          .in("food_id", foodIds)
+          .in("nutrient_code", KEY_NUTRIENT_CODES);
+        if (cErr) return res.status(400).json({ ok: false, error: cErr.message });
+        foodCoverageRows = Array.isArray(cRows) ? cRows : [];
+      }
+
+      if (userFoodIds.length > 0) {
+        const { data: ueRows, error: ueErr } = await supabase
+          .from("user_food_nutrients")
+          .select("user_food_id, amount_per_100g")
+          .in("user_food_id", userFoodIds)
+          .eq("nutrient_code", "energy_kcal");
+        if (ueErr) return res.status(400).json({ ok: false, error: ueErr.message });
+        userFoodEnergyRows = Array.isArray(ueRows) ? ueRows : [];
+      }
+
+      if (userFoodIds.length > 0) {
+        const { data: ucRows, error: ucErr } = await supabase
+          .from("user_food_nutrients")
+          .select("user_food_id, nutrient_code")
+          .in("user_food_id", userFoodIds)
+          .in("nutrient_code", KEY_NUTRIENT_CODES);
+        if (ucErr) return res.status(400).json({ ok: false, error: ucErr.message });
+        userFoodCoverageRows = Array.isArray(ucRows) ? ucRows : [];
+      }
     }
 
     const kcalByFoodId = new Map(foodEnergyRows.map((r) => [r.food_id, toNum(r.amount_per_100g)]));
@@ -1852,26 +2604,115 @@ app.get("/api/foods/search", async (req, res) => {
         food_id: null,
         user_food_id: null,
         usda_fdc_id: String(x.usda_fdc_id)
+      })),
+      ...(offRemote || []).map((x) => ({
+        id: `off:${x.off_code}`,
+        name: x.name,
+        brand: x.brand,
+        locale: x.locale,
+        source_name: "openfoodfacts",
+        kcal_per_100g: x.kcal_per_100g,
+        nutrient_coverage_count: null,
+        nutrient_coverage_ratio: null,
+        source: "off_remote",
+        food_id: null,
+        user_food_id: null,
+        off_code: String(x.off_code)
       }))
     ];
+
+    // BM25-style lexical ranking across candidate names/brands to improve relevance ordering.
+    const buildDocTokens = (item) => {
+      const nameWords = normalizeWords(item?.name).map(singularize);
+      const brandWords = normalizeWords(item?.brand).map(singularize);
+      // Name carries more semantic weight than brand.
+      return [...nameWords, ...nameWords, ...brandWords];
+    };
+
+    const docs = items.map((item) => ({
+      item,
+      tokens: buildDocTokens(item)
+    }));
+    const N = docs.length || 1;
+    const avgdl = docs.reduce((acc, d) => acc + d.tokens.length, 0) / N || 1;
+    const df = new Map();
+    for (const q of queryTerms) {
+      let count = 0;
+      for (const d of docs) {
+        if (d.tokens.includes(q)) count += 1;
+      }
+      df.set(q, count);
+    }
+
+    const bm25Score = (doc) => {
+      const k1 = 1.2;
+      const b = 0.75;
+      const dl = doc.tokens.length || 1;
+      let s = 0;
+      for (const q of queryTerms) {
+        const tf = doc.tokens.reduce((acc, t) => acc + (t === q ? 1 : 0), 0);
+        if (tf <= 0) continue;
+        const dfi = df.get(q) || 0;
+        const idf = Math.log(1 + (N - dfi + 0.5) / (dfi + 0.5));
+        s += idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (dl / avgdl))));
+      }
+      return s;
+    };
+
+    const bm25ById = new Map(docs.map((d) => [d.item.id, bm25Score(d)]));
+
+    const queryHasEgg = termWordSet.has("egg");
+    const queryHasWhite = termWordSet.has("white");
+    const queryHasYolk = termWordSet.has("yolk");
 
     const withRank = items.map((item) => {
       const name = String(item?.name || "").toLowerCase();
       const nameWords = normalizeWords(name).map(singularize);
       const nameWordSet = new Set(nameWords);
       const brand = String(item?.brand || "").trim();
+      const brandWords = normalizeWords(brand).map(singularize);
+      const brandWordSet = new Set(brandWords);
       const itemLocale = String(item?.locale || "").toLowerCase();
       const exact = name === normalizedTerm ? 1 : 0;
       const startsWith = name.startsWith(normalizedTerm) ? 1 : 0;
       const includes = normalizedTerm && name.includes(normalizedTerm) ? 1 : 0;
-      const tokenHits = Array.from(termWordSet).reduce((acc, token) => acc + (nameWordSet.has(token) ? 1 : 0), 0);
-      const tokenMisses = Math.max(0, termWordSet.size - tokenHits);
+      const tokenHitsName = Array.from(termWordSet).reduce((acc, token) => acc + (nameWordSet.has(token) ? 1 : 0), 0);
+      const tokenHitsBrand = Array.from(termWordSet).reduce((acc, token) => acc + (brandWordSet.has(token) ? 1 : 0), 0);
+      const tokenHits = tokenHitsName + tokenHitsBrand * 0.6;
+      const allTermsHit = queryTerms.length > 0 && queryTerms.every((token) => nameWordSet.has(token) || brandWordSet.has(token));
+      const tokenMisses = Math.max(0, termWordSet.size - tokenHitsName);
+      const exactWordCoverage = termWordSet.size > 0 ? tokenHitsName / termWordSet.size : 0;
       const wholeFood = brand ? 1 : 0;
       const localePenalty = localeFilter ? (itemLocale === localeFilter ? 0 : 1) : 0;
       const sourcePenalty = item.source === "user" ? -1 : 0;
       const usdaRemotePenalty = item.source === "usda_remote" ? 0.1 : 0;
+      const offRemotePenalty = item.source === "off_remote" ? 0.05 : 0;
       const usdaBoost = String(item.source_name || "").toLowerCase() === "usda" ? -2 : 0;
-      const coveragePenalty = 1 - Math.min(1, toNum(item.nutrient_coverage_ratio));
+      const offBoost = String(item.source_name || "").toLowerCase() === "openfoodfacts" ? -2.5 : 0;
+      const coveragePenalty = fastMode ? 0 : 1 - Math.min(1, toNum(item.nutrient_coverage_ratio));
+      const bm25 = toNum(bm25ById.get(item.id));
+      const eggWhitePenalty = queryHasEgg && !queryHasWhite && name.includes("egg, white") ? 12 : 0;
+      const eggYolkPenalty = queryHasEgg && !queryHasYolk && name.includes("egg, yolk") ? 12 : 0;
+      const wholeEggBoost = queryHasEgg && !queryHasWhite && !queryHasYolk && name.includes("egg, whole") ? -14 : 0;
+      const minimumNameTokenHits = queryTerms.length >= 2 ? 2 : 1;
+      const strongLexical =
+        exact === 1 ||
+        startsWith === 1 ||
+        includes === 1 ||
+        tokenHitsName >= minimumNameTokenHits ||
+        (queryTerms.length <= 1 && tokenHitsName >= 1 && bm25 >= 0.6);
+      const isRemote = item.source === "off_remote" || item.source === "usda_remote";
+      const isRelevant = isRemote
+        ? strongLexical
+        : strongLexical || (queryTerms.length <= 1 && tokenHitsBrand >= 1);
+      const lexicalHardMissPenalty =
+        (item.source === "off_remote" || item.source === "usda_remote") &&
+        exact === 0 &&
+        startsWith === 0 &&
+        includes === 0 &&
+        tokenHits <= 0
+          ? 35
+          : 0;
       return {
         ...item,
         match_confidence: Math.max(
@@ -1880,26 +2721,44 @@ app.get("/api/foods/search", async (req, res) => {
             100,
             Math.round(
               100 -
-                (wholeFood * 14 + startsWith * 10 + includes * 8 + coveragePenalty * 20 + localePenalty * 8 + tokenMisses * 12) +
+                (wholeFood * 10 + startsWith * 7 + includes * 6 + coveragePenalty * 16 + localePenalty * 8 + tokenMisses * 11) +
                 sourcePenalty * 5 +
                 usdaBoost * 3 +
-                exact * 16 +
-                tokenHits * 9
+                offBoost * 3 +
+                exact * 20 +
+                tokenHits * 11 +
+                exactWordCoverage * 18 +
+                (allTermsHit ? 28 : 0) +
+                bm25 * 12 -
+                lexicalHardMissPenalty -
+                wholeEggBoost +
+                eggWhitePenalty +
+                eggYolkPenalty
             )
           )
         ),
         _rank:
           sourcePenalty * 120 +
           usdaRemotePenalty * 8 +
+          offRemotePenalty * 6 +
           usdaBoost * 40 +
-          wholeFood * 16 +
+          offBoost * 40 +
+          wholeFood * 12 +
           localePenalty * 5 +
-          coveragePenalty * 20 +
-          startsWith * 7 +
-          includes * 5 -
-          exact * 24 -
-          tokenHits * 10 +
-          tokenMisses * 8
+          coveragePenalty * 18 +
+          startsWith * 6 +
+          includes * 4 -
+          exact * 26 -
+          tokenHits * 12 -
+          (allTermsHit ? 22 : 0) -
+          exactWordCoverage * 20 +
+          tokenMisses * 8 -
+          bm25 * 20 +
+          lexicalHardMissPenalty +
+          eggWhitePenalty +
+          eggYolkPenalty +
+          wholeEggBoost,
+        _is_relevant: isRelevant
       };
     });
 
@@ -1908,9 +2767,217 @@ app.get("/api/foods/search", async (req, res) => {
       return String(a.name || "").localeCompare(String(b.name || ""));
     });
 
-    const ranked = withRank.slice(0, limit).map(({ _rank, ...rest }) => rest);
+    const dedupByNameBrand = new Map();
+    const sourcePriority = { user: 1, global: 2, off_remote: 3, usda_remote: 4 };
+    for (const item of withRank) {
+      const key = `${normalizedFoodKey(item.name)}|${normalizedFoodKey(item.brand || "")}`;
+      const existing = dedupByNameBrand.get(key);
+      if (!existing) {
+        dedupByNameBrand.set(key, item);
+        continue;
+      }
+      const curPriority = sourcePriority[item.source] || 99;
+      const oldPriority = sourcePriority[existing.source] || 99;
+      if (curPriority < oldPriority || (curPriority === oldPriority && toNum(item._rank) < toNum(existing._rank))) {
+        dedupByNameBrand.set(key, item);
+      }
+    }
 
-    return res.json({ ok: true, items: ranked });
+    const dedupedRanked = Array.from(dedupByNameBrand.values()).sort((a, b) => a._rank - b._rank);
+    const relevantRanked = dedupedRanked.filter((it) => it._is_relevant);
+    let rankPool = relevantRanked.length > 0 ? relevantRanked : dedupedRanked;
+    if (queryTerms.length >= 2 && relevantRanked.length === 0) {
+      rankPool = [];
+    }
+    // If strict local relevance yields nothing in fast mode, try remote once to avoid false empty results.
+    if (rankPool.length === 0 && fastMode && (includeOff || includeUsda)) {
+      const variants = buildSearchTermVariants(term).slice(0, 2);
+      const country = locale === "en-gb" ? "united-kingdom" : "united-states";
+      const remoteRuns = await Promise.all(
+        variants.map(async (variantTerm) => {
+          const [usdaRows, offRows] = await Promise.all([
+            includeUsda ? safeSearchUsdaFoods({ term: variantTerm, limit: Math.min(8, limit), timeoutMs: 1400 }) : Promise.resolve([]),
+            includeOff ? safeSearchOpenFoodFactsFoods({ term: variantTerm, limit: Math.min(8, limit), country, timeoutMs: 1400 }) : Promise.resolve([])
+          ]);
+          return { usdaRows, offRows };
+        })
+      );
+      const remoteItemsFallback = [
+        ...remoteRuns.flatMap((r) => (r.usdaRows || []).map((x) => ({
+          id: `usda:${x.usda_fdc_id}`,
+          name: x.name,
+          brand: x.brand,
+          locale: x.locale,
+          source_name: "usda",
+          source: "usda_remote",
+          food_id: null,
+          user_food_id: null,
+          usda_fdc_id: String(x.usda_fdc_id)
+        }))),
+        ...remoteRuns.flatMap((r) => (r.offRows || []).map((x) => ({
+          id: `off:${x.off_code}`,
+          name: x.name,
+          brand: x.brand,
+          locale: x.locale,
+          source_name: "openfoodfacts",
+          source: "off_remote",
+          food_id: null,
+          user_food_id: null,
+          off_code: String(x.off_code)
+        })))
+      ];
+      if (remoteItemsFallback.length > 0) {
+        const seen = new Set();
+        rankPool = remoteItemsFallback.filter((it) => {
+          const k = `${normalizedFoodKey(it.name)}|${normalizedFoodKey(it.brand || "")}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+      }
+    }
+
+    const ranked = rankPool.slice(0, limit).map(({ _rank, _is_relevant, ...rest }) => rest);
+    const payload = { ok: true, items: ranked };
+    foodSearchCache.set(searchCacheKey, payload, { ttl: fastMode ? 1000 * 30 : 1000 * 60 });
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/foods/resolve-off", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const off_code = String(body.off_code || body.offCode || "").trim();
+    if (!off_code) return res.status(400).json({ ok: false, error: "off_code is required" });
+    const imported = await importOpenFoodFactsProductByCode({ offCode: off_code });
+    return res.json({ ok: true, ...imported, off_code });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/foods/resolve-best", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const query = String(body.query || body.food || "").trim();
+    const user_id = String(body.user_id || body.userId || "").trim();
+    const localeRaw = String(body.locale || "uk").trim().toLowerCase();
+    const locale = localeRaw === "uk" ? "en-gb" : localeRaw === "us" ? "en-us" : localeRaw;
+    const useAiPick = String(body.use_ai || body.useAi || "0") === "1";
+    const preferRemote = String(body.prefer_remote || body.preferRemote || "0") === "1";
+    if (!query) return res.status(400).json({ ok: false, error: "query is required" });
+    const queryTokens = query
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+    if (queryTokens.length <= 1 && query.length < 4) {
+      return res.json({
+        ok: true,
+        resolved: null,
+        fallback: null,
+        warning: "Query too short for safe auto-resolution. Type more characters or select a result."
+      });
+    }
+
+    const searchPasses = preferRemote
+      ? [
+          { locale: locale || "en-gb", include_usda: 0, include_off: 1, limit: 10 },
+          { locale: "any", include_usda: 0, include_off: 0, limit: 8 },
+          { locale: locale || "en-gb", include_usda: 1, include_off: 1, limit: 10 }
+        ]
+      : [
+          { locale: "any", include_usda: 0, include_off: 0, limit: 8 },
+          { locale: locale || "en-gb", include_usda: 0, include_off: 1, limit: 10 },
+          { locale: locale || "en-gb", include_usda: 1, include_off: 1, limit: 10 }
+        ];
+
+    let items = [];
+    for (const pass of searchPasses) {
+      const searchR = await fetch(
+        `http://127.0.0.1:${PORT}/api/foods/search?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(user_id)}&locale=${encodeURIComponent(pass.locale)}&limit=${encodeURIComponent(pass.limit)}&include_usda=${encodeURIComponent(pass.include_usda)}&include_off=${encodeURIComponent(pass.include_off)}`
+      );
+      const searchJ = await searchR.json().catch(() => ({}));
+      if (!searchR.ok || !searchJ?.ok) continue;
+      items = Array.isArray(searchJ.items) ? searchJ.items : [];
+      if (items.length > 0) break;
+    }
+    if (items.length === 0) {
+      return res.json({ ok: true, resolved: null, fallback: null, warning: "No database match found." });
+    }
+
+    const aiPick = useAiPick ? await pickBestCandidateWithAI({ query, candidates: items }) : null;
+    const picked = items[Math.max(0, Math.min(items.length - 1, aiPick?.index ?? 0))];
+    const fallback = items[0] || null;
+    const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
+    const effectiveQueryTokens = queryTokens.map(singularize).filter(Boolean);
+    const isStrongLexicalMatch = (candidate) => {
+      const text = `${String(candidate?.name || "").toLowerCase()} ${String(candidate?.brand || "").toLowerCase()}`;
+      const textTokens = new Set(text.split(/[^a-z0-9]+/).filter(Boolean).map(singularize));
+      const hits = effectiveQueryTokens.reduce((acc, t) => acc + (textTokens.has(t) ? 1 : 0), 0);
+      const needed = effectiveQueryTokens.length >= 2 ? 2 : 1;
+      return hits >= needed;
+    };
+    if (!isStrongLexicalMatch(picked)) {
+      return res.json({
+        ok: true,
+        resolved: null,
+        fallback: fallback || null,
+        warning: "No high-confidence match; please select from search results."
+      });
+    }
+
+    if (picked?.source === "usda_remote" && picked?.usda_fdc_id) {
+      try {
+        const imported = await importUsdaFoodByFdcId({ fdcId: picked.usda_fdc_id });
+        return res.json({
+          ok: true,
+          resolved: {
+            name: imported.name,
+            food_id: imported.food_id,
+            user_food_id: null,
+            source: "usda"
+          },
+          fallback,
+          ai: aiPick
+        });
+      } catch (_e) {
+        // fall through to fallback/local candidate
+      }
+    }
+
+    if (picked?.source === "off_remote" && picked?.off_code) {
+      try {
+        const imported = await importOpenFoodFactsProductByCode({ offCode: picked.off_code });
+        return res.json({
+          ok: true,
+          resolved: {
+            name: imported.name,
+            food_id: imported.food_id,
+            user_food_id: null,
+            source: "openfoodfacts"
+          },
+          fallback,
+          ai: aiPick
+        });
+      } catch (_e) {
+        // fall through to fallback/local candidate
+      }
+    }
+
+    const chosen = picked && (picked.food_id || picked.user_food_id) ? picked : fallback;
+    return res.json({
+      ok: true,
+      resolved: {
+        name: chosen?.name || query,
+        food_id: chosen?.food_id || null,
+        user_food_id: chosen?.user_food_id || null,
+        source: chosen?.source || "global"
+      },
+      fallback,
+      ai: aiPick
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }

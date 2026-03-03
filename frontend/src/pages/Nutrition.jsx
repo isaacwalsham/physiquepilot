@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -16,7 +16,7 @@ const dayLabel = {
   high: "High day"
 };
 
-const UNIT_OPTIONS = ["g", "ml", "l", "oz", "lb", "serv"];
+const UNIT_OPTIONS = ["g", "ml", "l", "oz", "lb", "item", "serv"];
 const MACRO_CODES = new Set(["energy_kcal", "protein_g", "carbs_g", "fat_g", "alcohol_g"]);
 const HIDDEN_MICRO_CODES = new Set(["net_carbs_g"]);
 
@@ -217,6 +217,8 @@ export default function Nutrition() {
   const [foodResults, setFoodResults] = useState([]);
   const [foodSearching, setFoodSearching] = useState(false);
   const [foodDropdownOpen, setFoodDropdownOpen] = useState(false);
+  const [foodSearchMode, setFoodSearchMode] = useState("idle"); // idle | local | remote
+  const [foodNoMatches, setFoodNoMatches] = useState(false);
   const [entryResolving, setEntryResolving] = useState(false);
   const [entryFoodLocked, setEntryFoodLocked] = useState(false);
 
@@ -238,6 +240,7 @@ export default function Nutrition() {
   const [microTargetWarnings, setMicroTargetWarnings] = useState([]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const foodSearchSeqRef = useRef(0);
 
   const todaysTargets = useMemo(() => targets?.[todayType] || null, [targets, todayType]);
 
@@ -506,37 +509,103 @@ export default function Nutrition() {
   useEffect(() => {
     if (!userId) return;
     if (entryFoodLocked) {
+      foodSearchSeqRef.current += 1;
       setFoodDropdownOpen(false);
       setFoodSearching(false);
       return;
     }
     const q = String(entryFood || "").trim();
     if (q.length < 2) {
+      foodSearchSeqRef.current += 1;
       setFoodResults([]);
       setFoodDropdownOpen(false);
       setFoodSearching(false);
+      setFoodSearchMode("idle");
+      setFoodNoMatches(false);
       return;
     }
 
-    const handle = setTimeout(async () => {
-      setFoodSearching(true);
-      try {
-        const r = await fetch(
-          `${API_URL}/api/foods/search?q=${encodeURIComponent(q)}&user_id=${encodeURIComponent(userId)}&limit=10`
-        );
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok || !j?.ok) throw new Error(j?.error || "Food search failed.");
-        setFoodResults(Array.isArray(j.items) ? j.items : []);
-        setFoodDropdownOpen(true);
-      } catch (_e) {
-        setFoodResults([]);
-        setFoodDropdownOpen(false);
-      } finally {
-        setFoodSearching(false);
-      }
-    }, 200);
+    setFoodResults([]);
+    setFoodDropdownOpen(false);
+    setFoodNoMatches(false);
 
-    return () => clearTimeout(handle);
+    const handle = setTimeout(async () => {
+      const seq = ++foodSearchSeqRef.current;
+      const isStale = () =>
+        seq !== foodSearchSeqRef.current ||
+        entryFoodLocked ||
+        String(entryFood || "").trim().toLowerCase() !== q.toLowerCase();
+      const norm = (x) =>
+        String(x || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+      const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
+      const dedupeByNameBrand = (rows) => {
+        const m = new Map();
+        for (const row of Array.isArray(rows) ? rows : []) {
+          const k = `${norm(row?.name)}|${norm(row?.brand)}`;
+          if (!m.has(k)) m.set(k, row);
+        }
+        return Array.from(m.values());
+      };
+      const queryTokens = norm(q).split(/\s+/).filter(Boolean).map(singularize);
+      const stopWords = new Set(["a", "an", "and", "or", "the", "with", "without", "in", "on", "at", "to", "for", "of", "from", "by"]);
+      const meaningfulTokens = queryTokens.filter((t) => !stopWords.has(t));
+      const effectiveTokens = meaningfulTokens.length > 0 ? meaningfulTokens : queryTokens;
+      const strictMatch = (item) => {
+        const textRaw = `${norm(item?.name)} ${norm(item?.brand)}`.trim();
+        const textTokens = new Set(textRaw.split(/\s+/).filter(Boolean).map(singularize));
+        if (!textRaw) return false;
+        const phrase = effectiveTokens.join(" ");
+        if (phrase && textRaw.includes(phrase)) return true;
+        const hits = effectiveTokens.reduce((acc, t) => acc + (textTokens.has(t) ? 1 : 0), 0);
+        const needed = effectiveTokens.length >= 2 ? 2 : 1;
+        return hits >= needed;
+      };
+      const fetchSearchItems = async (url, timeoutMs = 4500) => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const r = await fetch(url, { cache: "no-store", signal: controller.signal });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j?.ok) throw new Error(j?.error || "Food search failed.");
+          return dedupeByNameBrand(Array.isArray(j.items) ? j.items : []);
+        } finally {
+          clearTimeout(timeout);
+        }
+      };
+      setFoodSearching(true);
+      setFoodSearchMode("remote");
+      setFoodNoMatches(false);
+      try {
+        const primaryItems = await fetchSearchItems(
+          `${API_URL}/api/foods/typeahead?q=${encodeURIComponent(q)}&user_id=${encodeURIComponent(userId)}&limit=10`
+        );
+        if (isStale()) return;
+        let items = primaryItems.filter(strictMatch);
+        if (items.length === 0) items = primaryItems;
+
+        if (isStale()) return;
+        setFoodResults(items);
+        setFoodDropdownOpen(true);
+        setFoodNoMatches(items.length === 0);
+      } catch (_e) {
+        if (isStale()) return;
+        setFoodResults([]);
+        setFoodNoMatches(true);
+        setFoodDropdownOpen(true);
+      } finally {
+        if (isStale()) return;
+        setFoodSearching(false);
+        setFoodSearchMode("idle");
+      }
+    }, 160);
+
+    return () => {
+      clearTimeout(handle);
+      foodSearchSeqRef.current += 1;
+    };
   }, [entryFood, userId, entryFoodLocked]);
 
   const saveTodayType = async (nextType) => {
@@ -565,9 +634,36 @@ export default function Nutrition() {
 
     const query = String(food || "").trim();
     if (!query) return { food_id: null, user_food_id: null, food_name: food };
+    const queryTokens = query
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+    const isShortAmbiguous = queryTokens.length <= 1 && query.length < 4;
+    if (isShortAmbiguous) {
+      return { food_id: null, user_food_id: null, food_name: query };
+    }
+
+    const bestResp = await fetch(`${API_URL}/api/foods/resolve-best`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        user_id: userId,
+        locale: "uk",
+        prefer_remote: true
+      })
+    });
+    const bestBody = await bestResp.json().catch(() => ({}));
+    if (bestResp.ok && bestBody?.ok && bestBody?.resolved) {
+      return {
+        food_id: bestBody.resolved.food_id || null,
+        user_food_id: bestBody.resolved.user_food_id || null,
+        food_name: String(bestBody.resolved.name || query).trim()
+      };
+    }
 
     const r = await fetch(
-      `${API_URL}/api/foods/search?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(userId)}&limit=8`
+      `${API_URL}/api/foods/typeahead?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(userId)}&limit=8`
     );
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Food search failed.");
@@ -602,6 +698,22 @@ export default function Nutrition() {
       const body = await resp.json().catch(() => ({}));
       if (!resp.ok || !body?.ok || !body?.food_id) {
         throw new Error(body?.error || "Unable to load USDA food details.");
+      }
+      return {
+        food_id: body.food_id,
+        user_food_id: null,
+        food_name: String(body.name || chosen.name || food).trim()
+      };
+    }
+    if (!chosen.food_id && !chosen.user_food_id && chosen.off_code) {
+      const resp = await fetch(`${API_URL}/api/foods/resolve-off`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ off_code: chosen.off_code })
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok || !body?.ok || !body?.food_id) {
+        throw new Error(body?.error || "Unable to load OFF food details.");
       }
       return {
         food_id: body.food_id,
@@ -707,6 +819,21 @@ export default function Nutrition() {
         const body = await resp.json().catch(() => ({}));
         if (!resp.ok || !body?.ok || !body?.food_id) {
           throw new Error(body?.error || "Unable to load USDA food details.");
+        }
+        setEntryFoodId(body.food_id);
+        setEntryUserFoodId(null);
+        setEntryFood(String(body.name || pickedName || "").trim());
+      }
+      if (!r?.food_id && !r?.user_food_id && r?.off_code) {
+        setFoodSearching(true);
+        const resp = await fetch(`${API_URL}/api/foods/resolve-off`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ off_code: r.off_code })
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok || !body?.ok || !body?.food_id) {
+          throw new Error(body?.error || "Unable to load OFF food details.");
         }
         setEntryFoodId(body.food_id);
         setEntryUserFoodId(null);
@@ -1030,22 +1157,32 @@ export default function Nutrition() {
                       style={field}
                     />
 
-                    {foodDropdownOpen && (foodSearching || foodResults.length > 0) && (
+                    {foodDropdownOpen && (foodSearching || foodResults.length > 0 || foodNoMatches) && (
                       <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "#050507", border: "1px solid #2a1118", borderRadius: "10px", zIndex: 20, overflow: "hidden" }}>
                         {foodSearching ? (
-                          <div style={{ padding: "0.65rem", color: "#888" }}>Searching...</div>
+                          <div style={{ padding: "0.65rem", color: "#888" }}>
+                            Searching foods...
+                          </div>
                         ) : (
-                          foodResults.map((r) => (
-                            <button
-                              key={`${r.source}:${r.id}`}
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => selectFoodResult(r)}
-                              style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
-                            >
-                              <div style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
-                            </button>
-                          ))
+                          foodResults.length > 0 ? (
+                            foodResults.map((r) => (
+                              <button
+                                key={`${r.source}:${r.id}`}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => selectFoodResult(r)}
+                                style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
+                              >
+                                <div style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div style={{ padding: "0.65rem", color: "#888" }}>
+                              {foodNoMatches
+                                ? "No matches found yet. Keep typing, or press Add to auto-resolve."
+                                : "No suggestions yet."}
+                            </div>
+                          )
                         )}
                       </div>
                     )}
