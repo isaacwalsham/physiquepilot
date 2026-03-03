@@ -822,8 +822,68 @@ const withTimeout = async (promiseFactory, timeoutMs, fallbackValue) => {
 
 const SEARCH_STOP_WORDS = new Set([
   "a", "an", "and", "or", "the", "with", "without", "in", "on", "at", "to", "for",
-  "of", "from", "by", "whole", "fresh", "raw", "cooked", "boiled", "fried", "roasted"
+  "of", "from", "by", "fresh", "raw", "cooked", "boiled", "fried", "roasted"
 ]);
+
+const SEARCH_QUERY_NOISE_WORDS = new Set(["percent", "pc", "fat"]);
+const SEARCH_DISH_HINT_WORDS = new Set([
+  "with",
+  "homemade",
+  "takeaway",
+  "burger",
+  "biryani",
+  "lasagne",
+  "pizza",
+  "sandwich",
+  "soup",
+  "sauce",
+  "chasseur",
+  "fricassee"
+]);
+const SEARCH_PREPARATION_WORDS = new Set([
+  "boiled",
+  "fried",
+  "roasted",
+  "grilled",
+  "stewed",
+  "microwaved",
+  "scrambled",
+  "poached",
+  "baked",
+  "cooked"
+]);
+const SEARCH_EGG_ALT_SPECIES_WORDS = new Set(["duck", "quail", "turkey", "goose"]);
+
+const singularizeWord = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
+
+const expandSearchAliases = (token) => {
+  const t = singularizeWord(String(token || "").toLowerCase().trim());
+  if (!t) return [];
+  const out = new Set([t]);
+  if (t === "mince") out.add("ground");
+  if (t === "ground") out.add("mince");
+  if (t === "nando") out.add("nandos");
+  if (t === "nandos") out.add("nando");
+  if (t === "pepper") out.add("peppers");
+  if (t === "peppers") out.add("pepper");
+  return Array.from(out);
+};
+
+const tokenizeSearchQuery = (text, { keepNumbers = false } = {}) => {
+  const words = String(text || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map(singularizeWord);
+  if (words.length === 0) return [];
+  const filtered = words.filter((w) => {
+    if (!keepNumbers && /^[0-9]+$/.test(w)) return false;
+    if (SEARCH_STOP_WORDS.has(w)) return false;
+    if (SEARCH_QUERY_NOISE_WORDS.has(w)) return false;
+    return true;
+  });
+  return filtered.length > 0 ? filtered : words.filter((w) => (keepNumbers ? true : !/^[0-9]+$/.test(w)));
+};
 
 const buildSearchTermVariants = (term) => {
   const base = String(term || "").trim().toLowerCase();
@@ -844,7 +904,6 @@ const normalizeUkFoodQuery = (term) => {
   if (!out) return "";
   out = out.replace(/\bbrocolli\b/g, "broccoli");
   out = out.replace(/\bchilli\b/g, "chili");
-  out = out.replace(/\bmince\b/g, "ground");
   out = out.replace(/\b(\d+)\s*%\s*fat\b/g, "$1 percent fat");
   out = out.replace(/\b(\d+)\s*%\b/g, "$1 percent");
   out = out.replace(/\s+/g, " ").trim();
@@ -1631,12 +1690,16 @@ const searchOpenFoodFactsFoods = async ({ term, limit = 8, country = "united-kin
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter(Boolean);
-  const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
-  const queryTokensRaw = normalizeWords(q).map(singularize).filter((w) => !SEARCH_STOP_WORDS.has(w));
-  const queryTokens = queryTokensRaw.length > 0 ? queryTokensRaw : normalizeWords(q).map(singularize);
+  const queryTokensRaw = tokenizeSearchQuery(q);
+  const queryTokens = queryTokensRaw.length > 0 ? queryTokensRaw : normalizeWords(q).map(singularizeWord);
   const queryNorm = queryTokens.join(" ");
-  const requiredHits = queryTokens.length >= 3 ? 2 : queryTokens.length >= 2 ? 2 : 1;
-  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=${Math.min(80, Math.max(20, Number(limit) * 4))}&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(country)}`;
+  const queryTokenGroups = queryTokens.map((token) => expandSearchAliases(token));
+  const requiredHits = queryTokenGroups.length >= 3 ? 2 : 1;
+  const countryFilter = String(country || "").trim();
+  let url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=${Math.min(80, Math.max(20, Number(limit) * 4))}`;
+  if (countryFilter) {
+    url += `&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(countryFilter)}`;
+  }
   const r = await fetch(url, {
     headers: {
       "User-Agent": "PhysiquePilot/1.0 (nutrition search; contact: support@physiquepilot.com)"
@@ -1651,8 +1714,11 @@ const searchOpenFoodFactsFoods = async ({ term, limit = 8, country = "united-kin
       const name = String(p?.product_name_en || p?.product_name || "").trim();
       const brand = String(p?.brands || "").split(",")[0]?.trim() || null;
       const text = `${name} ${brand || ""}`.toLowerCase();
-      const textTokens = new Set(normalizeWords(text).map(singularize));
-      const tokenHits = queryTokens.reduce((acc, t) => acc + (textTokens.has(t) ? 1 : 0), 0);
+      const textTokens = new Set(normalizeWords(text).map(singularizeWord));
+      const tokenHits = queryTokenGroups.reduce((acc, group) => {
+        const hit = group.some((alias) => textTokens.has(alias));
+        return acc + (hit ? 1 : 0);
+      }, 0);
       const phraseHit = queryNorm ? text.includes(queryNorm) : false;
       return {
       off_code: String(p?.code || "").trim(),
@@ -2160,15 +2226,31 @@ app.get("/api/foods/typeahead", async (req, res) => {
     if (qRaw.length < 2) return res.json({ ok: true, items: [] });
 
     const q = normalizeUkFoodQuery(qRaw);
-    const cacheKey = `typeahead|${q}|${user_id}|${limit}`;
+    const cacheKey = `typeahead|${qRaw.toLowerCase()}|${user_id}|${limit}`;
     const cached = foodSearchCache.get(cacheKey);
     if (cached) return res.json(cached);
 
+    const rawQueryTokens = String(qRaw || "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean)
+      .map(singularizeWord);
+    const rawQueryTokenSet = new Set(rawQueryTokens);
+    const queryMentionsPreparation = rawQueryTokens.some((t) => SEARCH_PREPARATION_WORDS.has(t));
+    const queryHasEgg = rawQueryTokenSet.has("egg");
+    const queryHasEggWhite = rawQueryTokenSet.has("white");
+    const queryHasEggYolk = rawQueryTokenSet.has("yolk");
+    const queryHasAltEggSpecies = rawQueryTokens.some((t) => SEARCH_EGG_ALT_SPECIES_WORDS.has(t));
+
     const words = q.split(/[^a-z0-9]+/).filter(Boolean);
-    const singularize = (w) => (w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w);
-    const terms = Array.from(new Set(words.map(singularize))).slice(0, 3);
+    const baseTerms = tokenizeSearchQuery(q);
+    const queryTermGroups = (baseTerms.length > 0 ? baseTerms : words.map(singularizeWord))
+      .slice(0, 4)
+      .map((token) => expandSearchAliases(token));
+    const tokenTerms = Array.from(new Set(queryTermGroups.flat())).slice(0, 6);
     const pattern = `%${q.replace(/[%_]/g, " ")}%`;
-    const tokenPatterns = terms.map((t) => `%${t.replace(/[%_]/g, " ")}%`);
+    const tokenPatterns = tokenTerms.map((t) => `%${t.replace(/[%_]/g, " ")}%`);
+    const tokenQueryLimit = Math.max(24, limit * 5);
 
     const mergeUniqueById = (rows = []) => {
       const m = new Map();
@@ -2184,7 +2266,7 @@ app.get("/api/foods/typeahead", async (req, res) => {
       tokenPatterns.length > 0
         ? Promise.all(
             tokenPatterns.map((p) =>
-              supabase.from("foods").select("id,name,brand,locale,source,barcode").ilike("name", p).limit(limit)
+              supabase.from("foods").select("id,name,brand,locale,source,barcode").ilike("name", p).limit(tokenQueryLimit)
             )
           )
         : Promise.resolve([]),
@@ -2197,7 +2279,7 @@ app.get("/api/foods/typeahead", async (req, res) => {
       user_id && tokenPatterns.length > 0
         ? Promise.all(
             tokenPatterns.map((p) =>
-              supabase.from("user_foods").select("id,name,brand").eq("user_id", user_id).ilike("name", p).limit(limit)
+              supabase.from("user_foods").select("id,name,brand").eq("user_id", user_id).ilike("name", p).limit(tokenQueryLimit)
             )
           )
         : Promise.resolve([])
@@ -2242,14 +2324,33 @@ app.get("/api/foods/typeahead", async (req, res) => {
       user_food_id: x.id
     }));
 
+    const normalizeWords = (x) => String(x || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(singularizeWord);
+    const localCoverageRows = [...userFoods, ...localFoods];
+    const uncoveredQueryGroups = queryTermGroups.filter(
+      (group) =>
+        !localCoverageRows.some((row) => {
+          const tokens = new Set([...normalizeWords(row?.name), ...normalizeWords(row?.brand)]);
+          return group.some((alias) => tokens.has(alias));
+        })
+    );
+    const queryHasUncoveredTerms = uncoveredQueryGroups.length > 0;
+
     let remoteOff = [];
-    if (localFoods.length + userFoods.length < Math.ceil(limit / 2)) {
-      const offRows = await safeSearchOpenFoodFactsFoods({
-        term: q,
+    if (localFoods.length + userFoods.length < Math.ceil(limit / 2) || queryHasUncoveredTerms) {
+      let offRows = await safeSearchOpenFoodFactsFoods({
+        term: qRaw,
         limit: Math.min(8, limit),
         country: "united-kingdom",
         timeoutMs: 900
       });
+      if ((!offRows || offRows.length === 0) && queryHasUncoveredTerms) {
+        offRows = await safeSearchOpenFoodFactsFoods({
+          term: qRaw,
+          limit: Math.min(10, limit + 2),
+          country: "",
+          timeoutMs: 1200
+        });
+      }
       remoteOff = (offRows || []).map((x) => ({
         id: `off:${x.off_code}`,
         name: x.name,
@@ -2262,9 +2363,7 @@ app.get("/api/foods/typeahead", async (req, res) => {
       }));
     }
 
-    const normalizeWords = (x) => String(x || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(singularize);
-    const queryTerms = terms.length > 0 ? terms : words.map(singularize);
-    const requiredHits = queryTerms.length >= 2 ? 2 : 1;
+    const requiredHits = queryTermGroups.length >= 3 ? 2 : 1;
 
     const dedupeByNameBrand = (rows = []) => {
       const m = new Map();
@@ -2279,22 +2378,100 @@ app.get("/api/foods/typeahead", async (req, res) => {
       .map((item) => {
         const name = String(item?.name || "").toLowerCase();
         const brand = String(item?.brand || "").toLowerCase();
-        const tokens = new Set([...normalizeWords(name), ...normalizeWords(brand)]);
-        const tokenHits = queryTerms.reduce((acc, t) => acc + (tokens.has(t) ? 1 : 0), 0);
-        const allTermsHit = queryTerms.length > 0 && queryTerms.every((t) => tokens.has(t));
-        const phraseHit = name.includes(q) ? 1 : 0;
-        const exact = normalizedFoodKey(name) === normalizedFoodKey(q) ? 1 : 0;
+        const nameTokens = normalizeWords(name);
+        const brandTokens = normalizeWords(brand);
+        const tokens = new Set([...nameTokens, ...brandTokens]);
+        const tokenHits = queryTermGroups.reduce((acc, group) => {
+          const hit = group.some((alias) => tokens.has(alias));
+          return acc + (hit ? 1 : 0);
+        }, 0);
+        const allTermsHit = queryTermGroups.length > 0 && tokenHits >= queryTermGroups.length;
+        const phraseHit = name.includes(q) || name.includes(qRaw.toLowerCase()) ? 1 : 0;
+        const exact = normalizedFoodKey(name) === normalizedFoodKey(q) || normalizedFoodKey(name) === normalizedFoodKey(qRaw) ? 1 : 0;
+        const firstToken = nameTokens[0] || "";
+        const firstTokenHit =
+          queryTermGroups.length > 0 && queryTermGroups[0].some((alias) => alias === firstToken) ? 1 : 0;
+        let prefixHits = 0;
+        for (let i = 0; i < Math.min(queryTermGroups.length, nameTokens.length); i += 1) {
+          if (queryTermGroups[i].some((alias) => alias === nameTokens[i])) {
+            prefixHits += 1;
+          } else {
+            break;
+          }
+        }
+        const tokenCoverage = queryTermGroups.length > 0 ? tokenHits / queryTermGroups.length : 0;
+        const uncoveredHits = uncoveredQueryGroups.reduce((acc, group) => {
+          const hit = group.some((alias) => tokens.has(alias));
+          return acc + (hit ? 1 : 0);
+        }, 0);
+        const uncoveredMisses = Math.max(0, uncoveredQueryGroups.length - uncoveredHits);
+        const uncoveredBoost = uncoveredHits * 30 - uncoveredMisses * 12;
+        const missingTerms = Math.max(0, queryTermGroups.length - tokenHits);
+        const missingTermPenalty = (queryTermGroups.length >= 3 ? 18 : 8) * missingTerms;
+        const simpleIngredientQuery = queryTermGroups.length <= 2;
+        const dishLike = nameTokens.some((t) => SEARCH_DISH_HINT_WORDS.has(t));
+        const dishPenalty =
+          (simpleIngredientQuery && dishLike && tokenHits <= 1 ? 12 : 0) +
+          (!simpleIngredientQuery && dishLike && missingTerms > 0 ? 10 : 0);
+        const itemHasPreparationWord = nameTokens.some((t) => SEARCH_PREPARATION_WORDS.has(t));
+        const itemIsRaw = nameTokens.includes("raw");
+        const prepPenalty = !queryMentionsPreparation && itemHasPreparationWord && !itemIsRaw ? 10 : 0;
+        const rawBoost = !queryMentionsPreparation && itemIsRaw ? 6 : 0;
+        const isEggRow = tokens.has("egg");
+        const isEggWhite = isEggRow && tokens.has("white");
+        const isEggYolk = isEggRow && tokens.has("yolk");
+        const isEggWhole = isEggRow && tokens.has("whole");
+        const isAltEggSpecies = isEggRow && Array.from(SEARCH_EGG_ALT_SPECIES_WORDS).some((s) => tokens.has(s));
+        const isChickenEgg = isEggRow && tokens.has("chicken");
+        let eggAdjustment = 0;
+        if (queryHasEgg) {
+          if (isEggRow) eggAdjustment += 10;
+          if (isChickenEgg) eggAdjustment += 8;
+          if (!queryHasEggWhite && isEggWhite) eggAdjustment -= 16;
+          if (!queryHasEggYolk && isEggYolk) eggAdjustment -= 16;
+          if (!queryHasEggWhite && !queryHasEggYolk && isEggWhole) eggAdjustment += 12;
+          if (!queryHasAltEggSpecies && isAltEggSpecies) eggAdjustment -= 14;
+        }
         const sourceBonus = item.source === "user" ? 20 : item.source === "global" ? 10 : 0;
-        const score = exact * 100 + phraseHit * 30 + tokenHits * 20 + (allTermsHit ? 45 : 0) + sourceBonus;
-        const relevant = allTermsHit || tokenHits >= requiredHits || phraseHit === 1 || exact === 1;
-        return { ...item, match_confidence: Math.max(0, Math.min(100, score)), _score: score, _relevant: relevant };
+        const score =
+          exact * 120 +
+          phraseHit * 35 +
+          tokenHits * 26 +
+          (allTermsHit ? 48 : 0) +
+          firstTokenHit * 24 +
+          prefixHits * 15 +
+          tokenCoverage * 20 +
+          uncoveredBoost +
+          rawBoost +
+          eggAdjustment +
+          sourceBonus -
+          dishPenalty -
+          prepPenalty -
+          missingTermPenalty;
+        const confidence = Math.max(0, Math.min(100, Math.round(38 + score * 0.45)));
+        const relevant =
+          allTermsHit ||
+          tokenHits >= requiredHits ||
+          phraseHit === 1 ||
+          exact === 1 ||
+          uncoveredHits > 0 ||
+          (firstTokenHit === 1 && tokenHits >= Math.max(1, requiredHits - 1));
+        const disallowDishFallback =
+          queryTermGroups.length >= 3 &&
+          dishLike &&
+          missingTerms > 0 &&
+          uncoveredHits === 0 &&
+          phraseHit === 0 &&
+          exact === 0;
+        return { ...item, match_confidence: confidence, _score: score, _relevant: relevant && !disallowDishFallback };
       })
-      .filter((x) => x._relevant)
-      .sort((a, b) => b._score - a._score)
-      .slice(0, limit)
-      .map(({ _score, _relevant, ...rest }) => rest);
+      .sort((a, b) => b._score - a._score || String(a.name || "").length - String(b.name || "").length);
 
-    const payload = { ok: true, items: scored };
+    const strict = scored.filter((x) => x._relevant);
+    const relaxed = strict.length > 0 ? strict : scored.filter((x) => x._score > 0);
+    const out = relaxed.slice(0, limit).map(({ _score, _relevant, ...rest }) => rest);
+
+    const payload = { ok: true, items: out };
     foodSearchCache.set(cacheKey, payload, { ttl: 1000 * 45 });
     return res.json(payload);
   } catch (e) {
