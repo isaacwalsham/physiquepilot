@@ -39,13 +39,16 @@ const app = express();
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   "http://localhost:3000",
   "https://physiquepilot.com",
   "https://www.physiquepilot.com",
+  /^http:\/\/localhost:\d+$/,
+  /^http:\/\/127\.0\.0\.1:\d+$/,
   /\.netlify\.app$/
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
 
@@ -58,9 +61,11 @@ app.use(cors({
     callback(new Error("Not allowed by CORS"));
   },
   credentials: true
-}));
+};
 
-app.options(/.*/, cors());
+app.use(cors(corsOptions));
+
+app.options(/.*/, cors(corsOptions));
 
 
 app.use(express.json());
