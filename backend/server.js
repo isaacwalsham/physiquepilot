@@ -201,63 +201,67 @@ const rdiBaseByCode = {
   energy_kcal: { any: 2000 },
   water_g: { male: 3700, female: 2700, any: 3200 },
   caffeine_mg: { male: 400, female: 400, any: 400 },
-  carbs_g: { male: 130, female: 130, any: 130 },
-  fiber_g: { male: 38, female: 25, any: 31.5 },
-  added_sugars_g: { male: 50, female: 50, any: 50 },
-  fat_g: { male: null, female: null, any: null },
-  monounsaturated_g: { male: null, female: null, any: null },
-  monounsaturated_fat_g: { male: null, female: null, any: null },
-  polyunsaturated_g: { male: null, female: null, any: null },
-  polyunsaturated_fat_g: { male: null, female: null, any: null },
-  omega3_g: { male: 1.6, female: 1.1, any: 1.35 },
-  omega_3_g: { male: 1.6, female: 1.1, any: 1.35 },
-  omega6_g: { male: 17, female: 12, any: 14.5 },
-  omega_6_g: { male: 17, female: 12, any: 14.5 },
-  sat_fat_g: { male: 20, female: 20, any: 20 },
-  saturated_fat_g: { male: 20, female: 20, any: 20 },
-  trans_fat_g: { male: 0, female: 0, any: 0 },
-  cholesterol_mg: { male: 300, female: 300, any: 300 },
-  protein_g: { male: 56, female: 46, any: 51 },
-  cystine_g: { male: 0.525, female: 0.45, any: 0.4875 },
-  histidine_g: { male: 0.7, female: 0.6, any: 0.65 },
-  isoleucine_g: { male: 1.4, female: 1.2, any: 1.3 },
-  leucine_g: { male: 2.73, female: 2.34, any: 2.535 },
-  lysine_g: { male: 2.1, female: 1.8, any: 1.95 },
-  methionine_g: { male: 0.525, female: 0.45, any: 0.4875 },
-  phenylalanine_g: { male: 0.875, female: 0.75, any: 0.8125 },
-  threonine_g: { male: 1.05, female: 0.9, any: 0.975 },
-  tryptophan_g: { male: 0.28, female: 0.24, any: 0.26 },
-  tyrosine_g: { male: 0.875, female: 0.75, any: 0.8125 },
-  valine_g: { male: 1.82, female: 1.56, any: 1.69 },
-  thiamin_b1_mg: { male: 1.2, female: 1.1, any: 1.15 },
-  riboflavin_b2_mg: { male: 1.3, female: 1.1, any: 1.2 },
-  vitamin_b3_mg: { male: 16, female: 14, any: 15 },
+  carbs_g: { male: null, female: null, any: null }, // inherit from macro goals
+  fiber_g: { male: 38, female: 38, any: 38 },
+  starch_g: { male: null, female: null, any: null }, // no target
+  sugars_g: { male: null, female: null, any: null }, // no target
+  added_sugars_g: { male: null, female: null, any: null }, // no target
+  fat_g: { male: null, female: null, any: null }, // inherit from macro goals
+  monounsaturated_g: { male: null, female: null, any: null }, // no target
+  monounsaturated_fat_g: { male: null, female: null, any: null }, // no target
+  polyunsaturated_g: { male: null, female: null, any: null }, // no target
+  polyunsaturated_fat_g: { male: null, female: null, any: null }, // no target
+  omega3_g: { male: 1.6, female: 1.6, any: 1.6 },
+  omega_3_g: { male: 1.6, female: 1.6, any: 1.6 },
+  omega6_g: { male: 17, female: 17, any: 17 },
+  omega_6_g: { male: 17, female: 17, any: 17 },
+  sat_fat_g: { male: null, female: null, any: null }, // no target
+  saturated_fat_g: { male: null, female: null, any: null }, // no target
+  trans_fat_g: { male: null, female: null, any: null }, // no target
+  cholesterol_mg: { male: null, female: null, any: null }, // no target
+  protein_g: { male: null, female: null, any: null }, // inherit from macro goals
+  cystine_g: { male: 0.7, female: 0.7, any: 0.7 },
+  histidine_g: { male: 1.1, female: 1.1, any: 1.1 },
+  isoleucine_g: { male: 1.5, female: 1.5, any: 1.5 },
+  leucine_g: { male: 3.3, female: 3.3, any: 3.3 },
+  lysine_g: { male: 3.0, female: 3.0, any: 3.0 },
+  methionine_g: { male: 0.7, female: 0.7, any: 0.7 },
+  phenylalanine_g: { male: 1.3, female: 1.3, any: 1.3 },
+  threonine_g: { male: 1.6, female: 1.6, any: 1.6 },
+  tryptophan_g: { male: 0.4, female: 0.4, any: 0.4 },
+  tyrosine_g: { male: 1.3, female: 1.3, any: 1.3 },
+  valine_g: { male: 1.9, female: 1.9, any: 1.9 },
+  thiamin_b1_mg: { male: 1.2, female: 1.2, any: 1.2 },
+  riboflavin_b2_mg: { male: 1.3, female: 1.3, any: 1.3 },
+  vitamin_b3_mg: { male: 16, female: 16, any: 16 },
   pantothenic_b5_mg: { male: 5, female: 5, any: 5 },
   vitamin_b6_mg: { male: 1.3, female: 1.3, any: 1.3 },
   vitamin_b12_ug: { male: 2.4, female: 2.4, any: 2.4 },
   folate_ug: { male: 400, female: 400, any: 400 },
-  vitamin_a_ug: { male: 900, female: 700, any: 800 },
-  vitamin_c_mg: { male: 90, female: 75, any: 82.5 },
+  vitamin_a_ug: { male: 900, female: 900, any: 900 },
+  vitamin_c_mg: { male: 90, female: 90, any: 90 },
   vitamin_d_ug: { male: 15, female: 15, any: 15 }, // 600 IU
   vitamin_d_iu: { male: 600, female: 600, any: 600 },
   vitamin_e_mg: { male: 15, female: 15, any: 15 },
-  vitamin_k_ug: { male: 120, female: 90, any: 105 },
+  vitamin_k_ug: { male: 120, female: 120, any: 120 },
   calcium_mg: { male: 1000, female: 1000, any: 1000 },
   copper_mg: { male: 0.9, female: 0.9, any: 0.9 },
-  iron_mg: { male: 8, female: 18, any: 13 },
-  magnesium_mg: { male: 400, female: 310, any: 355 },
-  manganese_mg: { male: 2.3, female: 1.8, any: 2.05 },
+  iron_mg: { male: 8, female: 8, any: 8 },
+  magnesium_mg: { male: 400, female: 400, any: 400 },
+  manganese_mg: { male: 2.3, female: 2.3, any: 2.3 },
   phosphorus_mg: { male: 700, female: 700, any: 700 },
-  potassium_mg: { male: 3400, female: 2600, any: 3000 },
+  potassium_mg: { male: 3400, female: 3400, any: 3400 },
   selenium_ug: { male: 55, female: 55, any: 55 },
   sodium_mg: { male: 1500, female: 1500, any: 1500 },
   salt_g: { male: 3.75, female: 3.75, any: 3.75 },
-  zinc_mg: { male: 11, female: 8, any: 9.5 },
-  vitamin_b1_mg: { male: 1.2, female: 1.1, any: 1.15 },
-  vitamin_b2_mg: { male: 1.3, female: 1.1, any: 1.2 },
+  zinc_mg: { male: 11, female: 11, any: 11 },
+  vitamin_b1_mg: { male: 1.2, female: 1.2, any: 1.2 },
+  vitamin_b2_mg: { male: 1.3, female: 1.3, any: 1.3 },
   vitamin_b5_mg: { male: 5, female: 5, any: 5 },
   alcohol_g: { any: 0 }
 };
+
+const INHERIT_FROM_MACRO_CODES = new Set(["protein_g", "carbs_g", "fat_g"]);
 
 const bodyweightCoeffByCode = {
   energy_kcal: 33,
@@ -305,6 +309,7 @@ const computeRdiTarget = ({ code, sex }) => {
 };
 
 const computeBodyweightTarget = ({ code, sex, weightKg }) => {
+  if (INHERIT_FROM_MACRO_CODES.has(String(code || ""))) return null;
   const coeff = toNum(bodyweightCoeffByCode[code]);
   const w = toNum(weightKg);
   if (coeff > 0 && w > 0) return coeff * w;
@@ -609,7 +614,6 @@ const KEY_NUTRIENT_CODES = [
   "starch_g",
   "sugars_g",
   "added_sugars_g",
-  "net_carbs_g",
   "monounsaturated_g",
   "polyunsaturated_g",
   "omega3_g",
@@ -617,8 +621,6 @@ const KEY_NUTRIENT_CODES = [
   "sat_fat_g",
   "trans_fat_g",
   "cholesterol_mg",
-  "caffeine_mg",
-  "water_g",
   "sodium_mg",
   "calcium_mg",
   "copper_mg",
@@ -656,8 +658,8 @@ const KEY_NUTRIENT_CODES = [
 ];
 
 const ALLOWED_TRACKED_NUTRIENT_CODES = new Set([
-  "energy_kcal", "alcohol_g", "caffeine_mg", "water_g",
-  "carbs_g", "fiber_g", "starch_g", "sugars_g", "added_sugars_g", "net_carbs_g",
+  "energy_kcal", "alcohol_g",
+  "carbs_g", "fiber_g", "starch_g", "sugars_g", "added_sugars_g",
   "fat_g", "monounsaturated_g", "polyunsaturated_g", "omega3_g", "omega6_g", "sat_fat_g", "trans_fat_g", "cholesterol_mg",
   "protein_g", "cystine_g", "histidine_g", "isoleucine_g", "leucine_g", "lysine_g", "methionine_g", "phenylalanine_g", "threonine_g", "tryptophan_g", "tyrosine_g", "valine_g",
   "thiamin_b1_mg", "riboflavin_b2_mg", "vitamin_b3_mg", "pantothenic_b5_mg", "vitamin_b6_mg", "vitamin_b12_ug", "folate_ug", "vitamin_a_ug", "vitamin_c_mg", "vitamin_d_ug", "vitamin_e_mg", "vitamin_k_ug",
@@ -727,34 +729,6 @@ const RAW_TO_CANONICAL_NUTRIENT_CODE = {
   usda_1095: "zinc_mg"
 };
 
-const OMEGA3_USDA_CODES = ["usda_1270", "usda_1271", "usda_1278", "usda_1279", "usda_1280"];
-const OMEGA6_USDA_CODES = ["usda_1269", "usda_1272", "usda_1273", "usda_1274"];
-
-const AMINO_ACID_ESTIMATE_FACTORS_FROM_PROTEIN = {
-  histidine_g: 0.03,
-  isoleucine_g: 0.06,
-  leucine_g: 0.12,
-  lysine_g: 0.105,
-  methionine_g: 0.022,
-  cystine_g: 0.012,
-  phenylalanine_g: 0.055,
-  tyrosine_g: 0.045,
-  threonine_g: 0.051,
-  tryptophan_g: 0.013,
-  valine_g: 0.067
-};
-
-const COMBINED_AMINO_ACID_SPLITS = {
-  methionine_cystine_g: [
-    { code: "methionine_g", ratio: 0.022 / (0.022 + 0.012) },
-    { code: "cystine_g", ratio: 0.012 / (0.022 + 0.012) }
-  ],
-  phenylalanine_tyrosine_g: [
-    { code: "phenylalanine_g", ratio: 0.055 / (0.055 + 0.045) },
-    { code: "tyrosine_g", ratio: 0.045 / (0.055 + 0.045) }
-  ]
-};
-
 const normalizeTrackedNutrientAmountMap = (inputMap) => {
   const amounts = new Map();
   for (const [rawCode, rawAmount] of inputMap.entries()) {
@@ -762,42 +736,6 @@ const normalizeTrackedNutrientAmountMap = (inputMap) => {
     const code = RAW_TO_CANONICAL_NUTRIENT_CODE[codeRaw] || codeRaw;
     if (!code) continue;
     amounts.set(code, toNum(amounts.get(code)) + toNum(rawAmount));
-  }
-
-  if (toNum(amounts.get("net_carbs_g")) <= 0) {
-    const carbs = toNum(amounts.get("carbs_g"));
-    const fiber = toNum(amounts.get("fiber_g"));
-    if (carbs > 0 || fiber > 0) {
-      amounts.set("net_carbs_g", Math.max(0, carbs - fiber));
-    }
-  }
-
-  if (toNum(amounts.get("omega3_g")) <= 0) {
-    const derivedOmega3 = OMEGA3_USDA_CODES.reduce((acc, code) => acc + toNum(inputMap.get(code)), 0);
-    if (derivedOmega3 > 0) amounts.set("omega3_g", derivedOmega3);
-  }
-  if (toNum(amounts.get("omega6_g")) <= 0) {
-    const derivedOmega6 = OMEGA6_USDA_CODES.reduce((acc, code) => acc + toNum(inputMap.get(code)), 0);
-    if (derivedOmega6 > 0) amounts.set("omega6_g", derivedOmega6);
-  }
-
-  for (const [combinedCode, splitRows] of Object.entries(COMBINED_AMINO_ACID_SPLITS)) {
-    const combinedAmount = toNum(amounts.get(combinedCode));
-    if (combinedAmount <= 0) continue;
-    for (const split of splitRows) {
-      const existing = toNum(amounts.get(split.code));
-      if (existing > 0) continue;
-      amounts.set(split.code, combinedAmount * split.ratio);
-    }
-  }
-
-  const proteinG = toNum(amounts.get("protein_g"));
-  if (proteinG > 0) {
-    for (const [code, factor] of Object.entries(AMINO_ACID_ESTIMATE_FACTORS_FROM_PROTEIN)) {
-      const existing = toNum(amounts.get(code));
-      if (existing > 0) continue;
-      amounts.set(code, proteinG * factor);
-    }
   }
 
   return amounts;
@@ -814,54 +752,6 @@ const normalizePer100gNutrientRows = (rows = []) => {
   return Array.from(normalizedMap.entries()).map(([nutrient_code, amount_per_100g]) => ({
     nutrient_code,
     amount_per_100g
-  }));
-};
-
-const listMissingTrackedMicronutrients = (rows = []) => {
-  const present = new Set(
-    (rows || [])
-      .map((r) => String(r?.nutrient_code || "").trim())
-      .filter((code) => ALLOWED_TRACKED_NUTRIENT_CODES.has(code))
-  );
-  return NON_MACRO_TRACKED_NUTRIENT_CODES.filter((code) => !present.has(code));
-};
-
-const mergePer100gRowsWithFallback = ({ primaryRows = [], fallbackRows = [] }) => {
-  const primaryMap = new Map();
-  for (const row of primaryRows || []) {
-    const code = String(row?.nutrient_code || "").trim();
-    if (!code || !ALLOWED_TRACKED_NUTRIENT_CODES.has(code)) continue;
-    primaryMap.set(code, toNum(row?.amount_per_100g));
-  }
-
-  const fallbackMap = new Map();
-  for (const row of fallbackRows || []) {
-    const code = String(row?.nutrient_code || "").trim();
-    if (!code || !ALLOWED_TRACKED_NUTRIENT_CODES.has(code)) continue;
-    fallbackMap.set(code, toNum(row?.amount_per_100g));
-  }
-
-  let injectedCount = 0;
-  for (const code of NON_MACRO_TRACKED_NUTRIENT_CODES) {
-    if (primaryMap.has(code)) continue;
-    if (!fallbackMap.has(code)) continue;
-    primaryMap.set(code, fallbackMap.get(code));
-    injectedCount += 1;
-  }
-
-  const merged = Array.from(primaryMap.entries()).map(([nutrient_code, amount_per_100g]) => ({
-    nutrient_code,
-    amount_per_100g
-  }));
-  return { merged, injectedCount };
-};
-
-const estimateAminoRowsFromProtein = (proteinG) => {
-  const protein = Math.max(0, toNum(proteinG));
-  if (protein <= 0) return [];
-  return Object.entries(AMINO_ACID_ESTIMATE_FACTORS_FROM_PROTEIN).map(([nutrient_code, factor]) => ({
-    nutrient_code,
-    amount: protein * factor
   }));
 };
 
@@ -1248,7 +1138,7 @@ const ensureDefaultMealPreset = async (user_id) => {
       .from("nutrition_meal_presets")
       .insert({
         user_id,
-        name: "Preset 1",
+        name: "Standard",
         is_default: true
       })
       .select("id, name, is_default, created_at, updated_at")
@@ -1503,86 +1393,6 @@ const findDeterministicFoodRefByName = async ({ user_id, food_name, matchCache }
     : null;
 
   matchCache.set(key, out);
-  return out;
-};
-
-const findMicronutrientDonorRowsByName = async ({ food_name, exclude_food_id = null, donorCache }) => {
-  const key = normalizedFoodKey(food_name);
-  if (!key) return [];
-  if (donorCache.has(key)) return donorCache.get(key);
-
-  const fullPattern = ilikePattern(food_name);
-  const token = String(food_name || "").trim().split(/\s+/).filter(Boolean)[0] || "";
-  const tokenPattern = ilikePattern(token);
-
-  const [foodsNameRes, foodsTokenRes] = await Promise.all([
-    supabase
-      .from("foods")
-      .select("id, name, brand, source")
-      .ilike("name", fullPattern)
-      .limit(40),
-    token
-      ? supabase
-          .from("foods")
-          .select("id, name, brand, source")
-          .ilike("name", tokenPattern)
-          .limit(40)
-      : Promise.resolve({ data: [], error: null })
-  ]);
-
-  if (foodsNameRes.error) throw new Error(foodsNameRes.error.message);
-  if (foodsTokenRes.error) throw new Error(foodsTokenRes.error.message);
-
-  const dedup = new Map();
-  for (const row of [...(foodsNameRes.data || []), ...(foodsTokenRes.data || [])]) {
-    if (!row?.id) continue;
-    if (exclude_food_id && row.id === exclude_food_id) continue;
-    if (!dedup.has(row.id)) dedup.set(row.id, row);
-  }
-  const candidates = Array.from(dedup.values());
-  const ids = candidates.map((c) => c.id).filter(Boolean);
-  if (ids.length === 0) {
-    donorCache.set(key, []);
-    return [];
-  }
-
-  const { data: nutrientRows, error: nutrientErr } = await supabase
-    .from("food_nutrients")
-    .select("food_id, nutrient_code, amount_per_100g")
-    .in("food_id", ids)
-    .in("nutrient_code", KEY_NUTRIENT_CODES);
-  if (nutrientErr) throw new Error(nutrientErr.message);
-
-  const byFood = new Map();
-  for (const row of nutrientRows || []) {
-    const foodId = row?.food_id;
-    if (!foodId) continue;
-    if (!byFood.has(foodId)) byFood.set(foodId, []);
-    byFood.get(foodId).push({
-      nutrient_code: row.nutrient_code,
-      amount_per_100g: row.amount_per_100g
-    });
-  }
-
-  const donor = candidates
-    .map((candidate) => {
-      const rows = normalizePer100gNutrientRows(byFood.get(candidate.id) || []);
-      const coverage = NON_MACRO_TRACKED_NUTRIENT_CODES.length - listMissingTrackedMicronutrients(rows).length;
-      const nameNorm = normalizedFoodKey(candidate.name);
-      const exactBoost = nameNorm === key ? 25 : 0;
-      const startsBoost = nameNorm.startsWith(key) ? 15 : 0;
-      const includesBoost = key && nameNorm.includes(key) ? 8 : 0;
-      const genericBoost = candidate.brand ? 0 : 3;
-      const usdaBoost = String(candidate.source || "").toLowerCase() === "usda" ? 10 : 0;
-      const offPenalty = String(candidate.source || "").toLowerCase() === "openfoodfacts" ? -6 : 0;
-      const score = coverage * 2 + exactBoost + startsBoost + includesBoost + genericBoost + usdaBoost + offPenalty;
-      return { rows, score };
-    })
-    .filter((x) => x.rows.length > 0)
-    .sort((a, b) => b.score - a.score)[0];
-
-  const out = donor?.rows || [];
-  donorCache.set(key, out);
   return out;
 };
 
@@ -2173,7 +1983,6 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
     const nutrientCache = new Map();
     const conversionCache = new Map();
     const matchCache = new Map();
-    const donorCache = new Map();
     const stagedItems = [];
     const aiCandidates = [];
 
@@ -2216,55 +2025,14 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
         nutrientCache.set(cacheKey, per100gRows);
       }
 
-      if (!Array.isArray(per100gRows) || per100gRows.length === 0 || micronutrientRowCount(per100gRows) === 0) {
-        const autoMatch = await findDeterministicFoodRefByName({
-          user_id,
-          food_name: resolvedItem.food_name,
-          matchCache
-        });
-        if (autoMatch && (autoMatch.food_id !== resolvedItem.food_id || autoMatch.user_food_id !== resolvedItem.user_food_id)) {
-          resolvedItem.food_id = autoMatch.food_id || null;
-          resolvedItem.user_food_id = autoMatch.user_food_id || null;
-          const retryCacheKey = resolvedItem.food_id ? `food:${resolvedItem.food_id}` : `user_food:${resolvedItem.user_food_id}`;
-          per100gRows = nutrientCache.get(retryCacheKey);
-          if (!per100gRows) {
-            per100gRows = await fetchPer100gNutrients({
-              food_id: resolvedItem.food_id,
-              user_food_id: resolvedItem.user_food_id
-            });
-            per100gRows = normalizePer100gNutrientRows(per100gRows);
-            nutrientCache.set(retryCacheKey, per100gRows);
-          }
-          if (Array.isArray(per100gRows) && per100gRows.length > 0 && micronutrientRowCount(per100gRows) > 0) {
-            warnings.push(`"${resolvedItem.food_name}": selected food lacked micronutrients, switched to a better verified match.`);
-          }
-        }
-      }
-
       if (!Array.isArray(per100gRows) || per100gRows.length === 0) {
         warnings.push(`"${resolvedItem.food_name}": no nutrient rows found for selected food, using AI fallback.`);
         aiCandidates.push(resolvedItem);
         continue;
       }
 
-      const missingBefore = listMissingTrackedMicronutrients(per100gRows);
-      if (missingBefore.length > 0) {
-        const donorRows = await findMicronutrientDonorRowsByName({
-          food_name: resolvedItem.food_name,
-          exclude_food_id: resolvedItem.food_id || null,
-          donorCache
-        });
-        if (donorRows.length > 0) {
-          const merged = mergePer100gRowsWithFallback({
-            primaryRows: per100gRows,
-            fallbackRows: donorRows
-          });
-          per100gRows = merged.merged;
-        }
-      }
-
       if (micronutrientRowCount(per100gRows) === 0) {
-        warnings.push(`"${resolvedItem.food_name}": deterministic macros found, but micronutrients were unavailable after fallback.`);
+        warnings.push(`"${resolvedItem.food_name}": deterministic macros found, but micronutrients were unavailable in the selected food profile.`);
       }
 
       const scaledRows = per100gRows
@@ -2313,27 +2081,7 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
           fats_g: Math.max(0, Math.round(toNum(matched?.fats_g)))
         };
         const grams = await resolveItemGrams({ item: it, conversionCache });
-        const scaledMap = new Map();
-        if (Number.isFinite(Number(grams)) && Number(grams) > 0) {
-          const donorRows = await findMicronutrientDonorRowsByName({
-            food_name: it.food_name,
-            donorCache
-          });
-          for (const row of donorRows || []) {
-            const code = String(row?.nutrient_code || "");
-            if (!code || !ALLOWED_TRACKED_NUTRIENT_CODES.has(code) || MACRO_NUTRIENT_CODES.has(code)) continue;
-            scaledMap.set(code, scalePer100g(row?.amount_per_100g, grams));
-          }
-        }
-        for (const row of estimateAminoRowsFromProtein(macros.protein_g)) {
-          if (!scaledMap.has(row.nutrient_code)) {
-            scaledMap.set(row.nutrient_code, row.amount);
-          }
-        }
-        const scaledRows = Array.from(scaledMap.entries()).map(([nutrient_code, amount]) => ({
-          nutrient_code,
-          amount
-        }));
+        const scaledRows = [];
         stagedItems.push({
           ...it,
           grams,
@@ -3488,12 +3236,20 @@ app.get("/api/nutrition/micro-targets", async (req, res) => {
     const weightKg = toNum(profileRes.data?.current_weight_kg);
     const overridesMap = new Map(((overridesRes.data || [])).map((r) => [r.nutrient_code, toNum(r.target_amount)]));
 
-    const items = (nutrientsRes.data || []).map((n) => {
+    const filteredNutrients = (nutrientsRes.data || []).filter((n) =>
+      ALLOWED_TRACKED_NUTRIENT_CODES.has(String(n?.code || "").trim())
+    );
+
+    const items = filteredNutrients.map((n) => {
       const code = String(n.code || "");
       const overrideVal = overridesMap.get(code);
       let target_amount = null;
       let basis = mode;
 
+      if (INHERIT_FROM_MACRO_CODES.has(code)) {
+        target_amount = null;
+        basis = "macro_goal";
+      } else
       if (mode === "custom" && Number.isFinite(overrideVal) && overrideVal >= 0) {
         target_amount = overrideVal;
         basis = "custom";
@@ -3652,7 +3408,7 @@ app.post("/api/nutrition/meal-presets", async (req, res) => {
     const user_id = String(body.user_id || body.userId || "").trim();
     const preset_id = String(body.preset_id || body.presetId || "").trim();
     const nameRaw = String(body.name || "").trim();
-    const name = (nameRaw || "Preset 1").slice(0, 80);
+    const name = (nameRaw || (preset_id ? "Standard" : "Enter Preset Name")).slice(0, 80);
     const makeDefault = Boolean(body.make_default ?? body.makeDefault ?? false);
     const segments = normalizeMealSegmentsInput(body.segments || []);
 

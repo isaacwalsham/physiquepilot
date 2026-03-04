@@ -22,9 +22,25 @@ const DEFAULT_MEAL_SEGMENTS = [
   { key: "dinner", label: "Dinner", position: 3 },
   { key: "snacks", label: "Snacks", position: 4 }
 ];
+const DEFAULT_PRESET_NAME = "Standard";
+const DEFAULT_CUSTOM_PRESET_NAME = "Enter Preset Name";
+const DEFAULT_CUSTOM_MEAL_SEGMENTS = [
+  { key: "meal_1", label: "Meal 1", position: 1 },
+  { key: "meal_2", label: "Meal 2", position: 2 },
+  { key: "meal_3", label: "Meal 3", position: 3 },
+  { key: "meal_4", label: "Meal 4", position: 4 }
+];
 const MACRO_CODES = new Set(["energy_kcal", "protein_g", "carbs_g", "fat_g", "alcohol_g"]);
 const HIDDEN_MICRO_CODES = new Set(["net_carbs_g"]);
 const NUTRITION_UI_PREFS_KEY = "nutrition_ui_prefs_v1";
+const MICRO_SCOPE_CODES = new Set([
+  "thiamin_b1_mg", "riboflavin_b2_mg", "vitamin_b3_mg", "pantothenic_b5_mg", "vitamin_b6_mg", "vitamin_b12_ug",
+  "folate_ug", "vitamin_a_ug", "vitamin_c_mg", "vitamin_d_ug", "vitamin_e_mg", "vitamin_k_ug",
+  "calcium_mg", "copper_mg", "iron_mg", "magnesium_mg", "manganese_mg", "phosphorus_mg", "potassium_mg", "selenium_ug", "sodium_mg", "zinc_mg",
+  "fiber_g", "starch_g", "sugars_g", "added_sugars_g",
+  "cholesterol_mg", "monounsaturated_g", "polyunsaturated_g", "omega3_g", "omega6_g", "sat_fat_g", "trans_fat_g",
+  "cystine_g", "histidine_g", "isoleucine_g", "leucine_g", "lysine_g", "methionine_g", "phenylalanine_g", "threonine_g", "tryptophan_g", "tyrosine_g", "valine_g"
+]);
 
 const clampInt = (v, min, max) => {
   const n = Math.round(Number(v) || 0);
@@ -64,14 +80,22 @@ const formatNutrientAmount = (v) => {
 const NUTRIENT_LABEL_OVERRIDES = {
   caffeine_mg: "Caffeine",
   water_g: "Water",
-  fiber_g: "Dietary Fibre",
+  fiber_g: "Fibre",
   starch_g: "Starch",
   sugars_g: "Sugars",
-  omega3_g: "Omega 3",
-  omega6_g: "Omega 6",
-  omega_3_g: "Omega 3",
-  omega_6_g: "Omega 6",
+  added_sugars_g: "Added Sugars",
+  omega3_g: "Omega-3",
+  omega6_g: "Omega-6",
+  omega_3_g: "Omega-3",
+  omega_6_g: "Omega-6",
   cholesterol_mg: "Cholesterol",
+  monounsaturated_g: "Fat (Monounsaturated)",
+  polyunsaturated_g: "Fat (Polyunsaturated)",
+  sat_fat_g: "Fat (Saturated)",
+  trans_fat_g: "Fat (Trans)",
+  carbs_g: "Carbs (Total)",
+  fat_g: "Fat",
+  protein_g: "Protein",
   histidine_g: "Histidine",
   isoleucine_g: "Isoleucine",
   leucine_g: "Leucine",
@@ -83,13 +107,13 @@ const NUTRIENT_LABEL_OVERRIDES = {
   tryptophan_g: "Tryptophan",
   tyrosine_g: "Tyrosine",
   valine_g: "Valine",
-  thiamin_b1_mg: "B1",
-  riboflavin_b2_mg: "B2",
-  vitamin_b3_mg: "B3",
-  pantothenic_b5_mg: "B5",
-  vitamin_b6_mg: "B6",
-  folate_ug: "B9",
-  vitamin_b12_ug: "B12",
+  thiamin_b1_mg: "B1 (Thiamine)",
+  riboflavin_b2_mg: "B2 (Riboflavin)",
+  vitamin_b3_mg: "B3 (Niacin)",
+  pantothenic_b5_mg: "B5 (Pantothenic Acid)",
+  vitamin_b6_mg: "B6 (Pyridoxine)",
+  vitamin_b12_ug: "B12 (Cobalamin)",
+  folate_ug: "Folate",
   vitamin_a_ug: "Vitamin A",
   vitamin_c_mg: "Vitamin C",
   vitamin_d_ug: "Vitamin D",
@@ -105,11 +129,6 @@ const NUTRIENT_LABEL_OVERRIDES = {
   selenium_ug: "Selenium",
   sodium_mg: "Sodium",
   zinc_mg: "Zinc",
-  monounsaturated_g: "Monounsaturated Fat",
-  polyunsaturated_g: "Polyunsaturated Fat",
-  sat_fat_g: "Saturated Fat",
-  trans_fat_g: "Trans Fat",
-  added_sugars_g: "Added Sugars",
   net_carbs_g: "Net Carbs"
 };
 
@@ -119,37 +138,88 @@ const NUTRIENT_LABEL_TEXT_OVERRIDES = {
   "vitamin d (d2 + d3), international units": "Vitamin D",
   "vitamin k (phylloquinone)": "Vitamin K",
   "(phylloquinone)": "Vitamin K",
-  "total dietary fiber (aoac 2011.25)": "Dietary Fibre",
+  "total dietary fiber (aoac 2011.25)": "Fibre",
   "total ascorbic acid": "Vitamin C",
-  "pantothenic acid": "B5",
-  "pantheotic acid": "B5"
+  "pantothenic acid": "B5 (Pantothenic Acid)",
+  "pantheotic acid": "B5 (Pantothenic Acid)"
 };
 
 const VITAMIN_B_ORDER = {
   thiamin_b1_mg: 1,
   riboflavin_b2_mg: 2,
   vitamin_b3_mg: 3,
-  pantothenic_b5_mg: 5,
-  vitamin_b6_mg: 6,
-  folate_ug: 9,
-  vitamin_b12_ug: 12
+  pantothenic_b5_mg: 4,
+  vitamin_b6_mg: 5,
+  vitamin_b12_ug: 6,
+  folate_ug: 7
 };
 
 const GROUP_SORT_ORDER = {
-  General: 1,
-  Carbohydrates: 2,
-  Lipids: 3,
-  Protein: 4,
-  Vitamins: 5,
-  Minerals: 6,
+  Vitamins: 1,
+  Minerals: 2,
+  Carbohydrates: 3,
+  Lipids: 4,
+  Protein: 5,
+  General: 6,
   Other: 7
+};
+
+const NUTRIENT_DISPLAY_ORDER = {
+  thiamin_b1_mg: 1,
+  riboflavin_b2_mg: 2,
+  vitamin_b3_mg: 3,
+  pantothenic_b5_mg: 4,
+  vitamin_b6_mg: 5,
+  vitamin_b12_ug: 6,
+  folate_ug: 7,
+  vitamin_a_ug: 8,
+  vitamin_c_mg: 9,
+  vitamin_d_ug: 10,
+  vitamin_e_mg: 11,
+  vitamin_k_ug: 12,
+
+  calcium_mg: 101,
+  copper_mg: 102,
+  iron_mg: 103,
+  magnesium_mg: 104,
+  manganese_mg: 105,
+  phosphorus_mg: 106,
+  potassium_mg: 107,
+  selenium_ug: 108,
+  sodium_mg: 109,
+  zinc_mg: 110,
+
+  fiber_g: 201,
+  starch_g: 202,
+  sugars_g: 203,
+  added_sugars_g: 204,
+
+  cholesterol_mg: 301,
+  monounsaturated_g: 302,
+  polyunsaturated_g: 303,
+  omega3_g: 304,
+  omega6_g: 305,
+  sat_fat_g: 306,
+  trans_fat_g: 307,
+
+  cystine_g: 401,
+  histidine_g: 402,
+  isoleucine_g: 403,
+  leucine_g: 404,
+  lysine_g: 405,
+  methionine_g: 406,
+  phenylalanine_g: 407,
+  threonine_g: 408,
+  tryptophan_g: 409,
+  tyrosine_g: 410,
+  valine_g: 411
 };
 
 const formatNutrientUnit = (unit) => {
   const u = String(unit || "").trim().toLowerCase();
   if (!u) return "";
   if (u === "international units" || u === "international unit" || u === "iu") return "IU";
-  if (u === "microgram" || u === "micrograms") return "ug";
+  if (u === "microgram" || u === "micrograms" || u === "ug" || u === "mcg") return "µg";
   if (u === "milligram" || u === "milligrams") return "mg";
   return unit;
 };
@@ -192,11 +262,13 @@ const displayNutrientGroup = (code, group) => {
 
 const nutrientSortKey = (row) => {
   const group = displayNutrientGroup(row?.code, row?.sort_group);
+  const code = String(row?.code || "");
   return {
     groupOrder: GROUP_SORT_ORDER[group] || 99,
     group,
+    customOrder: NUTRIENT_DISPLAY_ORDER[code] || 9999,
     sortOrder: Number(row?.sort_order || 0),
-    bOrder: VITAMIN_B_ORDER[row?.code] || 999
+    bOrder: VITAMIN_B_ORDER[code] || 999
   };
 };
 
@@ -223,7 +295,6 @@ export default function Nutrition() {
 
   const [userId, setUserId] = useState(null);
   const [tab, setTab] = useState("log");
-  const [showMealPresetSection, setShowMealPresetSection] = useState(true);
   const [showMicronutrientsSection, setShowMicronutrientsSection] = useState(true);
 
   const [todayType, setTodayType] = useState("rest");
@@ -265,7 +336,7 @@ export default function Nutrition() {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [mealPresets, setMealPresets] = useState([]);
   const [activePresetId, setActivePresetId] = useState("");
-  const [presetNameDraft, setPresetNameDraft] = useState("Preset 1");
+  const [presetNameDraft, setPresetNameDraft] = useState(DEFAULT_PRESET_NAME);
   const [presetSegmentsDraft, setPresetSegmentsDraft] = useState(DEFAULT_MEAL_SEGMENTS);
   const [newSegmentLabel, setNewSegmentLabel] = useState("");
   const [savingPreset, setSavingPreset] = useState(false);
@@ -281,7 +352,6 @@ export default function Nutrition() {
   const [mealEntryFood, setMealEntryFood] = useState("");
   const [mealEntryQty, setMealEntryQty] = useState("");
   const [mealEntryUnit, setMealEntryUnit] = useState("g");
-  const [mealEntryState, setMealEntryState] = useState("raw");
   const [mealEntryFoodId, setMealEntryFoodId] = useState(null);
   const [mealEntryUserFoodId, setMealEntryUserFoodId] = useState(null);
   const [mealEntryResolving, setMealEntryResolving] = useState(false);
@@ -293,7 +363,6 @@ export default function Nutrition() {
   const [savedMealSegment, setSavedMealSegment] = useState("breakfast");
   const [collapsedSections, setCollapsedSections] = useState({
     foodLog: false,
-    mealPreset: true,
     savedMeals: true,
     logEntries: false,
     notes: true,
@@ -441,9 +510,6 @@ export default function Nutrition() {
       const raw = localStorage.getItem(NUTRITION_UI_PREFS_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw);
-      if (typeof parsed?.showMealPresetSection === "boolean") {
-        setShowMealPresetSection(parsed.showMealPresetSection);
-      }
       if (typeof parsed?.showMicronutrientsSection === "boolean") {
         setShowMicronutrientsSection(parsed.showMicronutrientsSection);
       }
@@ -457,24 +523,25 @@ export default function Nutrition() {
       localStorage.setItem(
         NUTRITION_UI_PREFS_KEY,
         JSON.stringify({
-          showMealPresetSection,
           showMicronutrientsSection
         })
       );
     } catch (_e) {
       // no-op (private mode/storage disabled)
     }
-  }, [showMealPresetSection, showMicronutrientsSection]);
+  }, [showMicronutrientsSection]);
 
   const templateMicroRows = useMemo(() => {
     const fromDay = (dayNutrients || [])
       .filter((n) => !MACRO_CODES.has(String(n.code || "")))
-      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")));
+      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")))
+      .filter((n) => MICRO_SCOPE_CODES.has(String(n.code || "")));
     if (fromDay.length > 0) return fromDay;
 
     return Object.keys(microTargetsByCode || {})
       .filter((code) => !MACRO_CODES.has(String(code || "")))
       .filter((code) => !HIDDEN_MICRO_CODES.has(String(code || "")))
+      .filter((code) => MICRO_SCOPE_CODES.has(String(code || "")))
       .map((code) => ({
         code,
         label: displayNutrientLabel(code, code),
@@ -488,7 +555,8 @@ export default function Nutrition() {
   const scopedMicroRows = useMemo(() => {
     const scoped = (effectiveDayNutrients || [])
       .filter((n) => !MACRO_CODES.has(String(n.code || "")))
-      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")));
+      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")))
+      .filter((n) => MICRO_SCOPE_CODES.has(String(n.code || "")));
     if (templateMicroRows.length === 0) return scoped;
 
     const scopedByCode = new Map(scoped.map((row) => [String(row.code || ""), row]));
@@ -521,6 +589,9 @@ export default function Nutrition() {
         const kb = nutrientSortKey(b);
         if (ka.groupOrder !== kb.groupOrder) {
           return ka.groupOrder - kb.groupOrder;
+        }
+        if (ka.customOrder !== kb.customOrder) {
+          return ka.customOrder - kb.customOrder;
         }
         if (ka.group !== kb.group) {
           return String(ka.group).localeCompare(String(kb.group));
@@ -726,7 +797,7 @@ export default function Nutrition() {
       null;
     if (current) {
       setActivePresetId(current.id);
-      setPresetNameDraft(current.name || "Preset 1");
+      setPresetNameDraft(current.name || DEFAULT_PRESET_NAME);
       setPresetSegmentsDraft(
         (Array.isArray(current.segments) && current.segments.length > 0 ? current.segments : DEFAULT_MEAL_SEGMENTS).map((s, idx) => ({
           key: normalizeSegmentKey(s?.key || s?.segment_key || s?.label || `segment_${idx + 1}`),
@@ -754,11 +825,11 @@ export default function Nutrition() {
   const resetPresetDraftToCurrent = () => {
     const current = mealPresets.find((p) => p.id === activePresetId);
     if (!current) {
-      setPresetNameDraft("Preset 1");
+      setPresetNameDraft(DEFAULT_PRESET_NAME);
       setPresetSegmentsDraft(DEFAULT_MEAL_SEGMENTS);
       return;
     }
-    setPresetNameDraft(String(current.name || "Preset 1"));
+    setPresetNameDraft(String(current.name || DEFAULT_PRESET_NAME));
     const segs = Array.isArray(current.segments) && current.segments.length > 0 ? current.segments : DEFAULT_MEAL_SEGMENTS;
     setPresetSegmentsDraft(
       segs.map((s, idx) => ({
@@ -768,6 +839,20 @@ export default function Nutrition() {
       }))
     );
   };
+
+  useEffect(() => {
+    const current = mealPresets.find((p) => p.id === activePresetId);
+    if (!current) return;
+    setPresetNameDraft(String(current.name || DEFAULT_PRESET_NAME));
+    const segs = Array.isArray(current.segments) && current.segments.length > 0 ? current.segments : DEFAULT_MEAL_SEGMENTS;
+    setPresetSegmentsDraft(
+      segs.map((s, idx) => ({
+        key: normalizeSegmentKey(s?.key || s?.segment_key || s?.label || `segment_${idx + 1}`),
+        label: String(s?.label || s?.name || "").trim() || `Segment ${idx + 1}`,
+        position: Number(s?.position || idx + 1)
+      }))
+    );
+  }, [activePresetId, mealPresets]);
 
   const upsertPreset = async ({ createNew = false } = {}) => {
     if (!userId) return;
@@ -787,7 +872,7 @@ export default function Nutrition() {
         body: JSON.stringify({
           user_id: userId,
           preset_id: createNew ? null : activePresetId || null,
-          name: String(presetNameDraft || "").trim() || "Preset 1",
+          name: String(presetNameDraft || "").trim() || (createNew ? DEFAULT_CUSTOM_PRESET_NAME : DEFAULT_PRESET_NAME),
           make_default: true,
           segments
         })
@@ -799,7 +884,7 @@ export default function Nutrition() {
         const target = j.items.find((p) => p.id === j.preset_id) || j.items.find((p) => p.is_default) || j.items[0];
         if (target) {
           setActivePresetId(target.id);
-          setPresetNameDraft(target.name || "Preset 1");
+          setPresetNameDraft(target.name || DEFAULT_PRESET_NAME);
           setPresetSegmentsDraft(
             (target.segments || DEFAULT_MEAL_SEGMENTS).map((s, idx) => ({
               key: normalizeSegmentKey(s?.key || s?.segment_key || s?.label || `segment_${idx + 1}`),
@@ -834,7 +919,7 @@ export default function Nutrition() {
       const target = items.find((p) => p.is_default) || items[0] || null;
       if (target) {
         setActivePresetId(target.id);
-        setPresetNameDraft(String(target.name || "Preset 1"));
+        setPresetNameDraft(String(target.name || DEFAULT_PRESET_NAME));
         setPresetSegmentsDraft(
           (target.segments || DEFAULT_MEAL_SEGMENTS).map((s, idx) => ({
             key: normalizeSegmentKey(s?.key || s?.segment_key || s?.label || `segment_${idx + 1}`),
@@ -911,7 +996,6 @@ export default function Nutrition() {
       setMealEntryFood("");
       setMealEntryQty("");
       setMealEntryUnit("g");
-      setMealEntryState("raw");
       setMealEntryFoodId(null);
       setMealEntryUserFoodId(null);
       setMealEntryFoodLocked(false);
@@ -1020,13 +1104,13 @@ export default function Nutrition() {
         } catch (mealErr) {
           const fallbackPreset = {
             id: "local-default",
-            name: "Preset 1",
+            name: DEFAULT_PRESET_NAME,
             is_default: true,
             segments: DEFAULT_MEAL_SEGMENTS
           };
           setMealPresets([fallbackPreset]);
           setActivePresetId("local-default");
-          setPresetNameDraft("Preset 1");
+          setPresetNameDraft(DEFAULT_PRESET_NAME);
           setPresetSegmentsDraft(DEFAULT_MEAL_SEGMENTS);
           setSavedMeals([]);
           setSavedMealSelection("");
@@ -1603,7 +1687,7 @@ export default function Nutrition() {
           food: resolved.food_name || food,
           qty,
           unit: mealEntryUnit,
-          state: mealEntryState,
+          state: "raw",
           food_id: resolved.food_id,
           user_food_id: resolved.user_food_id
         }
@@ -1612,7 +1696,6 @@ export default function Nutrition() {
       setMealEntryFood("");
       setMealEntryQty("");
       setMealEntryUnit("g");
-      setMealEntryState("raw");
       setMealEntryFoodId(null);
       setMealEntryUserFoodId(null);
       setMealEntryFoodLocked(false);
@@ -1630,7 +1713,7 @@ export default function Nutrition() {
             food,
             qty,
             unit: mealEntryUnit,
-            state: mealEntryState,
+            state: "raw",
             food_id: null,
             user_food_id: null
           }
@@ -1638,7 +1721,6 @@ export default function Nutrition() {
         setMealEntryFood("");
         setMealEntryQty("");
         setMealEntryUnit("g");
-        setMealEntryState("raw");
         setMealEntryFoodId(null);
         setMealEntryUserFoodId(null);
         setMealEntryFoodLocked(false);
@@ -2025,86 +2107,7 @@ export default function Nutrition() {
                 </div>
 
                 <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
-                  {showMealPresetSection ? (
-                    <div style={{ border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.65rem" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
-                        <div style={{ fontWeight: 700 }}>Meal Preset</div>
-                        <button type="button" onClick={() => toggleSection("mealPreset")} style={collapseBtn}>
-                          {isCollapsed("mealPreset") ? "Expand" : "Collapse"}
-                        </button>
-                      </div>
-                      {!isCollapsed("mealPreset") ? (
-                        <>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: "0.55rem" }}>
-                            <select value={activePresetId} onChange={(e) => setActivePresetId(e.target.value)} style={field}>
-                              {mealPresets.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                              ))}
-                            </select>
-                            <button type="button" onClick={resetPresetDraftToCurrent} style={subtleBtn}>Reset draft</button>
-                          </div>
-                          <input
-                            value={presetNameDraft}
-                            onChange={(e) => setPresetNameDraft(e.target.value)}
-                            placeholder="Preset name"
-                            style={field}
-                          />
-                          <div style={{ display: "grid", gap: "0.45rem" }}>
-                            {presetSegmentsDraft.map((seg, idx) => (
-                              <div key={`${seg.key}-${idx}`} style={{ display: "grid", gridTemplateColumns: "1fr 96px", gap: "0.5rem" }}>
-                                <input
-                                  value={seg.label}
-                                  onChange={(e) =>
-                                    setPresetSegmentsDraft((prev) =>
-                                      prev.map((row, i) => (i === idx ? { ...row, label: e.target.value } : row))
-                                    )
-                                  }
-                                  placeholder={`Segment ${idx + 1}`}
-                                  style={field}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setPresetSegmentsDraft((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
-                                  }
-                                  style={subtleBtn}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.5rem" }}>
-                            <input value={newSegmentLabel} onChange={(e) => setNewSegmentLabel(e.target.value)} placeholder="Add segment..." style={field} />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const label = String(newSegmentLabel || "").trim();
-                                if (!label) return;
-                                const key = normalizeSegmentKey(label);
-                                if (presetSegmentsDraft.some((s) => normalizeSegmentKey(s.key) === key)) {
-                                  setNewSegmentLabel("");
-                                  return;
-                                }
-                                setPresetSegmentsDraft((prev) => [...prev, { key, label, position: prev.length + 1 }]);
-                                setNewSegmentLabel("");
-                              }}
-                              style={subtleBtn}
-                            >
-                              Add segment
-                            </button>
-                          </div>
-                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                            <button type="button" disabled={savingPreset} onClick={() => upsertPreset({ createNew: true })} style={subtleBtn}>Create new</button>
-                            <button type="button" disabled={savingPreset || !activePresetId} onClick={deleteActivePreset} style={subtleBtn}>Delete preset</button>
-                            <button type="button" disabled={savingPreset} onClick={() => upsertPreset({ createNew: false })} style={primaryBtn(savingPreset)}>Save preset</button>
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  <div style={{ border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.65rem" }}>
+                  <div style={{ order: 2, border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.65rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
                       <div style={{ fontWeight: 700 }}>Saved Meals</div>
                       <button type="button" onClick={() => toggleSection("savedMeals")} style={collapseBtn}>
@@ -2173,16 +2176,12 @@ export default function Nutrition() {
                               </div>
                             ) : null}
                           </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "120px 120px 1fr 120px", gap: "0.5rem", alignItems: "center" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "120px 120px 1fr", gap: "0.5rem", alignItems: "center" }}>
                             <input value={mealEntryQty} onChange={(e) => setMealEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
                             <select value={mealEntryUnit} onChange={(e) => setMealEntryUnit(e.target.value)} style={field}>
                               {UNIT_OPTIONS.map((u) => (
                                 <option key={u} value={u}>{u}</option>
                               ))}
-                            </select>
-                            <select value={mealEntryState} onChange={(e) => setMealEntryState(e.target.value)} style={field}>
-                              <option value="raw">raw</option>
-                              <option value="cooked">cooked</option>
                             </select>
                             <button
                               type="button"
@@ -2216,7 +2215,6 @@ export default function Nutrition() {
                                 setMealEntryFood("");
                                 setMealEntryQty("");
                                 setMealEntryUnit("g");
-                                setMealEntryState("raw");
                                 setMealEntryFoodId(null);
                                 setMealEntryUserFoodId(null);
                                 setMealEntryFoodLocked(false);
@@ -2250,7 +2248,7 @@ export default function Nutrition() {
                     ) : null}
                   </div>
 
-                  <div style={{ border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.6rem" }}>
+                  <div style={{ order: 1, border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.6rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
                       <div style={{ fontWeight: 700 }}>Logged Items</div>
                       <button type="button" onClick={() => toggleSection("logEntries")} style={collapseBtn}>
@@ -2677,18 +2675,100 @@ export default function Nutrition() {
               <div style={{ ...card, display: "grid", gap: "0.9rem" }}>
                 <div style={{ fontWeight: 800 }}>Nutrition Settings</div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem" }}>
-                  <div>
-                    <div style={{ color: "#fff", fontWeight: 700 }}>Show meal preset editor</div>
-                    <div style={{ color: "#888", marginTop: "0.2rem", fontSize: "0.88rem" }}>Controls the Meal Preset section in your food log.</div>
+                <div style={{ border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.65rem" }}>
+                  <div style={{ fontWeight: 700 }}>Meal Presets</div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: "0.55rem" }}>
+                    <select value={activePresetId} onChange={(e) => setActivePresetId(e.target.value)} style={field}>
+                      {mealPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={resetPresetDraftToCurrent} style={subtleBtn}>Reset draft</button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowMealPresetSection((prev) => !prev)}
-                    style={pill(showMealPresetSection)}
-                  >
-                    {showMealPresetSection ? "On" : "Off"}
-                  </button>
+
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPresetNameDraft(DEFAULT_PRESET_NAME);
+                        setPresetSegmentsDraft(DEFAULT_MEAL_SEGMENTS.map((seg) => ({ ...seg })));
+                      }}
+                      style={subtleBtn}
+                    >
+                      Use Standard template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPresetNameDraft(DEFAULT_CUSTOM_PRESET_NAME);
+                        setPresetSegmentsDraft(DEFAULT_CUSTOM_MEAL_SEGMENTS.map((seg) => ({ ...seg })));
+                      }}
+                      style={subtleBtn}
+                    >
+                      Use Custom template
+                    </button>
+                  </div>
+
+                  <input
+                    value={presetNameDraft}
+                    onChange={(e) => setPresetNameDraft(e.target.value)}
+                    placeholder="Preset name"
+                    style={field}
+                  />
+
+                  <div style={{ display: "grid", gap: "0.45rem" }}>
+                    {presetSegmentsDraft.map((seg, idx) => (
+                      <div key={`${seg.key}-${idx}`} style={{ display: "grid", gridTemplateColumns: "1fr 96px", gap: "0.5rem" }}>
+                        <input
+                          value={seg.label}
+                          onChange={(e) =>
+                            setPresetSegmentsDraft((prev) =>
+                              prev.map((row, i) => (i === idx ? { ...row, label: e.target.value } : row))
+                            )
+                          }
+                          placeholder={`Segment ${idx + 1}`}
+                          style={field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPresetSegmentsDraft((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
+                          }
+                          style={subtleBtn}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.5rem" }}>
+                    <input value={newSegmentLabel} onChange={(e) => setNewSegmentLabel(e.target.value)} placeholder="Add segment..." style={field} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const label = String(newSegmentLabel || "").trim();
+                        if (!label) return;
+                        const key = normalizeSegmentKey(label);
+                        if (presetSegmentsDraft.some((s) => normalizeSegmentKey(s.key) === key)) {
+                          setNewSegmentLabel("");
+                          return;
+                        }
+                        setPresetSegmentsDraft((prev) => [...prev, { key, label, position: prev.length + 1 }]);
+                        setNewSegmentLabel("");
+                      }}
+                      style={subtleBtn}
+                    >
+                      Add segment
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                    <button type="button" disabled={savingPreset} onClick={() => upsertPreset({ createNew: true })} style={subtleBtn}>Create new</button>
+                    <button type="button" disabled={savingPreset || !activePresetId} onClick={deleteActivePreset} style={subtleBtn}>Delete preset</button>
+                    <button type="button" disabled={savingPreset} onClick={() => upsertPreset({ createNew: false })} style={primaryBtn(savingPreset)}>Save preset</button>
+                  </div>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem" }}>
