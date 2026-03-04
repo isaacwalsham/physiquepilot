@@ -74,6 +74,63 @@ const toNum = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
 
 const normalizeUnit = (unit) => String(unit || "").trim().toLowerCase();
 const DB_ALLOWED_UNITS = new Set(["g", "kg", "oz", "lb", "ml", "l"]);
+const DEFAULT_MEAL_SEGMENTS = [
+  { key: "breakfast", label: "Breakfast", position: 1 },
+  { key: "lunch", label: "Lunch", position: 2 },
+  { key: "dinner", label: "Dinner", position: 3 },
+  { key: "snacks", label: "Snacks", position: 4 }
+];
+
+const normalizeMealSegmentKey = (segment) => {
+  const key = String(segment || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+  return key || "snacks";
+};
+
+const parseSourceTextMeta = (sourceText) => {
+  const raw = String(sourceText || "").trim();
+  if (!raw) return {};
+  return raw
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const idx = part.indexOf("=");
+      if (idx <= 0) return acc;
+      const key = part.slice(0, idx).trim().toLowerCase();
+      const value = part.slice(idx + 1).trim();
+      if (!key) return acc;
+      acc[key] = value;
+      return acc;
+    }, {});
+};
+
+const sanitizeMetaValue = (value, maxLen = 160) =>
+  String(value ?? "")
+    .replace(/[;=]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLen);
+
+const mergeSourceTextMeta = (sourceText, patch = {}) => {
+  const base = parseSourceTextMeta(sourceText);
+  for (const [k, v] of Object.entries(patch || {})) {
+    const key = String(k || "").trim().toLowerCase();
+    if (!key) continue;
+    const value = String(v ?? "").trim();
+    if (!value) {
+      delete base[key];
+    } else {
+      base[key] = value;
+    }
+  }
+  const parts = Object.entries(base).map(([k, v]) => `${k}=${v}`);
+  return parts.join(";");
+};
 
 const qtyToGrams = ({ qty, unit }) => {
   const q = toNum(qty);
@@ -1143,9 +1200,112 @@ const normalizeLogItems = (items = []) => {
       const cooked_state = String(it?.state || it?.cooked_state || "").trim().toLowerCase();
       const food_id = it?.food_id || it?.foodId || null;
       const user_food_id = it?.user_food_id || it?.userFoodId || null;
-      return { food_name, amount, unit, cooked_state, food_id, user_food_id };
+      const meal_segment = normalizeMealSegmentKey(it?.segment || it?.meal_segment || it?.mealSegment || "snacks");
+      const meal_instance_id = sanitizeMetaValue(it?.meal_instance_id || it?.mealInstanceId || "", 80);
+      const meal_name = sanitizeMetaValue(it?.meal_name || it?.mealName || "", 120);
+      return { food_name, amount, unit, cooked_state, food_id, user_food_id, meal_segment, meal_instance_id, meal_name };
     })
     .filter((it) => it.food_name && Number.isFinite(it.amount) && it.amount > 0 && it.unit && it.cooked_state);
+};
+
+const normalizeMealSegmentsInput = (segments = []) => {
+  const rows = Array.isArray(segments) ? segments : [];
+  const out = [];
+  const seen = new Set();
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    const labelRaw = typeof row === "string" ? row : row?.label || row?.name || row?.segment || row?.key || "";
+    const label = String(labelRaw || "").trim();
+    if (!label) continue;
+    const keySource = typeof row === "string" ? row : row?.key || label;
+    let key = normalizeMealSegmentKey(keySource);
+    if (!key) key = `segment_${i + 1}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      segment_key: key,
+      label: label.slice(0, 60),
+      position: Number.isFinite(Number(row?.position)) ? Number(row.position) : out.length + 1
+    });
+  }
+  if (out.length === 0) return DEFAULT_MEAL_SEGMENTS.map((x) => ({ ...x, segment_key: x.key })).map((x) => ({ segment_key: x.segment_key, label: x.label, position: x.position }));
+  return out
+    .sort((a, b) => Number(a.position) - Number(b.position))
+    .map((x, idx) => ({ ...x, position: idx + 1 }));
+};
+
+const ensureDefaultMealPreset = async (user_id) => {
+  const { data: presets, error: presetsErr } = await supabase
+    .from("nutrition_meal_presets")
+    .select("id, name, is_default, created_at, updated_at")
+    .eq("user_id", user_id)
+    .order("created_at", { ascending: true });
+  if (presetsErr) throw new Error(presetsErr.message);
+
+  let list = Array.isArray(presets) ? presets : [];
+  if (list.length === 0) {
+    const { data: insertedPreset, error: insertPresetErr } = await supabase
+      .from("nutrition_meal_presets")
+      .insert({
+        user_id,
+        name: "Preset 1",
+        is_default: true
+      })
+      .select("id, name, is_default, created_at, updated_at")
+      .single();
+    if (insertPresetErr) throw new Error(insertPresetErr.message);
+
+    const presetId = insertedPreset.id;
+    const segmentPayload = DEFAULT_MEAL_SEGMENTS.map((seg) => ({
+      preset_id: presetId,
+      segment_key: seg.key,
+      label: seg.label,
+      position: seg.position
+    }));
+    const { error: segErr } = await supabase.from("nutrition_meal_preset_segments").insert(segmentPayload);
+    if (segErr) throw new Error(segErr.message);
+    list = [insertedPreset];
+  }
+
+  const presetIds = list.map((p) => p.id).filter(Boolean);
+  const { data: segmentRows, error: segmentErr } = await supabase
+    .from("nutrition_meal_preset_segments")
+    .select("id, preset_id, segment_key, label, position")
+    .in("preset_id", presetIds)
+    .order("position", { ascending: true });
+  if (segmentErr) throw new Error(segmentErr.message);
+
+  const segByPreset = new Map();
+  for (const row of segmentRows || []) {
+    if (!segByPreset.has(row.preset_id)) segByPreset.set(row.preset_id, []);
+    segByPreset.get(row.preset_id).push({
+      id: row.id,
+      key: row.segment_key,
+      label: row.label,
+      position: Number(row.position || 0)
+    });
+  }
+
+  const normalized = list.map((preset) => {
+    const segs = segByPreset.get(preset.id) || [];
+    const finalSegments = segs.length > 0
+      ? segs.sort((a, b) => Number(a.position) - Number(b.position)).map((s, idx) => ({ ...s, position: idx + 1 }))
+      : DEFAULT_MEAL_SEGMENTS.map((seg) => ({ key: seg.key, label: seg.label, position: seg.position }));
+    return {
+      id: preset.id,
+      name: preset.name,
+      is_default: Boolean(preset.is_default),
+      segments: finalSegments
+    };
+  });
+
+  if (!normalized.some((p) => p.is_default) && normalized[0]) {
+    const first = normalized[0];
+    await supabase.from("nutrition_meal_presets").update({ is_default: true }).eq("id", first.id).eq("user_id", user_id);
+    first.is_default = true;
+  }
+
+  return normalized;
 };
 
 const aiKey = (it) =>
@@ -1474,13 +1634,20 @@ const fetchPer100gNutrients = async ({ food_id, user_food_id }) => {
 const fetchDaySummary = async ({ user_id, log_date }) => {
   const { data: itemRows, error: itemsErr } = await supabase
     .from("daily_nutrition_items")
-    .select("id, food_name, amount, unit, grams, cooked_state, source, food_id, user_food_id, calories, protein_g, carbs_g, fats_g")
+    .select("id, food_name, amount, unit, grams, cooked_state, source, source_text, food_id, user_food_id, calories, protein_g, carbs_g, fats_g")
     .eq("user_id", user_id)
     .eq("log_date", log_date)
     .order("created_at", { ascending: true });
   if (itemsErr) throw new Error(itemsErr.message);
 
-  const items = Array.isArray(itemRows) ? itemRows : [];
+  const items = (Array.isArray(itemRows) ? itemRows : []).map((row) => {
+    const meta = parseSourceTextMeta(row?.source_text);
+    const meal_segment = normalizeMealSegmentKey(meta?.meal_segment || "snacks");
+    const meal_instance_id = sanitizeMetaValue(meta?.meal_instance_id || "", 80) || null;
+    const meal_name = sanitizeMetaValue(meta?.meal_name || "", 120) || null;
+    return { ...row, meal_segment, meal_instance_id, meal_name };
+  });
+  const itemById = new Map(items.map((it) => [it.id, it]));
   const totals = items.reduce(
     (acc, it) => {
       acc.calories += Math.max(0, Math.round(toNum(it?.calories)));
@@ -1505,19 +1672,45 @@ const fetchDaySummary = async ({ user_id, log_date }) => {
     itemIds.length > 0
       ? await supabase
           .from("daily_nutrition_item_nutrients")
-          .select("nutrient_code, amount")
+          .select("item_id, nutrient_code, amount")
           .in("item_id", itemIds)
       : { data: [], error: null };
   if (nErr) throw new Error(nErr.message);
 
   const amountByCode = new Map();
+  const segmentAmountByCode = new Map();
   for (const row of nRows || []) {
+    const itemId = row?.item_id;
     const code = String(row?.nutrient_code || "");
     if (!code) continue;
     amountByCode.set(code, toNum(amountByCode.get(code)) + toNum(row?.amount));
+
+    const item = itemId ? itemById.get(itemId) : null;
+    const seg = normalizeMealSegmentKey(item?.meal_segment || "snacks");
+    if (!segmentAmountByCode.has(seg)) segmentAmountByCode.set(seg, new Map());
+    const segMap = segmentAmountByCode.get(seg);
+    segMap.set(code, toNum(segMap.get(code)) + toNum(row?.amount));
   }
 
   totals.alcohol_g = Math.max(0, Math.round(toNum(amountByCode.get("alcohol_g")) * 10) / 10);
+
+  const segmentTotalsByKey = {};
+  for (const it of items) {
+    const seg = normalizeMealSegmentKey(it?.meal_segment || "snacks");
+    if (!segmentTotalsByKey[seg]) {
+      segmentTotalsByKey[seg] = { calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0, alcohol_g: 0 };
+    }
+    segmentTotalsByKey[seg].calories += Math.max(0, Math.round(toNum(it?.calories)));
+    segmentTotalsByKey[seg].protein_g += Math.max(0, Math.round(toNum(it?.protein_g)));
+    segmentTotalsByKey[seg].carbs_g += Math.max(0, Math.round(toNum(it?.carbs_g)));
+    segmentTotalsByKey[seg].fats_g += Math.max(0, Math.round(toNum(it?.fats_g)));
+  }
+  for (const [seg, segMap] of segmentAmountByCode.entries()) {
+    if (!segmentTotalsByKey[seg]) {
+      segmentTotalsByKey[seg] = { calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0, alcohol_g: 0 };
+    }
+    segmentTotalsByKey[seg].alcohol_g = Math.max(0, Math.round(toNum(segMap.get("alcohol_g")) * 10) / 10);
+  }
 
   const fallbackUnitForCode = (code) => {
     if (code.endsWith("_mg")) return "mg";
@@ -1562,7 +1755,31 @@ const fetchDaySummary = async ({ user_id, log_date }) => {
       return Number(a.sort_order || 0) - Number(b.sort_order || 0);
     });
 
-  return { totals, nutrients, items };
+  const segmentNutrientsByKey = {};
+  for (const [seg, segMap] of segmentAmountByCode.entries()) {
+    const segmentNutrients = Array.from(nutrientCodes)
+      .filter((code) => Boolean(code) && ALLOWED_TRACKED_NUTRIENT_CODES.has(String(code)))
+      .map((code) => {
+        const meta = metaByCode.get(code) || {};
+        return {
+          code,
+          label: meta.label || code,
+          unit: meta.unit || fallbackUnitForCode(code),
+          sort_group: meta.sort_group || fallbackSortGroupForCode(code),
+          sort_order: Number.isFinite(Number(meta.sort_order)) ? Number(meta.sort_order) : 9999,
+          amount: toNum(segMap.get(code))
+        };
+      })
+      .sort((a, b) => {
+        if (String(a.sort_group) !== String(b.sort_group)) {
+          return String(a.sort_group).localeCompare(String(b.sort_group));
+        }
+        return Number(a.sort_order || 0) - Number(b.sort_order || 0);
+      });
+    segmentNutrientsByKey[seg] = segmentNutrients;
+  }
+
+  return { totals, nutrients, items, segment_totals: segmentTotalsByKey, segment_nutrients: segmentNutrientsByKey };
 };
 
 const searchUsdaFoods = async ({ term, limit = 8, signal = undefined }) => {
@@ -2043,11 +2260,6 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
             fallbackRows: donorRows
           });
           per100gRows = merged.merged;
-          if (merged.injectedCount > 0) {
-            warnings.push(
-              `"${resolvedItem.food_name}": filled ${merged.injectedCount} missing micronutrients using closest verified reference profile.`
-            );
-          }
         }
       }
 
@@ -2100,16 +2312,34 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
           carbs_g: Math.max(0, Math.round(toNum(matched?.carbs_g))),
           fats_g: Math.max(0, Math.round(toNum(matched?.fats_g)))
         };
-        const estimatedAminoRows = estimateAminoRowsFromProtein(macros.protein_g);
-        if (estimatedAminoRows.length > 0) {
-          warnings.push(`"${it.food_name}": amino acids estimated from protein because deterministic micronutrients were unavailable.`);
+        const grams = await resolveItemGrams({ item: it, conversionCache });
+        const scaledMap = new Map();
+        if (Number.isFinite(Number(grams)) && Number(grams) > 0) {
+          const donorRows = await findMicronutrientDonorRowsByName({
+            food_name: it.food_name,
+            donorCache
+          });
+          for (const row of donorRows || []) {
+            const code = String(row?.nutrient_code || "");
+            if (!code || !ALLOWED_TRACKED_NUTRIENT_CODES.has(code) || MACRO_NUTRIENT_CODES.has(code)) continue;
+            scaledMap.set(code, scalePer100g(row?.amount_per_100g, grams));
+          }
         }
+        for (const row of estimateAminoRowsFromProtein(macros.protein_g)) {
+          if (!scaledMap.has(row.nutrient_code)) {
+            scaledMap.set(row.nutrient_code, row.amount);
+          }
+        }
+        const scaledRows = Array.from(scaledMap.entries()).map(([nutrient_code, amount]) => ({
+          nutrient_code,
+          amount
+        }));
         stagedItems.push({
           ...it,
-          grams: await resolveItemGrams({ item: it, conversionCache }),
+          grams,
           source: "ai",
           macros,
-          scaledRows: estimatedAminoRows
+          scaledRows
         });
       }
     }
@@ -2127,6 +2357,11 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
     for (const staged of stagedItems) {
       const itemId = crypto.randomUUID();
       const persisted = normalizeItemForPersistence(staged);
+      const source_text = mergeSourceTextMeta(persisted.source_text, {
+        meal_segment: normalizeMealSegmentKey(staged.meal_segment || "snacks"),
+        meal_instance_id: sanitizeMetaValue(staged.meal_instance_id || "", 80),
+        meal_name: sanitizeMetaValue(staged.meal_name || "", 120)
+      });
       const row = {
         id: itemId,
         user_id,
@@ -2135,7 +2370,7 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
         amount: persisted.amount,
         unit: persisted.unit,
         cooked_state: staged.cooked_state,
-        source_text: persisted.source_text,
+        source_text,
         source: staged.source,
         food_id: staged.food_id || null,
         user_food_id: staged.food_id ? null : staged.user_food_id || null,
@@ -2197,6 +2432,8 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: upsertErr.message });
     }
 
+    const combinedWarnings = Array.from(new Set([...warnings, ...aiWarnings].filter(Boolean)));
+
     return res.json({
       ok: true,
       log_date,
@@ -2205,7 +2442,7 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
       carbs_g: totalCarbs,
       fats_g: totalFats,
       alcohol_g: Math.max(0, Math.round(totalAlcohol * 10) / 10),
-      warnings: [...warnings, ...aiWarnings],
+      warnings: combinedWarnings,
       item_count: stagedItems.length,
       debug: {
         received_item_count: Array.isArray(items) ? items.length : 0,
@@ -3369,6 +3606,8 @@ app.get("/api/nutrition/day-summary", async (req, res) => {
       log_date,
       totals: summary.totals,
       nutrients: summary.nutrients,
+      segment_totals: summary.segment_totals || {},
+      segment_nutrients: summary.segment_nutrients || {},
       items: summary.items,
       notes: logResult.data?.notes || "",
       water_ml: Number.isFinite(Number(logResult.data?.water_ml)) ? Number(logResult.data?.water_ml) : 0,
@@ -3379,6 +3618,316 @@ app.get("/api/nutrition/day-summary", async (req, res) => {
       }
     });
   } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+const isMissingNutritionMealsRelationError = (errLike) =>
+  /relation .*nutrition_meal_/i.test(String(errLike?.message || errLike || "")) ||
+  /relation .*nutrition_saved_meal/i.test(String(errLike?.message || errLike || ""));
+
+app.get("/api/nutrition/meal-presets", async (req, res) => {
+  try {
+    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    if (!user_id) {
+      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
+    }
+
+    const presets = await ensureDefaultMealPreset(user_id);
+    return res.json({ ok: true, items: presets });
+  } catch (e) {
+    if (isMissingNutritionMealsRelationError(e)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Saved meals schema is missing. Run backend/sql/nutrition_saved_meals.sql in Supabase, then retry."
+      });
+    }
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/nutrition/meal-presets", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const user_id = String(body.user_id || body.userId || "").trim();
+    const preset_id = String(body.preset_id || body.presetId || "").trim();
+    const nameRaw = String(body.name || "").trim();
+    const name = (nameRaw || "Preset 1").slice(0, 80);
+    const makeDefault = Boolean(body.make_default ?? body.makeDefault ?? false);
+    const segments = normalizeMealSegmentsInput(body.segments || []);
+
+    if (!user_id) {
+      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
+    }
+
+    let targetId = preset_id;
+    if (targetId) {
+      const { data: existing, error: existingErr } = await supabase
+        .from("nutrition_meal_presets")
+        .select("id")
+        .eq("id", targetId)
+        .eq("user_id", user_id)
+        .maybeSingle();
+      if (existingErr) throw new Error(existingErr.message);
+      if (!existing?.id) return res.status(404).json({ ok: false, error: "Meal preset not found" });
+
+      const { error: updErr } = await supabase
+        .from("nutrition_meal_presets")
+        .update({ name })
+        .eq("id", targetId)
+        .eq("user_id", user_id);
+      if (updErr) throw new Error(updErr.message);
+
+      const { error: delSegErr } = await supabase
+        .from("nutrition_meal_preset_segments")
+        .delete()
+        .eq("preset_id", targetId);
+      if (delSegErr) throw new Error(delSegErr.message);
+    } else {
+      const { data: inserted, error: insErr } = await supabase
+        .from("nutrition_meal_presets")
+        .insert({ user_id, name, is_default: false })
+        .select("id")
+        .single();
+      if (insErr) throw new Error(insErr.message);
+      targetId = inserted?.id;
+    }
+
+    if (!targetId) throw new Error("Unable to determine preset id.");
+
+    const segmentPayload = segments.map((seg, idx) => ({
+      preset_id: targetId,
+      segment_key: normalizeMealSegmentKey(seg.segment_key || seg.key || seg.label),
+      label: String(seg.label || "").trim() || "Segment",
+      position: idx + 1
+    }));
+    const { error: segInsErr } = await supabase
+      .from("nutrition_meal_preset_segments")
+      .insert(segmentPayload);
+    if (segInsErr) throw new Error(segInsErr.message);
+
+    if (makeDefault) {
+      const { error: clearErr } = await supabase
+        .from("nutrition_meal_presets")
+        .update({ is_default: false })
+        .eq("user_id", user_id);
+      if (clearErr) throw new Error(clearErr.message);
+      const { error: setErr } = await supabase
+        .from("nutrition_meal_presets")
+        .update({ is_default: true })
+        .eq("id", targetId)
+        .eq("user_id", user_id);
+      if (setErr) throw new Error(setErr.message);
+    }
+
+    const presets = await ensureDefaultMealPreset(user_id);
+    return res.json({ ok: true, preset_id: targetId, items: presets });
+  } catch (e) {
+    if (isMissingNutritionMealsRelationError(e)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Saved meals schema is missing. Run backend/sql/nutrition_saved_meals.sql in Supabase, then retry."
+      });
+    }
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.delete("/api/nutrition/meal-presets/:preset_id", async (req, res) => {
+  try {
+    const preset_id = String(req.params.preset_id || "").trim();
+    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    if (!preset_id || !user_id) {
+      return res.status(400).json({ ok: false, error: "preset_id and user_id are required" });
+    }
+
+    const { data: existing, error: existingErr } = await supabase
+      .from("nutrition_meal_presets")
+      .select("id")
+      .eq("id", preset_id)
+      .eq("user_id", user_id)
+      .maybeSingle();
+    if (existingErr) throw new Error(existingErr.message);
+    if (!existing?.id) return res.status(404).json({ ok: false, error: "Meal preset not found" });
+
+    const { error: delErr } = await supabase
+      .from("nutrition_meal_presets")
+      .delete()
+      .eq("id", preset_id)
+      .eq("user_id", user_id);
+    if (delErr) throw new Error(delErr.message);
+
+    const presets = await ensureDefaultMealPreset(user_id);
+    return res.json({ ok: true, items: presets });
+  } catch (e) {
+    if (isMissingNutritionMealsRelationError(e)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Saved meals schema is missing. Run backend/sql/nutrition_saved_meals.sql in Supabase, then retry."
+      });
+    }
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/nutrition/saved-meals", async (req, res) => {
+  try {
+    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    if (!user_id) {
+      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
+    }
+
+    const { data: meals, error: mealsErr } = await supabase
+      .from("nutrition_saved_meals")
+      .select("id, name, preset_id, segment_key, created_at, updated_at")
+      .eq("user_id", user_id)
+      .order("updated_at", { ascending: false });
+    if (mealsErr) throw new Error(mealsErr.message);
+
+    const rows = Array.isArray(meals) ? meals : [];
+    const mealIds = rows.map((m) => m.id).filter(Boolean);
+
+    const { data: items, error: itemsErr } = mealIds.length > 0
+      ? await supabase
+          .from("nutrition_saved_meal_items")
+          .select("id, saved_meal_id, position, food_name, amount, unit, cooked_state, food_id, user_food_id")
+          .in("saved_meal_id", mealIds)
+          .order("position", { ascending: true })
+      : { data: [], error: null };
+    if (itemsErr) throw new Error(itemsErr.message);
+
+    const byMeal = new Map();
+    for (const it of items || []) {
+      if (!byMeal.has(it.saved_meal_id)) byMeal.set(it.saved_meal_id, []);
+      byMeal.get(it.saved_meal_id).push({
+        id: it.id,
+        food: it.food_name,
+        qty: toNum(it.amount),
+        unit: it.unit,
+        state: it.cooked_state,
+        food_id: it.food_id || null,
+        user_food_id: it.user_food_id || null
+      });
+    }
+
+    const payload = rows.map((meal) => ({
+      id: meal.id,
+      name: meal.name,
+      preset_id: meal.preset_id || null,
+      segment_key: normalizeMealSegmentKey(meal.segment_key || "snacks"),
+      items: byMeal.get(meal.id) || []
+    }));
+
+    return res.json({ ok: true, items: payload });
+  } catch (e) {
+    if (isMissingNutritionMealsRelationError(e)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Saved meals schema is missing. Run backend/sql/nutrition_saved_meals.sql in Supabase, then retry."
+      });
+    }
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/nutrition/saved-meals", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const user_id = String(body.user_id || body.userId || "").trim();
+    const saved_meal_id = String(body.saved_meal_id || body.savedMealId || "").trim();
+    const name = String(body.name || "").trim().slice(0, 80);
+    const preset_id = String(body.preset_id || body.presetId || "").trim() || null;
+    const segment_key = normalizeMealSegmentKey(body.segment_key || body.segmentKey || "snacks");
+    const items = normalizeLogItems(body.items || []);
+
+    if (!user_id) return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
+    if (!name) return res.status(400).json({ ok: false, error: "name is required" });
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ ok: false, error: "items are required" });
+
+    let targetMealId = saved_meal_id;
+    if (targetMealId) {
+      const { data: existing, error: existingErr } = await supabase
+        .from("nutrition_saved_meals")
+        .select("id")
+        .eq("id", targetMealId)
+        .eq("user_id", user_id)
+        .maybeSingle();
+      if (existingErr) throw new Error(existingErr.message);
+      if (!existing?.id) return res.status(404).json({ ok: false, error: "Saved meal not found" });
+
+      const { error: updErr } = await supabase
+        .from("nutrition_saved_meals")
+        .update({ name, preset_id, segment_key })
+        .eq("id", targetMealId)
+        .eq("user_id", user_id);
+      if (updErr) throw new Error(updErr.message);
+
+      const { error: clearErr } = await supabase
+        .from("nutrition_saved_meal_items")
+        .delete()
+        .eq("saved_meal_id", targetMealId);
+      if (clearErr) throw new Error(clearErr.message);
+    } else {
+      const { data: inserted, error: insErr } = await supabase
+        .from("nutrition_saved_meals")
+        .insert({ user_id, name, preset_id, segment_key })
+        .select("id")
+        .single();
+      if (insErr) throw new Error(insErr.message);
+      targetMealId = inserted?.id;
+    }
+
+    if (!targetMealId) throw new Error("Unable to determine saved meal id.");
+
+    const payload = items.map((it, idx) => ({
+      saved_meal_id: targetMealId,
+      position: idx + 1,
+      food_name: it.food_name,
+      amount: it.amount,
+      unit: it.unit,
+      cooked_state: it.cooked_state,
+      food_id: it.food_id || null,
+      user_food_id: it.user_food_id || null
+    }));
+
+    const { error: insItemsErr } = await supabase.from("nutrition_saved_meal_items").insert(payload);
+    if (insItemsErr) throw new Error(insItemsErr.message);
+
+    return res.json({ ok: true, saved_meal_id: targetMealId });
+  } catch (e) {
+    if (isMissingNutritionMealsRelationError(e)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Saved meals schema is missing. Run backend/sql/nutrition_saved_meals.sql in Supabase, then retry."
+      });
+    }
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.delete("/api/nutrition/saved-meals/:saved_meal_id", async (req, res) => {
+  try {
+    const saved_meal_id = String(req.params.saved_meal_id || "").trim();
+    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    if (!saved_meal_id || !user_id) {
+      return res.status(400).json({ ok: false, error: "saved_meal_id and user_id are required" });
+    }
+
+    const { error: delErr } = await supabase
+      .from("nutrition_saved_meals")
+      .delete()
+      .eq("id", saved_meal_id)
+      .eq("user_id", user_id);
+    if (delErr) throw new Error(delErr.message);
+
+    return res.json({ ok: true });
+  } catch (e) {
+    if (isMissingNutritionMealsRelationError(e)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Saved meals schema is missing. Run backend/sql/nutrition_saved_meals.sql in Supabase, then retry."
+      });
+    }
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
