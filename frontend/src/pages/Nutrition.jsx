@@ -8,7 +8,6 @@ const API_URL = (
     .replace(/\/$/, "") ||
   (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
 );
-const IS_DEV = Boolean(import.meta.env.DEV);
 
 const dayLabel = {
   training: "Training day",
@@ -155,6 +154,15 @@ const formatNutrientUnit = (unit) => {
   return unit;
 };
 
+const inferUnitFromCode = (code) => {
+  const c = String(code || "").trim().toLowerCase();
+  if (c.endsWith("_mg")) return "mg";
+  if (c.endsWith("_ug")) return "ug";
+  if (c.endsWith("_g")) return "g";
+  if (c.endsWith("_kcal")) return "kcal";
+  return "";
+};
+
 const displayNutrientLabel = (code, label) => {
   const c = String(code || "").trim();
   if (NUTRIENT_LABEL_OVERRIDES[c]) return NUTRIENT_LABEL_OVERRIDES[c];
@@ -247,7 +255,6 @@ export default function Nutrition() {
   const [dayNutrients, setDayNutrients] = useState([]);
   const [dayNutrientsLoading, setDayNutrientsLoading] = useState(false);
   const [logWarnings, setLogWarnings] = useState([]);
-  const [debugInfo, setDebugInfo] = useState(null);
   const [toast, setToast] = useState(null);
   const [microGroupFilter, setMicroGroupFilter] = useState("all");
   const [microTargetMode, setMicroTargetMode] = useState("rdi");
@@ -256,7 +263,6 @@ export default function Nutrition() {
   const [savingMicroTargets, setSavingMicroTargets] = useState(false);
   const [microTargetWarnings, setMicroTargetWarnings] = useState([]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [mealPresets, setMealPresets] = useState([]);
   const [activePresetId, setActivePresetId] = useState("");
   const [presetNameDraft, setPresetNameDraft] = useState("Preset 1");
@@ -460,24 +466,55 @@ export default function Nutrition() {
     }
   }, [showMealPresetSection, showMicronutrientsSection]);
 
-  const groupedMicros = useMemo(() => {
-    return Array.from(
-      effectiveDayNutrients
-        .filter((n) => !MACRO_CODES.has(String(n.code || "")))
-        .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")))
-        .reduce((acc, n) => {
-          const key = n.sort_group || "Other";
-          if (!acc.has(key)) acc.set(key, []);
-          acc.get(key).push(n);
-          return acc;
-        }, new Map())
-    );
-  }, [effectiveDayNutrients]);
+  const templateMicroRows = useMemo(() => {
+    const fromDay = (dayNutrients || [])
+      .filter((n) => !MACRO_CODES.has(String(n.code || "")))
+      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")));
+    if (fromDay.length > 0) return fromDay;
+
+    return Object.keys(microTargetsByCode || {})
+      .filter((code) => !MACRO_CODES.has(String(code || "")))
+      .filter((code) => !HIDDEN_MICRO_CODES.has(String(code || "")))
+      .map((code) => ({
+        code,
+        label: displayNutrientLabel(code, code),
+        sort_group: displayNutrientGroup(code, ""),
+        sort_order: 999,
+        unit: inferUnitFromCode(code),
+        amount: 0
+      }));
+  }, [dayNutrients, microTargetsByCode]);
+
+  const scopedMicroRows = useMemo(() => {
+    const scoped = (effectiveDayNutrients || [])
+      .filter((n) => !MACRO_CODES.has(String(n.code || "")))
+      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")));
+    if (templateMicroRows.length === 0) return scoped;
+
+    const scopedByCode = new Map(scoped.map((row) => [String(row.code || ""), row]));
+    const merged = templateMicroRows.map((base) => {
+      const code = String(base?.code || "");
+      const scopedRow = scopedByCode.get(code);
+      if (!scopedRow) return { ...base, amount: 0 };
+      return {
+        ...base,
+        ...scopedRow,
+        amount: Number(scopedRow?.amount || 0)
+      };
+    });
+
+    const mergedCodeSet = new Set(merged.map((row) => String(row.code || "")));
+    for (const row of scoped) {
+      const code = String(row?.code || "");
+      if (!code || mergedCodeSet.has(code)) continue;
+      merged.push(row);
+    }
+
+    return merged;
+  }, [effectiveDayNutrients, templateMicroRows]);
 
   const microSliderRows = useMemo(() => {
-    const rows = effectiveDayNutrients
-      .filter((n) => !MACRO_CODES.has(String(n.code || "")))
-      .filter((n) => !HIDDEN_MICRO_CODES.has(String(n.code || "")))
+    const rows = scopedMicroRows
       .slice()
       .sort((a, b) => {
         const ka = nutrientSortKey(a);
@@ -514,7 +551,7 @@ export default function Nutrition() {
         sliderPct: target > 0 ? pct(Number(row.amount || 0), target) : pct(Number(row.amount || 0), max)
       };
     });
-  }, [effectiveDayNutrients, microTargetsByCode]);
+  }, [scopedMicroRows, microTargetsByCode]);
 
   const microGroups = useMemo(() => {
     const groups = Array.from(new Set(microSliderRows.map((r) => String(r.sort_group || "Other"))));
@@ -656,10 +693,6 @@ export default function Nutrition() {
       setLogNotes(String(j.notes || ""));
       setWaterMl(Number.isFinite(Number(j.water_ml)) ? Number(j.water_ml) : 0);
       setSaltG(Number.isFinite(Number(j.salt_g)) ? Number(j.salt_g) : 0);
-      setDebugInfo((prev) => ({
-        ...(prev || {}),
-        summary: j?.debug || null
-      }));
     } finally {
       setDayNutrientsLoading(false);
     }
@@ -1654,10 +1687,6 @@ export default function Nutrition() {
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to save nutrition log.");
       setLogWarnings(Array.isArray(j.warnings) ? j.warnings : []);
       setLastSavedAt(new Date());
-      setDebugInfo((prev) => ({
-        ...(prev || {}),
-        save: j?.debug || null
-      }));
       await loadDaySummary(userId, dateIso);
     } catch (e) {
       setError(String(e?.message || e));
@@ -2366,32 +2395,29 @@ export default function Nutrition() {
               </div>
               </div>
 
-              <div style={{ ...card, padding: "0.75rem 0.85rem", background: "#040406" }}>
-                <div style={{ color: "#888", fontSize: "0.84rem" }}>Bottom stats scope</div>
-                <div style={{ marginTop: "0.45rem", display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
-                  {summarySegments.map((seg) => (
-                    <button
-                      key={seg.key}
-                      type="button"
-                      onClick={() => setSummarySegment(seg.key)}
-                      style={pill(summarySegment === seg.key)}
-                    >
-                      {seg.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="nutrition-macro-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "1rem" }}>
                 <div style={card}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
-                    <div style={{ fontWeight: 800 }}>{selectedSummaryLabel} totals</div>
+                    <div style={{ fontWeight: 800 }}>Macronutrients</div>
                     <button type="button" onClick={() => toggleSection("dailyTotals")} style={collapseBtn}>
                       {isCollapsed("dailyTotals") ? "Expand" : "Collapse"}
                     </button>
                   </div>
                   {!isCollapsed("dailyTotals") ? (
                     <>
+                      <div style={{ marginTop: "0.55rem", display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+                        {summarySegments.map((seg) => (
+                          <button
+                            key={`macro-${seg.key}`}
+                            type="button"
+                            onClick={() => setSummarySegment(seg.key)}
+                            style={pill(summarySegment === seg.key)}
+                          >
+                            {seg.label}
+                          </button>
+                        ))}
+                      </div>
+
                       <div style={{ marginTop: "0.8rem", display: "grid", gap: "0.55rem" }}>
                         {macroProgress.map((m) => {
                           const progress = pct(m.value, m.target || 0);
@@ -2461,7 +2487,7 @@ export default function Nutrition() {
                 {showMicronutrientsSection ? (
                   <div style={card}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.8rem" }}>
-                      <div style={{ fontWeight: 800 }}>{selectedSummaryLabel} micronutrients</div>
+                      <div style={{ fontWeight: 800 }}>Micronutrients</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
                         <button type="button" onClick={() => toggleSection("micros")} style={collapseBtn}>
                           {isCollapsed("micros") ? "Expand" : "Collapse"}
@@ -2474,6 +2500,19 @@ export default function Nutrition() {
 
                     {!isCollapsed("micros") ? (
                       <>
+                        <div style={{ marginTop: "0.55rem", display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+                          {summarySegments.map((seg) => (
+                            <button
+                              key={`micro-${seg.key}`}
+                              type="button"
+                              onClick={() => setSummarySegment(seg.key)}
+                              style={pill(summarySegment === seg.key)}
+                            >
+                              {seg.label}
+                            </button>
+                          ))}
+                        </div>
+
                         <div style={{ marginTop: "0.5rem", display: "grid", gap: "0.5rem" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
                             <div style={{ color: "#888", fontSize: "0.85rem" }}>Target mode</div>
@@ -2509,29 +2548,11 @@ export default function Nutrition() {
                           </select>
                         </div>
 
-                        {groupedMicros.length === 0 ? (
+                        {visibleMicroRows.length === 0 ? (
                           <div style={{ color: "#666", marginTop: "0.5rem" }}>
                             {summarySegment === "all"
-                              ? "No micronutrients saved for today yet."
-                              : `No micronutrients in ${selectedSummaryLabel.toLowerCase()} yet.`}
-                            {IS_DEV && (debugInfo?.save || debugInfo?.summary) ? (
-                              <div style={{ marginTop: "0.45rem", fontSize: "0.85rem", color: "#8a8a8a" }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowDiagnostics((prev) => !prev)}
-                                  style={{ ...subtleBtn, padding: "0.35rem 0.55rem", fontSize: "0.8rem" }}
-                                >
-                                  {showDiagnostics ? "Hide diagnostics" : "Show diagnostics"}
-                                </button>
-                                {showDiagnostics ? (
-                                  <div style={{ marginTop: "0.4rem" }}>
-                                    Save debug: DB items {debugInfo?.save?.db_item_count ?? 0}, AI items {debugInfo?.save?.ai_item_count ?? 0}, inserted micro rows {debugInfo?.save?.micronutrient_rows_inserted ?? 0}
-                                    <br />
-                                    Summary debug: micronutrient rows loaded {debugInfo?.summary?.micronutrient_row_count ?? 0}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
+                              ? "No micronutrient data available yet."
+                              : `No micronutrient data in ${selectedSummaryLabel.toLowerCase()} yet.`}
                           </div>
                         ) : (
                           <>
