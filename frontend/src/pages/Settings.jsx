@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 
+// ─── Data ─────────────────────────────────────────────────────────────────────
+
 const activityOptions = [
   { value: "inactive", label: "Inactive", desc: "Mostly sitting, little walking" },
   { value: "light", label: "Lightly active", desc: "Some walking, low daily movement" },
@@ -8,6 +10,329 @@ const activityOptions = [
   { value: "heavy", label: "Heavily active", desc: "High daily movement, physical job" },
   { value: "extreme", label: "Extreme", desc: "Very high daily activity (rare)" }
 ];
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const CSS = `
+  /* ── Page wrapper ── */
+  .settings-page {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    font-family: var(--font-body);
+    color: var(--text-1);
+  }
+
+  /* ── Page header ── */
+  .settings-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+  }
+
+  .settings-page-label-row {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .settings-page-accent-line {
+    width: 20px;
+    height: 1px;
+    background: var(--accent-3);
+    flex-shrink: 0;
+  }
+
+  .settings-page-label {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+  }
+
+  .settings-page-title {
+    font-family: var(--font-display);
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-1);
+    line-height: 1.1;
+  }
+
+  .settings-page-desc {
+    font-size: 0.88rem;
+    color: var(--text-3);
+    margin: 0.4rem 0 0;
+  }
+
+  .settings-save-status {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    padding-top: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .settings-save-status.saving {
+    color: var(--warn);
+  }
+
+  /* ── Error banner ── */
+  .settings-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    margin-bottom: 1rem;
+    padding: 0.65rem 0.85rem;
+    background: rgba(222,41,82,0.06);
+    border: 1px solid rgba(222,41,82,0.22);
+    border-radius: var(--radius-sm);
+    color: var(--bad);
+    font-size: 0.82rem;
+    line-height: 1.45;
+  }
+
+  /* ── Settings grid ── */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  /* ── Cockpit card ── */
+  .settings-card {
+    background: rgba(8,3,5,0.85);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(181,21,60,0.04);
+  }
+
+  .settings-card-full {
+    margin-bottom: 1rem;
+  }
+
+  /* ── Card topbar ── */
+  .settings-card-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.6rem 1rem;
+    background: rgba(181,21,60,0.04);
+    border-bottom: 1px solid var(--line-1);
+  }
+
+  .settings-card-code {
+    font-family: var(--font-display);
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .settings-card-sep {
+    width: 1px;
+    height: 10px;
+    background: var(--line-2);
+    flex-shrink: 0;
+  }
+
+  .settings-card-title {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  /* ── Card body ── */
+  .settings-card-body {
+    padding: 1.25rem;
+  }
+
+  /* ── Card description ── */
+  .settings-card-desc {
+    font-size: 0.8rem;
+    color: var(--text-3);
+    margin: 0 0 1rem;
+    line-height: 1.5;
+  }
+
+  /* ── Section label inside card ── */
+  .settings-section-label {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    color: var(--text-2);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .settings-section-label:first-child {
+    margin-top: 0;
+  }
+
+  /* ── Hint text ── */
+  .settings-hint {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    margin-top: 0.5rem;
+    line-height: 1.45;
+  }
+
+  /* ── Pill button group ── */
+  .settings-pill-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+
+  .settings-pill {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    border: 1px solid var(--line-1);
+    background: transparent;
+    color: var(--text-3);
+  }
+
+  .settings-pill:hover {
+    border-color: var(--line-2);
+    color: var(--text-2);
+  }
+
+  .settings-pill.active {
+    background: linear-gradient(135deg, rgba(181,21,60,0.3), rgba(138,15,46,0.2));
+    border: 1px solid var(--accent-2);
+    color: var(--text-1);
+  }
+
+  /* ── Select dropdown ── */
+  .settings-select {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    background: rgba(10,5,8,0.9);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm);
+    color: var(--text-1);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    outline: none;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a7f89'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    padding-right: 2rem;
+    margin-top: 0.5rem;
+  }
+
+  .settings-select:focus {
+    border-color: var(--accent-3);
+  }
+
+  .settings-select option {
+    background: #0e0608;
+    color: var(--text-1);
+  }
+
+  /* ── Toggle row (checkbox) ── */
+  .settings-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(181,21,60,0.025);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 1rem;
+    margin-top: 0.6rem;
+    transition: border-color 0.15s;
+  }
+
+  .settings-toggle-row:hover {
+    border-color: var(--line-2);
+  }
+
+  .settings-toggle-label {
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--text-2);
+    font-weight: 500;
+    margin-bottom: 0.15rem;
+  }
+
+  .settings-toggle-desc {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    line-height: 1.4;
+  }
+
+  /* ── Checkbox styling ── */
+  .settings-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-2);
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  /* ── Loading state ── */
+  .settings-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 2rem;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  /* ── Account placeholder ── */
+  .settings-account-placeholder {
+    font-size: 0.85rem;
+    color: var(--text-3);
+    padding: 0.5rem 0;
+    line-height: 1.5;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 980px) {
+    .settings-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .settings-page-title {
+      font-size: 1.5rem;
+    }
+
+    .settings-card-body {
+      padding: 1rem;
+    }
+  }
+`;
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 function Settings() {
   const [loading, setLoading] = useState(true);
@@ -123,88 +448,62 @@ function Settings() {
     if (e) setError(e.message);
   };
 
-  if (loading) return <div>Loading...</div>;
-
-  const card = {
-    background: "#050507",
-    border: "1px solid #2a1118",
-    padding: "1rem"
-  };
-
-  const label = { color: "#aaa", fontSize: "0.9rem" };
-
-  const select = {
-    width: "100%",
-    padding: "0.6rem",
-    background: "#111",
-    color: "#fff",
-    border: "1px solid #2a1118"
-  };
-
-  const toggleRow = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "1rem",
-    border: "1px solid #2a1118",
-    background: "#111",
-    padding: "0.75rem",
-    marginTop: "0.6rem"
-  };
-
-  const pillBtn = (active) => ({
-    padding: "0.5rem 0.75rem",
-    border: "1px solid #2a1118",
-    background: active ? "#0b0b10" : "transparent",
-    color: active ? "#fff" : "#aaa",
-    cursor: "pointer"
-  });
-
-  const responsiveStyle = `
-    @media (max-width: 980px) {
-      .pp-settings-grid {
-        grid-template-columns: 1fr !important;
-      }
-      .pp-toggle-row {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-      .pp-toggle-row input[type="checkbox"] {
-        margin-left: auto;
-      }
-    }
-    @media (max-width: 520px) {
-      .pp-settings-page h1 {
-        font-size: 1.9rem;
-      }
-    }
-  `;
+  if (loading) {
+    return (
+      <div className="settings-page">
+        <style>{CSS}</style>
+        <div className="settings-loading">
+          <span>Loading configuration...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="pp-settings-page" style={{ width: "100%", maxWidth: "1400px", margin: "0 auto" }}>
-      <style>{responsiveStyle}</style>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+    <div className="settings-page">
+      <style>{CSS}</style>
+
+      {/* Page header */}
+      <div className="settings-page-header">
         <div>
-          <h1 style={{ margin: 0 }}>Settings</h1>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            Preferences for tracking, targets, and what you see in the app.
+          <div className="settings-page-label-row">
+            <div className="settings-page-accent-line" aria-hidden="true" />
+            <span className="settings-page-label">System Configuration</span>
           </div>
+          <h1 className="settings-page-title">Settings</h1>
+          <p className="settings-page-desc">
+            Preferences for tracking, targets, and what you see in the app.
+          </p>
         </div>
-        <div style={{ color: "#666" }}>{statusText}</div>
+        <div className={`settings-save-status${saving ? " saving" : ""}`}>
+          {statusText}
+        </div>
       </div>
 
-      {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
+      {error && (
+        <div className="settings-error" role="alert">
+          <span>⚠</span>
+          <span>{error}</span>
+        </div>
+      )}
 
-      <div className="pp-settings-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>General</div>
+      {/* Row 1: General + Baseline lifestyle */}
+      <div className="settings-grid">
 
-          <div style={{ marginTop: "0.9rem" }}>
-            <div style={label}>Unit system</div>
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+        {/* General */}
+        <div className="settings-card">
+          <div className="settings-card-topbar">
+            <span className="settings-card-code">UNITS</span>
+            <div className="settings-card-sep" aria-hidden="true" />
+            <span className="settings-card-title">General</span>
+          </div>
+          <div className="settings-card-body">
+
+            <div className="settings-section-label">Unit system</div>
+            <div className="settings-pill-group">
               <button
                 type="button"
-                style={pillBtn(unitSystem === "metric")}
+                className={`settings-pill${unitSystem === "metric" ? " active" : ""}`}
                 onClick={() => {
                   setUnitSystem("metric");
                   saveProfilePatch({ unit_system: "metric" });
@@ -214,7 +513,7 @@ function Settings() {
               </button>
               <button
                 type="button"
-                style={pillBtn(unitSystem === "imperial")}
+                className={`settings-pill${unitSystem === "imperial" ? " active" : ""}`}
                 onClick={() => {
                   setUnitSystem("imperial");
                   saveProfilePatch({ unit_system: "imperial" });
@@ -224,46 +523,51 @@ function Settings() {
               </button>
             </div>
 
-            <div style={{ marginTop: "1rem" }}>
-              <div style={label}>Weekly check-in day</div>
-              <select
-                value={checkInDay}
-                onChange={(e) => {
-                  setCheckInDay(e.target.value);
-                  saveProfilePatch({ check_in_day: e.target.value });
-                }}
-                style={{ ...select, marginTop: "0.5rem" }}
-              >
-                <option>Monday</option>
-                <option>Tuesday</option>
-                <option>Wednesday</option>
-                <option>Thursday</option>
-                <option>Friday</option>
-                <option>Saturday</option>
-                <option>Sunday</option>
-              </select>
-              <div style={{ color: "#666", marginTop: "0.5rem", fontSize: "0.9rem" }}>
-                This sets which day your “weekly check-in” week starts on.
-              </div>
+            <div className="settings-section-label">Weekly check-in day</div>
+            <select
+              className="settings-select"
+              value={checkInDay}
+              onChange={(e) => {
+                setCheckInDay(e.target.value);
+                saveProfilePatch({ check_in_day: e.target.value });
+              }}
+            >
+              <option>Monday</option>
+              <option>Tuesday</option>
+              <option>Wednesday</option>
+              <option>Thursday</option>
+              <option>Friday</option>
+              <option>Saturday</option>
+              <option>Sunday</option>
+            </select>
+            <div className="settings-hint">
+              Sets which day your "weekly check-in" week starts on.
             </div>
+
           </div>
         </div>
 
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Baseline lifestyle (non-weight-training)</div>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            Used later for steps/cardio targets and overall plan difficulty.
+        {/* Baseline lifestyle */}
+        <div className="settings-card">
+          <div className="settings-card-topbar">
+            <span className="settings-card-code">SCHED</span>
+            <div className="settings-card-sep" aria-hidden="true" />
+            <span className="settings-card-title">Baseline Lifestyle</span>
           </div>
+          <div className="settings-card-body">
 
-          <div style={{ marginTop: "1rem" }}>
-            <div style={label}>Activity level</div>
+            <p className="settings-card-desc">
+              Non-weight-training activity. Used later for steps/cardio targets and overall plan difficulty.
+            </p>
+
+            <div className="settings-section-label">Activity level</div>
             <select
+              className="settings-select"
               value={lifestyleActivity}
               onChange={(e) => {
                 setLifestyleActivity(e.target.value);
                 saveProfilePatch({ lifestyle_activity: e.target.value });
               }}
-              style={{ ...select, marginTop: "0.5rem" }}
             >
               {activityOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -272,26 +576,36 @@ function Settings() {
               ))}
             </select>
 
-            <div style={{ color: "#666", marginTop: "0.6rem", fontSize: "0.9rem" }}>
+            <div className="settings-hint">
               {activityOptions.find((x) => x.value === lifestyleActivity)?.desc}
             </div>
+
           </div>
         </div>
+
       </div>
 
-      <div className="pp-settings-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Nutrition display</div>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            This only changes what the UI shows — AI-based meal plans come later.
-          </div>
+      {/* Row 2: Nutrition display + Training preferences */}
+      <div className="settings-grid">
 
-          <div style={{ marginTop: "1rem" }}>
-            <div style={label}>Default view</div>
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+        {/* Nutrition display */}
+        <div className="settings-card">
+          <div className="settings-card-topbar">
+            <span className="settings-card-code">NUTR</span>
+            <div className="settings-card-sep" aria-hidden="true" />
+            <span className="settings-card-title">Nutrition Display</span>
+          </div>
+          <div className="settings-card-body">
+
+            <p className="settings-card-desc">
+              Changes what the UI shows — AI-based meal plans come later.
+            </p>
+
+            <div className="settings-section-label">Default view</div>
+            <div className="settings-pill-group">
               <button
                 type="button"
-                style={pillBtn(nutritionViewMode === "macros")}
+                className={`settings-pill${nutritionViewMode === "macros" ? " active" : ""}`}
                 onClick={() => {
                   setNutritionViewMode("macros");
                   saveProfilePatch({ nutrition_view_mode: "macros" });
@@ -301,7 +615,7 @@ function Settings() {
               </button>
               <button
                 type="button"
-                style={pillBtn(nutritionViewMode === "meal_plan")}
+                className={`settings-pill${nutritionViewMode === "meal_plan" ? " active" : ""}`}
                 onClick={() => {
                   setNutritionViewMode("meal_plan");
                   saveProfilePatch({ nutrition_view_mode: "meal_plan" });
@@ -311,15 +625,16 @@ function Settings() {
               </button>
             </div>
 
-            <div className="pp-toggle-row" style={toggleRow}>
+            <div className="settings-toggle-row">
               <div>
-                <div style={{ fontWeight: 600 }}>Show meal macros</div>
-                <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.2rem" }}>
+                <div className="settings-toggle-label">Show meal macros</div>
+                <div className="settings-toggle-desc">
                   When meal plans exist, show macros per meal.
                 </div>
               </div>
               <input
                 type="checkbox"
+                className="settings-checkbox"
                 checked={showMealMacros}
                 onChange={(e) => {
                   setShowMealMacros(e.target.checked);
@@ -328,15 +643,16 @@ function Settings() {
               />
             </div>
 
-            <div className="pp-toggle-row" style={toggleRow}>
+            <div className="settings-toggle-row">
               <div>
-                <div style={{ fontWeight: 600 }}>Show full-day macros</div>
-                <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.2rem" }}>
+                <div className="settings-toggle-label">Show full-day macros</div>
+                <div className="settings-toggle-desc">
                   Show totals for the day even in meal plan mode.
                 </div>
               </div>
               <input
                 type="checkbox"
+                className="settings-checkbox"
                 checked={showDayMacros}
                 onChange={(e) => {
                   setShowDayMacros(e.target.checked);
@@ -344,107 +660,135 @@ function Settings() {
                 }}
               />
             </div>
+
           </div>
         </div>
 
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Training preferences</div>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            These affect the calendar logic (fixed vs rolling). Training block editing lives in Training.
+        {/* Training preferences */}
+        <div className="settings-card">
+          <div className="settings-card-topbar">
+            <span className="settings-card-code">TRNG</span>
+            <div className="settings-card-sep" aria-hidden="true" />
+            <span className="settings-card-title">Training Preferences</span>
           </div>
+          <div className="settings-card-body">
 
-          <div style={{ marginTop: "1rem" }}>
-            <div style={label}>Split mode</div>
+            <p className="settings-card-desc">
+              Affects calendar logic (fixed vs rolling). Training block editing lives in Training.
+            </p>
+
+            <div className="settings-section-label">Split mode</div>
             <select
+              className="settings-select"
               value={splitMode}
               onChange={(e) => {
                 setSplitMode(e.target.value);
                 saveProfilePatch({ split_mode: e.target.value });
               }}
-              style={{ ...select, marginTop: "0.5rem" }}
             >
               <option value="fixed">Weekly (fixed days)</option>
               <option value="rolling">Rolling (cycle repeats)</option>
             </select>
 
-            <div style={{ color: "#666", marginTop: "0.6rem", fontSize: "0.9rem" }}>
-              You can still override “today = rest day” inside Training (and it should also switch nutrition day type).
+            <div className="settings-hint">
+              You can still override "today = rest day" inside Training (and it should also switch nutrition day type).
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      {/* Accessibility & motion */}
+      <div className="settings-card settings-card-full">
+        <div className="settings-card-topbar">
+          <span className="settings-card-code">DISPLAY</span>
+          <div className="settings-card-sep" aria-hidden="true" />
+          <span className="settings-card-title">Accessibility &amp; Motion</span>
+        </div>
+        <div className="settings-card-body">
+
+          <p className="settings-card-desc">
+            Visual comfort controls for animation and contrast.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+            <div>
+              <div className="settings-section-label">Motion</div>
+              <div className="settings-pill-group">
+                <button
+                  type="button"
+                  className={`settings-pill${uiMotion === "low" ? " active" : ""}`}
+                  onClick={() => {
+                    setUiMotion("low");
+                    saveUiPrefs({ motion: "low" });
+                  }}
+                >
+                  Reduced
+                </button>
+                <button
+                  type="button"
+                  className={`settings-pill${uiMotion === "medium" ? " active" : ""}`}
+                  onClick={() => {
+                    setUiMotion("medium");
+                    saveUiPrefs({ motion: "medium" });
+                  }}
+                >
+                  Medium
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div className="settings-section-label">Contrast</div>
+              <div className="settings-pill-group">
+                <button
+                  type="button"
+                  className={`settings-pill${uiContrast === "normal" ? " active" : ""}`}
+                  onClick={() => {
+                    setUiContrast("normal");
+                    saveUiPrefs({ contrast: "normal" });
+                  }}
+                >
+                  Normal
+                </button>
+                <button
+                  type="button"
+                  className={`settings-pill${uiContrast === "high" ? " active" : ""}`}
+                  onClick={() => {
+                    setUiContrast("high");
+                    saveUiPrefs({ contrast: "high" });
+                  }}
+                >
+                  High
+                </button>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
 
-      <div style={{ marginTop: "1rem", ...card }}>
-        <div style={{ fontWeight: 700 }}>Accessibility & motion</div>
-        <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-          Visual comfort controls for animation and contrast.
+      {/* Account */}
+      <div className="settings-card settings-card-full">
+        <div className="settings-card-topbar">
+          <span className="settings-card-code">ACCT</span>
+          <div className="settings-card-sep" aria-hidden="true" />
+          <span className="settings-card-title">Account</span>
         </div>
+        <div className="settings-card-body">
 
-        <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
-          <div>
-            <div style={label}>Motion</div>
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-              <button
-                type="button"
-                style={pillBtn(uiMotion === "low")}
-                onClick={() => {
-                  setUiMotion("low");
-                  saveUiPrefs({ motion: "low" });
-                }}
-              >
-                Reduced
-              </button>
-              <button
-                type="button"
-                style={pillBtn(uiMotion === "medium")}
-                onClick={() => {
-                  setUiMotion("medium");
-                  saveUiPrefs({ motion: "medium" });
-                }}
-              >
-                Medium
-              </button>
-            </div>
+          <p className="settings-card-desc">
+            More account controls (billing, plan, deletions) coming later.
+          </p>
+
+          <div className="settings-account-placeholder">
+            For now: logout is in the sidebar.
           </div>
 
-          <div>
-            <div style={label}>Contrast</div>
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-              <button
-                type="button"
-                style={pillBtn(uiContrast === "normal")}
-                onClick={() => {
-                  setUiContrast("normal");
-                  saveUiPrefs({ contrast: "normal" });
-                }}
-              >
-                Normal
-              </button>
-              <button
-                type="button"
-                style={pillBtn(uiContrast === "high")}
-                onClick={() => {
-                  setUiContrast("high");
-                  saveUiPrefs({ contrast: "high" });
-                }}
-              >
-                High
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div style={{ marginTop: "1rem", ...card }}>
-        <div style={{ fontWeight: 700 }}>Account</div>
-        <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-          More account controls (billing, plan, deletions) later.
-        </div>
-
-        <div style={{ marginTop: "1rem", color: "#666", fontSize: "0.9rem" }}>
-          For now: logout is in the sidebar.
-        </div>
-      </div>
     </div>
   );
 }

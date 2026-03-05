@@ -22,6 +22,474 @@ const toNum = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
+const TOTAL_STEPS = 7;
+
+const STEP_META = [
+  { code: "ONBOARDING // BODY METRICS",        label: "Body metrics"           },
+  { code: "ONBOARDING // PERSONAL DATA",       label: "About you"              },
+  { code: "ONBOARDING // GOAL & CALORIES",     label: "Goal & calories"        },
+  { code: "ONBOARDING // TRAINING SETUP",      label: "Training setup"         },
+  { code: "ONBOARDING // ACTIVITY BASELINE",   label: "Activity baseline"      },
+  { code: "ONBOARDING // NUTRITION PREFS",     label: "Nutrition preferences"  },
+  { code: "ONBOARDING // SAFETY & CONFIRM",    label: "Safety"                 },
+];
+
+const CSS = `
+  @keyframes ldBlink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.15; }
+  }
+
+  .ob-wrap {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 1rem 3rem;
+    box-sizing: border-box;
+  }
+
+  /* ── progress rail ── */
+  .ob-progress-rail {
+    width: 100%;
+    max-width: 520px;
+    margin: 2rem auto 0;
+  }
+  .ob-progress-bar-track {
+    width: 100%;
+    height: 3px;
+    background: var(--line-1);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .ob-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-3));
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+  .ob-progress-label {
+    margin-top: 0.45rem;
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  /* ── card ── */
+  .ob-card {
+    width: 100%;
+    max-width: 520px;
+    margin: 1.25rem auto 0;
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-lg);
+    background: rgba(8, 3, 5, 0.92);
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(181, 21, 60, 0.08);
+    overflow: hidden;
+  }
+
+  /* ── card topbar ── */
+  .ob-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 1.1rem;
+    border-bottom: 1px solid var(--line-1);
+    background: rgba(15, 5, 10, 0.6);
+  }
+  .ob-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .ob-topbar-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-3);
+    animation: ldBlink 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .ob-topbar-right {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+  }
+
+  /* ── card body ── */
+  .ob-body {
+    padding: 1.6rem 1.5rem 1.4rem;
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .ob-step-heading {
+    margin: 0 0 0.15rem;
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-1);
+    line-height: 1.2;
+  }
+  .ob-step-desc {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-2);
+    line-height: 1.7;
+  }
+
+  /* ── form elements ── */
+  .ob-field-group {
+    display: grid;
+    gap: 0.45rem;
+  }
+  .ob-label {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .ob-input {
+    width: 100%;
+    background: rgba(10, 5, 8, 0.9);
+    border: 1px solid var(--line-1);
+    color: var(--text-1);
+    border-radius: var(--radius-sm);
+    padding: 0.72rem 0.9rem;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.18s, box-shadow 0.18s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .ob-input:focus {
+    border-color: var(--accent-3);
+    box-shadow: 0 0 0 3px rgba(222, 41, 82, 0.16);
+  }
+  .ob-input::placeholder {
+    color: var(--text-3);
+    opacity: 0.7;
+  }
+  .ob-input option {
+    background: #0e060a;
+    color: var(--text-1);
+  }
+  .ob-textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+  .ob-help {
+    font-size: 0.8rem;
+    color: var(--text-3);
+    line-height: 1.55;
+    margin-top: 0.1rem;
+  }
+
+  /* ── grid ── */
+  .ob-grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+  }
+
+  /* ── pill buttons (option selectors) ── */
+  .ob-pills {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.1rem;
+  }
+  .ob-pill {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--line-1);
+    background: transparent;
+    color: var(--text-3);
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
+    line-height: 1.3;
+  }
+  .ob-pill.active {
+    background: linear-gradient(135deg, rgba(181,21,60,0.3), rgba(138,15,46,0.2));
+    border-color: var(--accent-2);
+    color: var(--text-1);
+  }
+  .ob-pill:hover:not(.active) {
+    border-color: var(--line-2);
+    color: var(--text-2);
+  }
+
+  /* day pill (slightly smaller) */
+  .ob-day-pill {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    padding: 0.42rem 0.75rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--line-1);
+    background: transparent;
+    color: var(--text-3);
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
+  }
+  .ob-day-pill.active {
+    background: linear-gradient(135deg, rgba(181,21,60,0.3), rgba(138,15,46,0.2));
+    border-color: var(--accent-2);
+    color: var(--text-1);
+  }
+  .ob-day-pill:hover:not(.active) {
+    border-color: var(--line-2);
+    color: var(--text-2);
+  }
+
+  /* ── footer ── */
+  .ob-footer {
+    padding: 1rem 1.5rem 1.3rem;
+    border-top: 1px solid var(--line-1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: rgba(15, 5, 10, 0.4);
+  }
+  .ob-footer-hint {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    font-family: var(--font-display);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .ob-footer-btns {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  /* primary button */
+  .ob-btn-primary {
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+    color: #fff;
+    font-family: var(--font-display);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.72rem 1.75rem;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: opacity 0.18s, box-shadow 0.18s;
+  }
+  .ob-btn-primary:hover:not(:disabled) {
+    box-shadow: 0 0 18px rgba(181, 21, 60, 0.45);
+  }
+  .ob-btn-primary:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  /* ghost / back button */
+  .ob-btn-ghost {
+    border: 1px solid var(--line-1);
+    background: transparent;
+    color: var(--text-2);
+    font-family: var(--font-display);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.72rem 1.3rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: border-color 0.18s, color 0.18s;
+  }
+  .ob-btn-ghost:hover:not(:disabled) {
+    border-color: var(--line-2);
+    color: var(--text-1);
+  }
+  .ob-btn-ghost:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  /* ── error box ── */
+  .ob-error {
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 79, 115, 0.4);
+    background: rgba(255, 79, 115, 0.08);
+    color: var(--bad);
+    font-size: 0.86rem;
+    line-height: 1.5;
+  }
+
+  /* ── checkbox row ── */
+  .ob-check-row {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+  }
+  .ob-checkbox {
+    margin-top: 0.18rem;
+    accent-color: var(--accent-2);
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .ob-check-label {
+    color: var(--text-2);
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+
+  /* ── complete step ── */
+  .ob-complete-wrap {
+    display: grid;
+    gap: 1.4rem;
+    text-align: center;
+    padding: 0.5rem 0 0.25rem;
+  }
+  .ob-complete-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+  }
+  .ob-complete-title {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-1);
+    letter-spacing: 0.04em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  .ob-complete-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ok);
+    animation: ldBlink 1s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .ob-complete-sub {
+    color: var(--text-2);
+    font-size: 0.9rem;
+    line-height: 1.7;
+    margin: 0;
+  }
+  .ob-mission-btn {
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+    color: #fff;
+    font-family: var(--font-display);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.9rem 2.5rem;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    margin: 0 auto;
+    display: block;
+    transition: opacity 0.18s, box-shadow 0.18s;
+  }
+  .ob-mission-btn:hover:not(:disabled) {
+    box-shadow: 0 0 24px rgba(181, 21, 60, 0.55);
+  }
+  .ob-mission-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  /* ── loading / fatal screens ── */
+  .ob-status-card {
+    width: 100%;
+    max-width: 520px;
+    margin: 3rem auto 0;
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-lg);
+    background: rgba(8, 3, 5, 0.92);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    padding: 2.5rem 2rem;
+    text-align: center;
+  }
+  .ob-status-code {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 1.25rem;
+  }
+  .ob-status-title {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--text-1);
+    margin: 0 0 0.6rem;
+  }
+  .ob-status-sub {
+    color: var(--text-3);
+    font-size: 0.88rem;
+  }
+
+  /* ── back to home link ── */
+  .ob-home-link {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    background: transparent;
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 0.85rem;
+    cursor: pointer;
+    transition: color 0.18s, border-color 0.18s;
+  }
+  .ob-home-link:hover {
+    color: var(--text-2);
+    border-color: var(--line-2);
+  }
+
+  /* ── saving overlay label ── */
+  .ob-saving-badge {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    animation: ldBlink 1s ease-in-out infinite;
+  }
+
+  @media (max-width: 540px) {
+    .ob-grid2 {
+      grid-template-columns: 1fr;
+    }
+    .ob-body {
+      padding: 1.25rem 1.1rem 1.1rem;
+    }
+    .ob-footer {
+      padding: 0.85rem 1.1rem 1.1rem;
+    }
+  }
+`;
+
 function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -33,7 +501,7 @@ function Onboarding() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [sex, setSex] = useState("male");
-  const [dateOfBirth, setDateOfBirth] = useState(""); 
+  const [dateOfBirth, setDateOfBirth] = useState("");
 
   const [bodyFatPctInput, setBodyFatPctInput] = useState("");
   const [defaultLissOptIn, setDefaultLissOptIn] = useState(true);
@@ -66,8 +534,8 @@ function Onboarding() {
     if (inferred !== goalType) {
       setGoalType(inferred);
     }
-
   }, [startingWeightInput, goalWeightInput, unitSystem]);
+
   const [weeklyChangeInput, setWeeklyChangeInput] = useState("");
   const [calorieMode, setCalorieMode] = useState("ai");
   const [customCalories, setCustomCalories] = useState("");
@@ -266,7 +734,6 @@ function Onboarding() {
   }, [navigate]);
 
   const validateStep = (s) => {
-
     setError("");
 
     if (s === 1) {
@@ -421,7 +888,6 @@ function Onboarding() {
   const saveProgress = async (nextStepValue) => {
     if (!profile?.user_id) return;
 
-    // Build a partial payload (safe to save mid-onboarding)
     const heightCm = parseHeightToCm();
     const startingWeightKg = parseWeightToKg(startingWeightInput);
     const goalWeightKg = parseWeightToKg(goalWeightInput);
@@ -434,11 +900,9 @@ function Onboarding() {
     const baselineCardioHr = parseOptionalInt(baselineCardioHrInput, CAPS.cardio_avg_hr);
 
     const partialPayload = {
-      // resume support
       onboarding_step: nextStepValue,
       onboarding_complete: false,
 
-      // store whatever is valid so far
       unit_system: unitSystem,
       height_cm: heightCm,
       starting_weight_kg: startingWeightKg,
@@ -477,7 +941,6 @@ function Onboarding() {
       default_liss_opt_in: defaultLissOptIn
     };
 
-    // Use the existing fallback logic so missing columns (e.g. onboarding_step) don’t break the flow
     const res = await updateWithFallback(partialPayload);
     if (res?.error) {
       console.warn("Onboarding progress save skipped:", res.error.message);
@@ -493,6 +956,7 @@ function Onboarding() {
     setStep(next);
     await saveProgress(next);
   };
+
   const prevStep = async () => {
     const prev = Math.max(step - 1, 1);
     setStep(prev);
@@ -652,7 +1116,7 @@ function Onboarding() {
       baseline_cardio_avg_hr: baselineCardioHr
     };
 
-    const updateWithFallback = async (payload) => {
+    const updateWithFallbackLocal = async (payload) => {
       const { error: e1 } = await supabase
         .from("profiles")
         .update(payload)
@@ -666,7 +1130,6 @@ function Onboarding() {
 
       const cleaned = { ...payload };
       for (const k of Object.keys(cleaned)) {
-
         if (msg.includes(`'${k}'`)) delete cleaned[k];
       }
 
@@ -678,22 +1141,20 @@ function Onboarding() {
       return { error: e2 || null };
     };
 
-    const coreRes = await updateWithFallback(basePayload);
+    const coreRes = await updateWithFallbackLocal(basePayload);
     if (coreRes.error) {
       setSaving(false);
       setError(coreRes.error.message);
       return;
     }
 
-    const actRes = await updateWithFallback(activityPayload);
+    const actRes = await updateWithFallbackLocal(activityPayload);
     if (actRes.error) {
-
       console.warn("Activity baseline save skipped:", actRes.error.message);
     }
 
-    const optRes = await updateWithFallback(optionalPayload);
+    const optRes = await updateWithFallbackLocal(optionalPayload);
     if (optRes.error) {
-
       console.warn("Optional profile fields save skipped:", optRes.error.message);
     }
 
@@ -736,7 +1197,7 @@ function Onboarding() {
         const safeCalories = trainingCalories >= 1200 ? trainingCalories : defaultCalories;
 
         const bwLb = kgToLb(startingWeightKg || 0);
-        const protein = clamp0(bwLb * 1.0); 
+        const protein = clamp0(bwLb * 1.0);
 
         const fatPerLb = sex === "female" ? 0.35 : 0.30;
         const fats = clamp0(bwLb * fatPerLb);
@@ -804,665 +1265,627 @@ function Onboarding() {
         .from("nutrition_day_targets")
         .upsert(upserts, { onConflict: "user_id,day_type" });
     } catch (e) {
-
       console.warn("Post-init day-target tuning skipped:", e);
     }
 
     setSaving(false);
-    // Route to the app shell; AppLayout will land them on the correct default page.
     navigate("/app", { replace: true });
   };
 
-  const pageWrap = {
-    width: "100%",
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "center",
-    background: "#060609",
-    padding: "1.25rem"
-  };
-
-  const card = {
-    width: "100%",
-    maxWidth: "1100px",
-    background: "transparent",
-    border: "none",
-    borderRadius: 0,
-    boxShadow: "none",
-    overflow: "visible"
-  };
-
-  const header = {
-    paddingBottom: "1.5rem",
-    marginBottom: "1.5rem",
-    borderBottom: "1px solid #2a1118"
-  };
-
-  const body = {
-    padding: 0,
-    display: "grid",
-    gap: "1.5rem"
-  };
-
-  const h1 = { margin: 0, fontSize: "2.2rem", letterSpacing: "0.3px" };
-  const sub = { marginTop: "0.55rem", color: "#aaa", lineHeight: 1.55, fontSize: "1.02rem" };
-
-  const stepRow = {
-    marginTop: "1rem",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "1rem"
-  };
-
-  const dots = { display: "flex", gap: "0.35rem", flexWrap: "wrap" };
-
-  const dot = (active) => ({
-    width: "10px",
-    height: "10px",
-    borderRadius: "999px",
-    background: active ? "#fff" : "#3a3a3a",
-    border: "1px solid #0b0b10"
-  });
-
-  const stepText = { color: "#666", fontSize: "0.95rem" };
-  const sectionTitle = { margin: 0, fontSize: "1.4rem" };
-
-  const label = {
-    display: "block",
-    color: "#aaa",
-    fontSize: "0.95rem",
-    marginBottom: "0.35rem"
-  };
-
-  const field = {
-    width: "100%",
-    padding: "0.85rem",
-    background: "#060609",
-    color: "#fff",
-    border: "1px solid #2a1118",
-    borderRadius: "12px",
-    outline: "none",
-    fontSize: "1rem"
-  };
-
-  const help = { color: "#666", fontSize: "0.95rem", marginTop: "0.5rem", lineHeight: 1.45 };
-
-  const segmentedWrap = { display: "flex", gap: "0.5rem", marginTop: "0.35rem", flexWrap: "wrap" };
-
-  const segBtn = (active) => ({
-    padding: "0.75rem 1.1rem",
-    borderRadius: "12px",
-    border: "1px solid #2a1118",
-    background: active ? "#0b0b10" : "transparent",
-    color: active ? "#fff" : "#aaa",
-    cursor: "pointer",
-    fontSize: "1rem"
-  });
-
-  const dayBtn = (active) => ({
-    padding: "0.55rem 0.9rem",
-    borderRadius: "999px",
-    border: "1px solid #2a1118",
-    background: active ? "#0b0b10" : "transparent",
-    color: active ? "#fff" : "#aaa",
-    cursor: "pointer",
-    fontSize: "0.98rem"
-  });
-
-  const footer = {
-    marginTop: "2rem",
-    paddingTop: "1.5rem",
-    borderTop: "1px solid #2a1118",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "1rem"
-  };
-
-  const btn = (variant, disabled) => {
-    const base = {
-      padding: "0.85rem 1.15rem",
-      borderRadius: "12px",
-      border: "1px solid #2a1118",
-      cursor: disabled ? "default" : "pointer",
-      opacity: disabled ? 0.6 : 1,
-      fontSize: "1rem"
-    };
-    if (variant === "primary") return { ...base, background: "#0b0b10", color: "#fff" };
-    return { ...base, background: "transparent", color: "#fff" };
-  };
-
-  const linkBtn = (disabled) => ({
-    padding: "0.55rem 0.85rem",
-    borderRadius: "12px",
-    border: "1px solid #2a1118",
-    background: "transparent",
-    color: "#aaa",
-    cursor: disabled ? "default" : "pointer",
-    opacity: disabled ? 0.6 : 1,
-    fontSize: "0.95rem"
-  });
-
-  const errorBox = {
-    marginTop: "1rem",
-    padding: "0.9rem 1.1rem",
-    borderRadius: "12px",
-    border: "1px solid #3a1b1b",
-    background: "rgba(255, 107, 107, 0.08)",
-    color: "#ff6b6b"
-  };
-
-  const grid2 = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "0.9rem"
-  };
+  // ── derived UI values ──
+  const pct = Math.round((step / TOTAL_STEPS) * 100);
+  const meta = STEP_META[step - 1] || STEP_META[0];
 
   if (loading) {
     return (
-      <div style={pageWrap}>
-        <div style={card}>
-          <div style={header}>
-            <h1 style={h1}>Onboarding</h1>
-            <div style={sub}>Loading your profile…</div>
+      <>
+        <style>{CSS}</style>
+        <div className="ob-wrap">
+          <div className="ob-status-card">
+            <div className="ob-status-code">PREFLIGHT · SYSTEM CHECK</div>
+            <div className="ob-status-title">Initialising…</div>
+            <div className="ob-status-sub">Loading your profile.</div>
           </div>
-          <div style={body} />
         </div>
-      </div>
+      </>
     );
   }
 
   if (error && !saving && step === 1 && !profile) {
     return (
-      <div style={pageWrap}>
-        <div style={{ ...card, maxWidth: "640px" }}>
-          <div style={header}>
-            <h1 style={h1}>Onboarding</h1>
-            <div style={sub}>Something went wrong.</div>
-            <div style={errorBox}>{error}</div>
+      <>
+        <style>{CSS}</style>
+        <div className="ob-wrap">
+          <div className="ob-status-card">
+            <div className="ob-status-code">PREFLIGHT · FAULT DETECTED</div>
+            <div className="ob-status-title">System fault.</div>
+            <div className="ob-status-sub" style={{ color: "var(--bad)", marginTop: "0.75rem" }}>{error}</div>
           </div>
-          <div style={body} />
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div style={pageWrap}>
-      <div style={card}>
-        <div style={header}>
-          <div className="ob-header-row" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "1rem" }}>
-            <div>
-              <h1 style={h1}>Onboarding</h1>
-              <div style={sub}>Set your baseline so PhysiquePilot can guide training, nutrition, steps and cardio.</div>
-            </div>
+    <>
+      <style>{CSS}</style>
+      <div className="ob-wrap">
 
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <button
-              type="button"
-              onClick={async () => {
-                if (saving) return;
-                await saveProgress(step);
-                navigate("/", { replace: true });
-              }}
-              disabled={saving}
-              style={linkBtn(saving)}
-            >
-              Back to home
-            </button>
-              <div style={stepText}>Step {step} of 7</div>
-            </div>
+        {/* ── progress rail ── */}
+        <div className="ob-progress-rail">
+          <div className="ob-progress-bar-track">
+            <div className="ob-progress-bar-fill" style={{ width: `${pct}%` }} />
           </div>
-
-          <div style={stepRow}>
-            <div style={dots}>
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div key={i} style={dot(i + 1 === step)} />
-              ))}
-            </div>
-            <div style={{ color: "#666", fontSize: "0.9rem" }}>{saving ? "Saving…" : ""}</div>
-          </div>
-
-          {error && <div style={errorBox}>{error}</div>}
+          <div className="ob-progress-label">PREFLIGHT &middot; STEP {step} OF {TOTAL_STEPS}</div>
         </div>
 
-        <div style={body}>
-          {step === 1 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>Body metrics</h2>
+        {/* ── main card ── */}
+        <div className="ob-card">
 
+          {/* topbar */}
+          <div className="ob-topbar">
+            <div className="ob-topbar-left">
+              <span className="ob-topbar-dot" />
+              {meta.code}
+            </div>
+            <div className="ob-topbar-right">PREFLIGHT</div>
+          </div>
+
+          {/* body */}
+          <div className="ob-body">
+
+            {/* back-to-home row */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={label}>Unit system</div>
-                <div style={segmentedWrap}>
-                  <button type="button" onClick={() => setUnitSystem("metric")} style={segBtn(unitSystem === "metric")}>
-                    Metric
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUnitSystem("imperial")}
-                    style={segBtn(unitSystem === "imperial")}
-                  >
-                    Imperial
-                  </button>
-                </div>
+                {step === 1 && (
+                  <p className="ob-step-heading" style={{ fontSize: "1.5rem" }}>
+                    {meta.label}.
+                  </p>
+                )}
               </div>
-
-              <div className="ob-grid2" style={grid2}>
-                <div>
-                  <div style={label}>Height ({unitSystem === "metric" ? "cm" : `e.g. 5'10"`})</div>
-                  <input type="text" value={heightInput} onChange={(e) => setHeightInput(e.target.value)} style={field} />
-                </div>
-
-                <div>
-                  <div style={label}>Starting weight ({unitSystem === "metric" ? "kg" : "lbs"})</div>
-                  <input
-                    type="number"
-                    value={startingWeightInput}
-                    onChange={(e) => setStartingWeightInput(e.target.value)}
-                    style={field}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div style={label}>Goal weight ({unitSystem === "metric" ? "kg" : "lbs"})</div>
-                <input
-                  type="number"
-                  value={goalWeightInput}
-                  onChange={(e) => setGoalWeightInput(e.target.value)}
-                  style={field}
-                />
-              </div>
-
-              <div>
-                <div style={label}>Body fat % (estimate)</div>
-                <input
-                  type="number"
-                  min="3"
-                  max="60"
-                  step="0.5"
-                  value={bodyFatPctInput}
-                  onChange={(e) => setBodyFatPctInput(e.target.value)}
-                  style={field}
-                  placeholder="e.g. 15"
-                />
-                <div style={help}>
-                  If you’re unsure, use reference photos to estimate.{" "}
-                  {sex === "female"
-                    ? "Women typically carry higher essential body fat than men — your estimate may be higher than you’d guess from male reference images."
-                    : ""}
-                </div>
-              </div>
+              <button
+                type="button"
+                className="ob-home-link"
+                onClick={async () => {
+                  if (saving) return;
+                  await saveProgress(step);
+                  navigate("/", { replace: true });
+                }}
+                disabled={saving}
+              >
+                Back to home
+              </button>
             </div>
 
-          )}
-
-          {step === 2 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>About you</h2>
-
-              <div style={grid2}>
-                <div>
-                  <div style={label}>First name</div>
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    style={field}
-                    placeholder="e.g. Chris"
-                    autoComplete="given-name"
-                  />
-                </div>
-
-                <div>
-                  <div style={label}>Last name</div>
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    style={field}
-                    placeholder="e.g. Bumstead"
-                    autoComplete="family-name"
-                  />
-                </div>
-              </div>
-
+            {/* step heading (for steps 2+) */}
+            {step > 1 && (
               <div>
-                <div style={label}>Date of birth</div>
-                <input
-                  type="date"
-                  value={dateOfBirth}
-                  onChange={(e) => setDateOfBirth(e.target.value)}
-                  style={field}
-                  autoComplete="bday"
-                />
-                <div style={help}>Used for calorie calculations. You can change this later in Settings.</div>
+                <p className="ob-step-heading">{meta.label}.</p>
               </div>
+            )}
 
-              <div>
-                <div style={label}>Sex</div>
-                <div style={segmentedWrap}>
-                  <button type="button" onClick={() => setSex("male")} style={segBtn(sex === "male")}>
-                    Male
-                  </button>
-                  <button type="button" onClick={() => setSex("female")} style={segBtn(sex === "female")}>
-                    Female
-                  </button>
-                </div>
-                <div style={help}>This helps set more realistic calorie and macro baselines.</div>
-              </div>
-            </div>
-          )}
-          {step === 3 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>Goal & calories</h2>
+            {/* ── STEP 1 — Body metrics ── */}
+            {step === 1 && (
+              <div style={{ display: "grid", gap: "1.1rem" }}>
+                <p className="ob-step-desc">
+                  Set your baseline so Physique Pilot can guide training, nutrition, steps and cardio.
+                </p>
 
-              <div>
-                <div style={label}>Main goal</div>
-                <select
-                  value={goalType}
-                  disabled
-                  style={{ ...field, opacity: 0.7 }}
-                >
-                  <option value="maintain">Maintain weight</option>
-                  <option value="lose">Lose weight</option>
-                  <option value="gain">Gain weight</option>
-                </select>
-                <div style={help}>
-                  Your goal is inferred from your starting and goal weight.
-                  If both are within 2kg, we assume maintenance.
-                </div>
-              </div>
-
-              {goalType !== "maintain" && (
-                <div>
-                  <div style={label}>Target rate per week ({unitSystem === "metric" ? "kg/week" : "lbs/week"})</div>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={weeklyChangeInput}
-                    onChange={(e) => setWeeklyChangeInput(e.target.value)}
-                    style={field}
-                  />
-                  <div style={help}>Safe defaults: cutting capped at 1kg/week, gaining capped at 0.2kg/week.</div>
-                </div>
-              )}
-
-              <div>
-                <div style={label}>Calories</div>
-                <select value={calorieMode} onChange={(e) => setCalorieMode(e.target.value)} style={field}>
-                  <option value="ai">Let PhysiquePilot calculate for me</option>
-                  <option value="custom">I want to enter my own calorie target</option>
-                </select>
-              </div>
-
-              {calorieMode === "custom" && (
-                <div>
-                  <div style={label}>Daily calorie target</div>
-                  <input
-                    type="number"
-                    value={customCalories}
-                    onChange={(e) => setCustomCalories(e.target.value)}
-                    style={field}
-                  />
-                  <div style={help}>Minimum 1200 kcal.</div>
-                </div>
-              )}
-
-              <div style={help}>The more consistent your weight logs, the better the app can guide adjustments.</div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>Training setup</h2>
-
-              <div>
-                <div style={label}>Training split type</div>
-                <select value={splitMode} onChange={(e) => setSplitMode(e.target.value)} style={field}>
-                  <option value="fixed">Weekly (fixed days)</option>
-                  <option value="rolling">Rolling (cycle repeats)</option>
-                </select>
-              </div>
-
-              {splitMode === "fixed" && (
-                <div>
-                  <div style={label}>Which days do you usually train?</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.5rem" }}>
-                    {daysOfWeek.map((d) => (
-                      <button key={d} type="button" onClick={() => toggleTrainingDay(d)} style={dayBtn(trainingDaysSelected.includes(d))}>
-                        {d}
-                      </button>
-                    ))}
+                <div className="ob-field-group">
+                  <div className="ob-label">Unit system</div>
+                  <div className="ob-pills">
+                    <button
+                      type="button"
+                      className={`ob-pill${unitSystem === "metric" ? " active" : ""}`}
+                      onClick={() => setUnitSystem("metric")}
+                    >
+                      Metric
+                    </button>
+                    <button
+                      type="button"
+                      className={`ob-pill${unitSystem === "imperial" ? " active" : ""}`}
+                      onClick={() => setUnitSystem("imperial")}
+                    >
+                      Imperial
+                    </button>
                   </div>
-                  <div style={help}>You can refine the split inside Training later.</div>
                 </div>
-              )}
 
-              {splitMode === "rolling" && (
-                <div style={{ display: "grid", gap: "0.75rem" }}>
-                  <div>
-                    <div style={label}>How many days per week do you want to train?</div>
-                    <select value={trainingFrequencyRange} onChange={(e) => setTrainingFrequencyRange(e.target.value)} style={field}>
-                      <option value="1-2">1–2 days</option>
-                      <option value="2-4">2–4 days</option>
-                      <option value="5-6">5–6 days</option>
-                      <option value="7">7 days</option>
+                <div className="ob-grid2">
+                  <div className="ob-field-group">
+                    <div className="ob-label">Height ({unitSystem === "metric" ? "cm" : `e.g. 5'10"`})</div>
+                    <input
+                      type="text"
+                      className="ob-input"
+                      value={heightInput}
+                      onChange={(e) => setHeightInput(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="ob-field-group">
+                    <div className="ob-label">Starting weight ({unitSystem === "metric" ? "kg" : "lbs"})</div>
+                    <input
+                      type="number"
+                      className="ob-input"
+                      value={startingWeightInput}
+                      onChange={(e) => setStartingWeightInput(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Goal weight ({unitSystem === "metric" ? "kg" : "lbs"})</div>
+                  <input
+                    type="number"
+                    className="ob-input"
+                    value={goalWeightInput}
+                    onChange={(e) => setGoalWeightInput(e.target.value)}
+                  />
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Body fat % (estimate)</div>
+                  <input
+                    type="number"
+                    min="3"
+                    max="60"
+                    step="0.5"
+                    className="ob-input"
+                    value={bodyFatPctInput}
+                    onChange={(e) => setBodyFatPctInput(e.target.value)}
+                    placeholder="e.g. 15"
+                  />
+                  <div className="ob-help">
+                    If you're unsure, use reference photos to estimate.{" "}
+                    {sex === "female"
+                      ? "Women typically carry higher essential body fat than men — your estimate may be higher than you'd guess from male reference images."
+                      : ""}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 2 — About you ── */}
+            {step === 2 && (
+              <div style={{ display: "grid", gap: "1.1rem" }}>
+                <div className="ob-grid2">
+                  <div className="ob-field-group">
+                    <div className="ob-label">First name</div>
+                    <input
+                      type="text"
+                      className="ob-input"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="e.g. Chris"
+                      autoComplete="given-name"
+                    />
+                  </div>
+
+                  <div className="ob-field-group">
+                    <div className="ob-label">Last name</div>
+                    <input
+                      type="text"
+                      className="ob-input"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="e.g. Bumstead"
+                      autoComplete="family-name"
+                    />
+                  </div>
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Date of birth</div>
+                  <input
+                    type="date"
+                    className="ob-input"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    autoComplete="bday"
+                  />
+                  <div className="ob-help">Used for calorie calculations. You can change this later in Settings.</div>
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Sex</div>
+                  <div className="ob-pills">
+                    <button
+                      type="button"
+                      className={`ob-pill${sex === "male" ? " active" : ""}`}
+                      onClick={() => setSex("male")}
+                    >
+                      Male
+                    </button>
+                    <button
+                      type="button"
+                      className={`ob-pill${sex === "female" ? " active" : ""}`}
+                      onClick={() => setSex("female")}
+                    >
+                      Female
+                    </button>
+                  </div>
+                  <div className="ob-help">This helps set more realistic calorie and macro baselines.</div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 3 — Goal & calories ── */}
+            {step === 3 && (
+              <div style={{ display: "grid", gap: "1.1rem" }}>
+                <div className="ob-field-group">
+                  <div className="ob-label">Main goal</div>
+                  <select
+                    className="ob-input"
+                    value={goalType}
+                    disabled
+                    style={{ opacity: 0.7 }}
+                  >
+                    <option value="maintain">Maintain weight</option>
+                    <option value="lose">Lose weight</option>
+                    <option value="gain">Gain weight</option>
+                  </select>
+                  <div className="ob-help">
+                    Your goal is inferred from your starting and goal weight.
+                    If both are within 2 kg, we assume maintenance.
+                  </div>
+                </div>
+
+                {goalType !== "maintain" && (
+                  <div className="ob-field-group">
+                    <div className="ob-label">
+                      Target rate per week ({unitSystem === "metric" ? "kg/week" : "lbs/week"})
+                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="ob-input"
+                      value={weeklyChangeInput}
+                      onChange={(e) => setWeeklyChangeInput(e.target.value)}
+                    />
+                    <div className="ob-help">Safe defaults: cutting capped at 1 kg/week, gaining capped at 0.2 kg/week.</div>
+                  </div>
+                )}
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Calories</div>
+                  <select
+                    className="ob-input"
+                    value={calorieMode}
+                    onChange={(e) => setCalorieMode(e.target.value)}
+                  >
+                    <option value="ai">Let Physique Pilot calculate for me</option>
+                    <option value="custom">I want to enter my own calorie target</option>
+                  </select>
+                </div>
+
+                {calorieMode === "custom" && (
+                  <div className="ob-field-group">
+                    <div className="ob-label">Daily calorie target</div>
+                    <input
+                      type="number"
+                      className="ob-input"
+                      value={customCalories}
+                      onChange={(e) => setCustomCalories(e.target.value)}
+                    />
+                    <div className="ob-help">Minimum 1200 kcal.</div>
+                  </div>
+                )}
+
+                <div className="ob-help">The more consistent your weight logs, the better the app can guide adjustments.</div>
+              </div>
+            )}
+
+            {/* ── STEP 4 — Training setup ── */}
+            {step === 4 && (
+              <div style={{ display: "grid", gap: "1.1rem" }}>
+                <div className="ob-field-group">
+                  <div className="ob-label">Training split type</div>
+                  <select
+                    className="ob-input"
+                    value={splitMode}
+                    onChange={(e) => setSplitMode(e.target.value)}
+                  >
+                    <option value="fixed">Weekly (fixed days)</option>
+                    <option value="rolling">Rolling (cycle repeats)</option>
+                  </select>
+                </div>
+
+                {splitMode === "fixed" && (
+                  <div className="ob-field-group">
+                    <div className="ob-label">Which days do you usually train?</div>
+                    <div className="ob-pills" style={{ marginTop: "0.2rem" }}>
+                      {daysOfWeek.map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          className={`ob-day-pill${trainingDaysSelected.includes(d) ? " active" : ""}`}
+                          onClick={() => toggleTrainingDay(d)}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="ob-help">You can refine the split inside Training later.</div>
+                  </div>
+                )}
+
+                {splitMode === "rolling" && (
+                  <div style={{ display: "grid", gap: "0.85rem" }}>
+                    <div className="ob-field-group">
+                      <div className="ob-label">How many days per week do you want to train?</div>
+                      <select
+                        className="ob-input"
+                        value={trainingFrequencyRange}
+                        onChange={(e) => setTrainingFrequencyRange(e.target.value)}
+                      >
+                        <option value="1-2">1–2 days</option>
+                        <option value="2-4">2–4 days</option>
+                        <option value="5-6">5–6 days</option>
+                        <option value="7">7 days</option>
+                      </select>
+                    </div>
+
+                    <div className="ob-field-group">
+                      <div className="ob-label">When did you start your current training block?</div>
+                      <input
+                        type="date"
+                        className="ob-input"
+                        value={rollingStartDate}
+                        onChange={(e) => setRollingStartDate(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="ob-help">You'll set the exact rolling split pattern (e.g. 8-day cycle) in the Training section.</div>
+                  </div>
+                )}
+
+                <div className="ob-grid2">
+                  <div className="ob-field-group">
+                    <div className="ob-label">Experience level</div>
+                    <select
+                      className="ob-input"
+                      value={experienceLevel}
+                      onChange={(e) => setExperienceLevel(e.target.value)}
+                    >
+                      <option value="beginner">Beginner</option>
+                      <option value="intermediate">Intermediate</option>
+                      <option value="advanced">Advanced</option>
                     </select>
                   </div>
 
-                  <div>
-                    <div style={label}>When did you start your current training block?</div>
-                    <input type="date" value={rollingStartDate} onChange={(e) => setRollingStartDate(e.target.value)} style={field} />
+                  <div className="ob-field-group">
+                    <div className="ob-label">Gym type</div>
+                    <select
+                      className="ob-input"
+                      value={gymType}
+                      onChange={(e) => setGymType(e.target.value)}
+                    >
+                      <option value="home">Home gym</option>
+                      <option value="commercial">Commercial gym</option>
+                      <option value="independent">Independent gym</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Gym chain or name (optional)</div>
+                  <input
+                    type="text"
+                    className="ob-input"
+                    value={gymChain}
+                    onChange={(e) => setGymChain(e.target.value)}
+                    placeholder="PureGym, JD, The Gym Group, etc."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 5 — Activity baseline ── */}
+            {step === 5 && (
+              <div style={{ display: "grid", gap: "1.1rem" }}>
+                <div className="ob-field-group">
+                  <div className="ob-label">Lifestyle (excluding weight training)</div>
+                  <select
+                    className="ob-input"
+                    value={activityLevel}
+                    onChange={(e) => setActivityLevel(e.target.value)}
+                  >
+                    <option value="inactive">Inactive</option>
+                    <option value="light">Lightly active</option>
+                    <option value="moderate">Moderately active</option>
+                    <option value="heavy">Highly active</option>
+                    <option value="extreme">Extreme</option>
+                  </select>
+                  <div className="ob-help">This is used as your baseline for steps/cardio planning later.</div>
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Default LISS cardio on training days</div>
+                  <div className="ob-pills">
+                    <button
+                      type="button"
+                      className={`ob-pill${defaultLissOptIn === true ? " active" : ""}`}
+                      onClick={() => setDefaultLissOptIn(true)}
+                    >
+                      Include 15 min LISS
+                    </button>
+                    <button
+                      type="button"
+                      className={`ob-pill${defaultLissOptIn === false ? " active" : ""}`}
+                      onClick={() => setDefaultLissOptIn(false)}
+                    >
+                      Opt out
+                    </button>
+                  </div>
+                  <div className="ob-help">
+                    Recommended for bodybuilding (incline walk, stairmaster). If you opt out, calories will be adjusted later to keep progress consistent.
+                  </div>
+                </div>
+
+                <div className="ob-grid2">
+                  <div className="ob-field-group">
+                    <div className="ob-label">Avg steps per day (optional)</div>
+                    <input
+                      type="number"
+                      min="0"
+                      className="ob-input"
+                      value={baselineStepsInput}
+                      onChange={(e) => setBaselineStepsInput(e.target.value)}
+                      placeholder="e.g. 8000"
+                    />
                   </div>
 
-                  <div style={help}>You’ll set the exact rolling split pattern (e.g. 8-day cycle) in the Training section.</div>
+                  <div className="ob-field-group">
+                    <div className="ob-label">Cardio mins/week (optional)</div>
+                    <input
+                      type="number"
+                      min="0"
+                      className="ob-input"
+                      value={baselineCardioMinutesInput}
+                      onChange={(e) => setBaselineCardioMinutesInput(e.target.value)}
+                      placeholder="e.g. 60"
+                    />
+                  </div>
                 </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Typical cardio heart rate (optional)</div>
+                  <input
+                    type="number"
+                    min="0"
+                    className="ob-input"
+                    value={baselineCardioHrInput}
+                    onChange={(e) => setBaselineCardioHrInput(e.target.value)}
+                    placeholder="e.g. 120"
+                  />
+                  <div className="ob-help">We'll encourage LISS later (incline walk, stairmaster), but for now we just record baseline.</div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 6 — Nutrition preferences ── */}
+            {step === 6 && (
+              <div style={{ display: "grid", gap: "1.1rem" }}>
+                <div className="ob-field-group">
+                  <div className="ob-label">Dietary preference</div>
+                  <select
+                    className="ob-input"
+                    value={dietaryPreference}
+                    onChange={(e) => setDietaryPreference(e.target.value)}
+                  >
+                    <option value="omnivore">Omnivore</option>
+                    <option value="vegetarian">Vegetarian</option>
+                    <option value="vegan">Vegan</option>
+                    <option value="pescatarian">Pescatarian</option>
+                    <option value="halal">Halal</option>
+                    <option value="gluten_free">Gluten free</option>
+                    <option value="lactose_free">Lactose free</option>
+                  </select>
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Additional dietary notes</div>
+                  <textarea
+                    className="ob-input ob-textarea"
+                    value={dietaryAdditional}
+                    onChange={(e) => setDietaryAdditional(e.target.value)}
+                    placeholder="Any extra preferences you want the app to consider."
+                  />
+                </div>
+
+                <div className="ob-field-group">
+                  <div className="ob-label">Food dislikes</div>
+                  <textarea
+                    className="ob-input ob-textarea"
+                    value={dislikes}
+                    onChange={(e) => setDislikes(e.target.value)}
+                    placeholder="Foods you strongly prefer to avoid."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 7 — Safety & confirm ── */}
+            {step === 7 && (
+              <div style={{ display: "grid", gap: "1.1rem" }}>
+                <div className="ob-field-group">
+                  <div className="ob-label">Food allergies</div>
+                  <textarea
+                    className="ob-input ob-textarea"
+                    value={foodAllergies}
+                    onChange={(e) => setFoodAllergies(e.target.value)}
+                    placeholder="List any food allergies."
+                  />
+                </div>
+
+                <div className="ob-check-row">
+                  <input
+                    type="checkbox"
+                    className="ob-checkbox"
+                    checked={disclaimerAccepted}
+                    onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                    id="ob-disclaimer"
+                  />
+                  <label htmlFor="ob-disclaimer" className="ob-check-label">
+                    I confirm I am healthy enough for exercise and nutrition changes and understand this is not medical advice or an emergency service.
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* error */}
+            {error && <div className="ob-error">{error}</div>}
+          </div>
+
+          {/* ── footer ── */}
+          <div className="ob-footer">
+            <div className="ob-footer-hint">
+              {saving
+                ? <span className="ob-saving-badge">Saving&hellip;</span>
+                : step === 1
+                  ? ""
+                  : "Editable in settings"}
+            </div>
+
+            <div className="ob-footer-btns">
+              {step > 1 && (
+                <button
+                  type="button"
+                  className="ob-btn-ghost"
+                  onClick={prevStep}
+                  disabled={saving}
+                >
+                  Back
+                </button>
               )}
 
-              <div style={grid2}>
-                <div>
-                  <div style={label}>Experience level</div>
-                  <select value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)} style={field}>
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                  </select>
-                </div>
+              {step < 7 && (
+                <button
+                  type="button"
+                  className="ob-btn-primary"
+                  onClick={nextStep}
+                  disabled={saving}
+                >
+                  Next
+                </button>
+              )}
 
-                <div>
-                  <div style={label}>Gym type</div>
-                  <select value={gymType} onChange={(e) => setGymType(e.target.value)} style={field}>
-                    <option value="home">Home gym</option>
-                    <option value="commercial">Commercial gym</option>
-                    <option value="independent">Independent gym</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div style={label}>Gym chain or name (optional)</div>
-                <input type="text" value={gymChain} onChange={(e) => setGymChain(e.target.value)} style={field} placeholder="PureGym, JD, The Gym Group, etc." />
-              </div>
+              {step === 7 && (
+                <button
+                  type="button"
+                  className="ob-btn-primary"
+                  onClick={handleSubmit}
+                  disabled={saving}
+                >
+                  {saving ? "Saving…" : "Finish preflight"}
+                </button>
+              )}
             </div>
-          )}
-
-          {step === 5 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>Activity baseline</h2>
-
-              <div>
-                <div style={label}>Lifestyle (excluding weight training)</div>
-                <select value={activityLevel} onChange={(e) => setActivityLevel(e.target.value)} style={field}>
-                  <option value="inactive">Inactive</option>
-                  <option value="light">Lightly active</option>
-                  <option value="moderate">Moderately active</option>
-                  <option value="heavy">Highly active</option>
-                  <option value="extreme">Extreme</option>
-                </select>
-                <div style={help}>This is used as your baseline for steps/cardio planning later.</div>
-              </div>
-
-              <div>
-                <div style={label}>Default LISS cardio on training days</div>
-                <div style={segmentedWrap}>
-                  <button
-                    type="button"
-                    onClick={() => setDefaultLissOptIn(true)}
-                    style={segBtn(defaultLissOptIn === true)}
-                  >
-                    Include 15 min LISS
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDefaultLissOptIn(false)}
-                    style={segBtn(defaultLissOptIn === false)}
-                  >
-                    Opt out
-                  </button>
-                </div>
-                <div style={help}>
-                  Recommended for bodybuilding (incline walk, stairmaster). If you opt out, calories will be adjusted later to keep progress consistent.
-                </div>
-              </div>
-
-              <div style={grid2}>
-                <div>
-                  <div style={label}>Average steps per day (optional)</div>
-                  <input
-                    type="number"
-                    min="0"
-                    value={baselineStepsInput}
-                    onChange={(e) => setBaselineStepsInput(e.target.value)}
-                    style={field}
-                    placeholder="e.g. 8000"
-                  />
-                </div>
-
-                <div>
-                  <div style={label}>Cardio minutes per week (optional)</div>
-                  <input
-                    type="number"
-                    min="0"
-                    value={baselineCardioMinutesInput}
-                    onChange={(e) => setBaselineCardioMinutesInput(e.target.value)}
-                    style={field}
-                    placeholder="e.g. 60"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div style={label}>Typical cardio heart rate (optional)</div>
-                <input
-                  type="number"
-                  min="0"
-                  value={baselineCardioHrInput}
-                  onChange={(e) => setBaselineCardioHrInput(e.target.value)}
-                  style={field}
-                  placeholder="e.g. 120"
-                />
-                <div style={help}>We’ll encourage LISS later (incline walk, stairmaster), but for now we just record baseline.</div>
-              </div>
-            </div>
-          )}
-
-          {step === 6 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>Nutrition preferences</h2>
-
-              <div>
-                <div style={label}>Dietary preference</div>
-                <select value={dietaryPreference} onChange={(e) => setDietaryPreference(e.target.value)} style={field}>
-                  <option value="omnivore">Omnivore</option>
-                  <option value="vegetarian">Vegetarian</option>
-                  <option value="vegan">Vegan</option>
-                  <option value="pescatarian">Pescatarian</option>
-                  <option value="halal">Halal</option>
-                  <option value="gluten_free">Gluten free</option>
-                  <option value="lactose_free">Lactose free</option>
-                </select>
-              </div>
-
-              <div>
-                <div style={label}>Additional dietary notes</div>
-                <textarea
-                  value={dietaryAdditional}
-                  onChange={(e) => setDietaryAdditional(e.target.value)}
-                  style={{ ...field, minHeight: "110px" }}
-                  placeholder="Any extra preferences you want the app to consider."
-                />
-              </div>
-
-              <div>
-                <div style={label}>Food dislikes</div>
-                <textarea
-                  value={dislikes}
-                  onChange={(e) => setDislikes(e.target.value)}
-                  style={{ ...field, minHeight: "110px" }}
-                  placeholder="Foods you strongly prefer to avoid."
-                />
-              </div>
-            </div>
-          )}
-
-          {step === 7 && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <h2 style={sectionTitle}>Safety</h2>
-
-              <div>
-                <div style={label}>Food allergies</div>
-                <textarea
-                  value={foodAllergies}
-                  onChange={(e) => setFoodAllergies(e.target.value)}
-                  style={{ ...field, minHeight: "110px" }}
-                  placeholder="List any food allergies."
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start" }}>
-                <input
-                  type="checkbox"
-                  checked={disclaimerAccepted}
-                  onChange={(e) => setDisclaimerAccepted(e.target.checked)}
-                  style={{ marginTop: "0.15rem" }}
-                />
-                <div style={{ color: "#aaa", lineHeight: 1.35 }}>
-                  I confirm I am healthy enough for exercise and nutrition changes and understand this is not medical advice or an emergency service.
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="ob-footer" style={footer}>
-          <div style={{ color: "#666", fontSize: "0.9rem" }}>{step === 1 ? "" : "You can change these later in Settings."}</div>
-
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            {step > 1 && (
-              <button onClick={prevStep} disabled={saving} style={btn("secondary", saving)}>
-                Back
-              </button>
-            )}
-
-            {step < 7 && (
-              <button onClick={nextStep} disabled={saving} style={btn("primary", saving)}>
-                Next
-              </button>
-            )}
-
-            {step === 7 && (
-              <button onClick={handleSubmit} disabled={saving} style={btn("primary", saving)}>
-                {saving ? "Saving…" : "Finish"}
-              </button>
-            )}
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

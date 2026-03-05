@@ -1,6 +1,831 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 
+const CSS = `
+  .trn-page {
+    max-width: 100%;
+  }
+
+  /* ── Page header ── */
+  .trn-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .trn-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .trn-page-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .trn-page-label-bar {
+    width: 20px;
+    height: 2px;
+    background: var(--accent-2);
+    flex-shrink: 0;
+    box-shadow: 0 0 8px var(--accent-2);
+  }
+
+  .trn-page-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-1);
+    margin: 0;
+  }
+
+  .trn-page-sub {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    color: var(--text-3);
+    letter-spacing: 0.04em;
+    padding-left: calc(20px + 0.75rem);
+  }
+
+  .trn-status {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm);
+    background: rgba(10,5,8,0.6);
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 0.15rem;
+  }
+
+  .trn-status.busy {
+    color: var(--warn);
+    border-color: rgba(229,161,0,0.3);
+    box-shadow: 0 0 8px rgba(229,161,0,0.12);
+  }
+
+  /* ── Error bar ── */
+  .trn-error {
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    color: var(--bad);
+    background: rgba(255,79,115,0.08);
+    border: 1px solid rgba(255,79,115,0.25);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 1rem;
+  }
+
+  /* ── Day selector — desktop ── */
+  .trn-day-strip {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .trn-day-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.6rem 0.9rem 0.55rem;
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+    min-width: 62px;
+    position: relative;
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-day-btn:hover {
+    border-color: var(--line-2);
+    color: var(--text-2);
+    background: rgba(138,15,46,0.1);
+  }
+
+  .trn-day-btn.active {
+    background: linear-gradient(135deg, rgba(181,21,60,0.35), rgba(138,15,46,0.25));
+    border: 1px solid var(--accent-2);
+    color: var(--text-1);
+    box-shadow: 0 0 12px rgba(181,21,60,0.2);
+  }
+
+  .trn-day-abbr {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .trn-day-num {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .trn-day-dot-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 6px;
+    margin-top: 0.1rem;
+  }
+
+  .trn-day-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--ok);
+    box-shadow: 0 0 4px var(--ok);
+  }
+
+  .trn-day-dot.rest {
+    background: rgba(229,161,0,0.55);
+    box-shadow: 0 0 4px rgba(229,161,0,0.3);
+  }
+
+  .trn-day-dot.none {
+    background: transparent;
+  }
+
+  /* ── Day selector — mobile select ── */
+  .trn-day-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(10,5,8,0.9) !important;
+    color: var(--text-1) !important;
+    border: 1px solid var(--line-1) !important;
+    border-radius: var(--radius-md) !important;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    margin-bottom: 1.25rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239a7f89' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 1rem center !important;
+    padding-right: 2.5rem !important;
+  }
+
+  .trn-day-select:focus {
+    border-color: var(--accent-3) !important;
+    box-shadow: 0 0 0 2px rgba(222,41,82,0.18), 0 0 12px rgba(222,41,82,0.15) !important;
+    outline: none;
+  }
+
+  /* ── Loading state ── */
+  .trn-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 3rem 1rem;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .trn-loading-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 99px;
+    background: var(--accent-2);
+    animation: trnPulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes trnPulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 8px var(--accent-2); }
+  }
+
+  /* ── Session card shell ── */
+  .trn-session-card {
+    background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.015);
+  }
+
+  .trn-session-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+    background: rgba(181,21,60,0.07);
+    border-bottom: 1px solid var(--line-1);
+    flex-wrap: wrap;
+  }
+
+  .trn-session-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .trn-session-id {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    font-weight: 700;
+  }
+
+  .trn-session-date {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+  }
+
+  .trn-day-type-badge {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    border: 1px solid var(--line-2);
+    border-radius: 99px;
+    padding: 0.2rem 0.6rem;
+    background: rgba(222,41,82,0.07);
+    white-space: nowrap;
+  }
+
+  .trn-session-body {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ── Settings section ── */
+  .trn-settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .trn-settings-label {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .trn-toggle-btn {
+    padding: 0.48rem 0.9rem;
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: rgba(10,5,8,0.7);
+    color: var(--text-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-toggle-btn:hover:not(:disabled) {
+    border-color: var(--accent-3);
+    color: var(--text-1);
+    box-shadow: 0 0 10px rgba(222,41,82,0.15);
+  }
+
+  .trn-toggle-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .trn-field-label {
+    font-family: var(--font-display);
+    font-size: 0.63rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 0.35rem;
+  }
+
+  .trn-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.65rem;
+    background: rgba(10,5,8,0.9) !important;
+    border: 1px solid var(--line-1) !important;
+    color: var(--text-1) !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+  }
+
+  .trn-input:focus {
+    border-color: var(--accent-3) !important;
+    box-shadow: 0 0 0 2px rgba(222,41,82,0.16) !important;
+    outline: none;
+  }
+
+  .trn-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.65rem;
+    background: rgba(10,5,8,0.9) !important;
+    border: 1px solid var(--line-1) !important;
+    color: var(--text-1) !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    min-height: 90px;
+    resize: vertical;
+  }
+
+  .trn-textarea:focus {
+    border-color: var(--accent-3) !important;
+    box-shadow: 0 0 0 2px rgba(222,41,82,0.16) !important;
+    outline: none;
+  }
+
+  /* ── Exercises section ── */
+  .trn-exercises-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-top: 0.25rem;
+  }
+
+  .trn-exercises-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .trn-exercises-label {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .trn-exercises-count {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    color: var(--accent-3);
+    border: 1px solid rgba(222,41,82,0.2);
+    border-radius: 99px;
+    padding: 0.1rem 0.45rem;
+    background: rgba(222,41,82,0.06);
+  }
+
+  /* ── Add exercise row ── */
+  .trn-add-exercise-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .trn-add-exercise-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.65rem;
+    background: rgba(10,5,8,0.9) !important;
+    border: 1px solid var(--line-1) !important;
+    color: var(--text-1) !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+  }
+
+  .trn-add-exercise-input:focus {
+    border-color: var(--accent-3) !important;
+    box-shadow: 0 0 0 2px rgba(222,41,82,0.16) !important;
+    outline: none;
+  }
+
+  .trn-add-exercise-btn {
+    padding: 0.5rem 1.1rem;
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-1), rgba(138,15,46,0.85));
+    color: var(--text-1);
+    border: 1px solid var(--accent-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 0 12px rgba(181,21,60,0.2);
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-add-exercise-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+    box-shadow: 0 0 18px rgba(181,21,60,0.35);
+  }
+
+  .trn-add-exercise-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* ── Empty exercises state ── */
+  .trn-empty-exercises {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2rem 1rem;
+    border: 1px dashed var(--line-1);
+    border-radius: var(--radius-md);
+    text-align: center;
+  }
+
+  .trn-empty-exercises-label {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .trn-empty-exercises-sub {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    color: var(--text-3);
+    opacity: 0.7;
+  }
+
+  /* ── Exercise sub-card ── */
+  .trn-exercise-card {
+    background: rgba(10,5,8,0.7);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: border-color var(--motion-fast) ease;
+  }
+
+  .trn-exercise-card:hover {
+    border-color: var(--line-2);
+  }
+
+  .trn-exercise-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.85rem;
+    background: rgba(181,21,60,0.04);
+    border-bottom: 1px solid var(--line-1);
+  }
+
+  .trn-exercise-name {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--text-1);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trn-exercise-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .trn-move-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-3);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-move-btn:hover:not(:disabled) {
+    border-color: var(--line-2);
+    color: var(--text-2);
+  }
+
+  .trn-move-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+  }
+
+  .trn-delete-exercise-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    color: var(--bad);
+    border: 1px solid rgba(255,79,115,0.22);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 700;
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-delete-exercise-btn:hover:not(:disabled) {
+    background: rgba(255,79,115,0.1);
+    border-color: rgba(255,79,115,0.5);
+    box-shadow: 0 0 8px rgba(255,79,115,0.2);
+  }
+
+  .trn-delete-exercise-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* ── Sets table ── */
+  .trn-sets-body {
+    padding: 0.75rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .trn-sets-table-head {
+    display: grid;
+    grid-template-columns: 44px 1fr 1fr 1fr 32px;
+    gap: 0.4rem;
+    padding: 0 0 0.35rem 0;
+    border-bottom: 1px solid var(--line-1);
+    margin-bottom: 0.1rem;
+  }
+
+  .trn-sets-th {
+    font-family: var(--font-display);
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .trn-sets-th.center {
+    text-align: center;
+  }
+
+  .trn-set-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 1fr 1fr 32px;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .trn-set-num {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    color: var(--accent-3);
+    text-align: center;
+  }
+
+  .trn-set-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.42rem 0.5rem;
+    background: rgba(10,5,8,0.9) !important;
+    border: 1px solid var(--line-1) !important;
+    color: var(--text-1) !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-body);
+    font-size: 0.84rem;
+    text-align: center;
+  }
+
+  .trn-set-input:focus {
+    border-color: var(--accent-3) !important;
+    box-shadow: 0 0 0 2px rgba(222,41,82,0.16) !important;
+    outline: none;
+  }
+
+  .trn-delete-set-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    color: var(--bad);
+    border: 1px solid rgba(255,79,115,0.18);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-delete-set-btn:hover {
+    background: rgba(255,79,115,0.1);
+    border-color: rgba(255,79,115,0.45);
+  }
+
+  .trn-add-set-btn {
+    align-self: flex-start;
+    margin-top: 0.25rem;
+    padding: 0.38rem 0.85rem;
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--text-3);
+    border: 1px dashed var(--line-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-add-set-btn:hover:not(:disabled) {
+    color: var(--accent-3);
+    border-color: var(--accent-3);
+    border-style: solid;
+    background: rgba(222,41,82,0.05);
+  }
+
+  .trn-add-set-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* ── Rest day state ── */
+  .trn-rest-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3.5rem 1rem;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .trn-rest-label {
+    font-family: var(--font-display);
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--line-2);
+    line-height: 1;
+  }
+
+  .trn-rest-sub {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-top: 0.35rem;
+  }
+
+  /* ── No session card ── */
+  .trn-no-session-card {
+    background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.4);
+  }
+
+  .trn-no-session-title {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    margin-bottom: 0.4rem;
+  }
+
+  .trn-no-session-sub {
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    color: var(--text-3);
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+
+  .trn-no-session-actions {
+    display: flex;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+  }
+
+  .trn-create-training-btn {
+    padding: 0.6rem 1.1rem;
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-1), rgba(138,15,46,0.8));
+    color: var(--text-1);
+    border: 1px solid var(--accent-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(181,21,60,0.2);
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-create-training-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+    box-shadow: 0 0 18px rgba(181,21,60,0.35);
+  }
+
+  .trn-create-training-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .trn-create-rest-btn {
+    padding: 0.6rem 1.1rem;
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: transparent;
+    color: var(--text-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--motion-fast) ease;
+  }
+
+  .trn-create-rest-btn:hover:not(:disabled) {
+    border-color: rgba(229,161,0,0.45);
+    color: var(--warn);
+  }
+
+  .trn-create-rest-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* ── Divider line ── */
+  .trn-divider {
+    height: 1px;
+    background: var(--line-1);
+    margin: 0 -1rem;
+  }
+
+  @media (max-width: 520px) {
+    .trn-sets-table-head,
+    .trn-set-row {
+      grid-template-columns: 36px 1fr 1fr 1fr 28px;
+      gap: 0.3rem;
+    }
+
+    .trn-rest-label {
+      font-size: 2.1rem;
+    }
+
+    .trn-exercise-name {
+      font-size: 0.85rem;
+    }
+  }
+`;
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -14,6 +839,16 @@ const addDaysISO = (iso, days) => {
 const isoToDow = (iso) => {
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString(undefined, { weekday: "short" });
+};
+
+const DOW_ABBR = {
+  Mon: "MON", Tue: "TUE", Wed: "WED", Thu: "THU",
+  Fri: "FRI", Sat: "SAT", Sun: "SUN"
+};
+
+const fmtDateShort = (iso) => {
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 };
 
 export default function Training() {
@@ -41,46 +876,23 @@ export default function Training() {
 
   const week = useMemo(() => {
     const t = todayISO();
-    const start = t; 
+    const start = t;
 
     return Array.from({ length: 7 }).map((_, i) => {
       const iso = addDaysISO(start, i);
       const d = new Date(`${iso}T00:00:00`);
+      const rawLabel = isoToDow(iso);
       return {
         iso,
-        label: isoToDow(iso),
+        label: rawLabel,
+        abbr: DOW_ABBR[rawLabel] || rawLabel.toUpperCase().slice(0, 3),
         day: d.getDate(),
         isToday: iso === t
       };
     });
   }, []);
 
-  const card = {
-    background: "#050507",
-    border: "1px solid #2a1118",
-    padding: "1rem"
-  };
-
-  const input = {
-    width: "100%",
-    padding: "0.6rem",
-    background: "#111",
-    color: "#fff",
-    border: "1px solid #2a1118"
-  };
-
-  const smallBtn = (active) => ({
-    padding: "0.55rem 0.8rem",
-    background: active ? "#0b0b10" : "transparent",
-    color: active ? "#fff" : "#aaa",
-    border: "1px solid #2a1118",
-    cursor: "pointer",
-    borderRadius: "10px",
-    minWidth: "58px"
-  });
-
   const daysBetweenISO = (aISO, bISO) => {
-
     const a = new Date(`${aISO}T00:00:00Z`);
     const b = new Date(`${bISO}T00:00:00Z`);
     const ms = b.getTime() - a.getTime();
@@ -88,7 +900,6 @@ export default function Training() {
   };
 
   const normalizeRollingPattern = (raw) => {
-
     const arr = Array.isArray(raw)
       ? raw
       : Array.isArray(raw?.pattern)
@@ -109,7 +920,6 @@ export default function Training() {
         if (!s) return false;
         if (s === "t" || s === "train" || s === "training" || s === "workout" || s === "lift") return true;
         if (s === "r" || s === "rest" || s === "off") return false;
-
         return false;
       })
       .filter((x) => typeof x === "boolean");
@@ -118,13 +928,11 @@ export default function Training() {
   };
 
   const logSyncErr = (context, err) => {
-
     console.warn(`[training day-type sync] ${context}`, err);
   };
 
   const isIgnorableSyncError = (err) => {
     const msg = String(err?.message || err || "");
-
     return (
       msg.includes("Failed to fetch") ||
       msg.includes("schema cache") ||
@@ -143,11 +951,9 @@ export default function Training() {
     if (persistDayTypeForDate._disabled) return;
 
     const cleanType = dayType === "high" ? "high" : dayType === "training" ? "training" : "rest";
-
     const row = { user_id: uid, date: dateISO, override_type: cleanType };
 
     try {
-
       const { data: existing, error: selErr } = await supabase
         .from("training_day_overrides")
         .select("id")
@@ -197,7 +1003,6 @@ export default function Training() {
     }));
 
     try {
-
       const { error: upErr } = await supabase
         .from("training_day_overrides")
         .upsert(payload, { onConflict: "user_id,date" });
@@ -213,7 +1018,6 @@ export default function Training() {
   };
 
   const preloadWeekFromProfile = async (uid) => {
-
     if (preloadWeekFromProfile._didPersistOnce) return;
     preloadWeekFromProfile._didPersistOnce = true;
 
@@ -240,7 +1044,6 @@ export default function Training() {
     const rollingPattern = normalizeRollingPattern(profile?.rolling_pattern);
 
     if (splitMode === "rolling" && !rollingPattern) {
-
       return;
     }
 
@@ -252,11 +1055,9 @@ export default function Training() {
 
     const isTrainingForDate = (dateISO) => {
       if (splitMode !== "rolling") {
-        const dow = isoToDow(dateISO); 
-
+        const dow = isoToDow(dateISO);
         return fixedDays.includes(dow);
       }
-
       const delta = daysBetweenISO(rollingStart, dateISO);
       const idx = ((delta % cycleLen) + cycleLen) % cycleLen;
       return Boolean(rollingPattern[idx]);
@@ -354,7 +1155,6 @@ export default function Training() {
       setExercises([]);
       setSetsByExercise({});
       await syncTodayDayTypeToProfile(null);
-
       await persistDayTypeForDate(uid, dateISO, "rest");
       return;
     }
@@ -439,7 +1239,6 @@ export default function Training() {
   };
 
   const syncTodayDayTypeToProfile = async (nextSession) => {
-
     const t = todayISO();
     if (!userId) return;
     if (selectedDate !== t) return;
@@ -640,7 +1439,9 @@ export default function Training() {
     setError("");
 
     const existing = setsByExercise[exerciseId] || [];
-    const nextNumber = existing.length ? Math.max(...existing.map((s) => Number(s.set_number) || 0)) + 1 : 1;
+    const nextNumber = existing.length
+      ? Math.max(...existing.map((s) => Number(s.set_number) || 0)) + 1
+      : 1;
 
     const { data, error: e } = await supabase
       .from("training_sets")
@@ -734,328 +1535,353 @@ export default function Training() {
     return s.name || "Training";
   };
 
-  if (loading) return <div>Loading...</div>;
+  const dotClass = (dateISO) => {
+    const s = weekSessionsByDate[dateISO];
+    if (!s) return "none";
+    if (s.is_rest_day) return "rest";
+    return "active";
+  };
+
+  const sessionDayName = () => {
+    if (!session) return "";
+    const d = new Date(`${selectedDate}T00:00:00`);
+    return d.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
+  };
+
+  const sessionBadgeText = () => {
+    if (!session) return null;
+    if (session.is_rest_day) return "REST";
+    const name = (session.name || "").trim().toUpperCase();
+    if (!name || name === "TRAINING (UNASSIGNED)") return null;
+    return name;
+  };
+
+  if (loading) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div className="trn-loading">
+          <div className="trn-loading-dot" />
+          Initialising Training Engine
+        </div>
+      </>
+    );
+  }
+
+  const badge = sessionBadgeText();
 
   return (
-    <div style={{ maxWidth: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Training</h1>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            {selectedDate === todayISO() ? "Today" : selectedDate} · {session?.name || dayBadge(selectedDate)}
+    <>
+      <style>{CSS}</style>
+      <div className="trn-page">
+
+        {/* ── Page header ── */}
+        <div className="trn-header">
+          <div className="trn-header-left">
+            <div className="trn-page-label">
+              <div className="trn-page-label-bar" />
+              <h1 className="trn-page-title">Training Engine</h1>
+            </div>
+            <div className="trn-page-sub">
+              {selectedDate === todayISO() ? "Today" : fmtDateShort(selectedDate)}
+              {" · "}
+              {session?.name || dayBadge(selectedDate)}
+            </div>
+          </div>
+          <div className={`trn-status${busy ? " busy" : ""}`}>
+            {busy ? "Saving..." : "Synced"}
           </div>
         </div>
 
-        <div style={{ color: "#666" }}>
-          {busy ? "Saving..." : "Saved"}
-        </div>
-      </div>
+        {/* ── Error ── */}
+        {error && <div className="trn-error">{error}</div>}
 
-      {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
-
-      {isMobile ? (
-        <div style={{ marginTop: "1rem" }}>
+        {/* ── Day selector ── */}
+        {isMobile ? (
           <select
+            className="trn-day-select"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              background: "#111",
-              color: "#fff",
-              border: "1px solid #2a1118",
-              borderRadius: "10px"
-            }}
           >
             {week.map((d) => (
               <option key={d.iso} value={d.iso}>
-                {d.label} {d.day} — {dayBadge(d.iso)}
+                {d.abbr} {d.day} — {dayBadge(d.iso)}
               </option>
             ))}
           </select>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
-          {week.map((d) => (
-            <button
-              key={d.iso}
-              onClick={() => setSelectedDate(d.iso)}
-              style={smallBtn(d.iso === selectedDate)}
-            >
-              <div style={{ fontSize: "0.75rem" }}>{d.label}</div>
-              <div style={{ fontWeight: 700 }}>{d.day}</div>
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: d.iso === selectedDate ? "#aaa" : "#666",
-                  marginTop: "0.25rem"
-                }}
-              >
-                {dayBadge(d.iso)}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {!session && (
-        <div style={{ ...card, marginTop: "1rem" }}>
-          <div style={{ fontWeight: 700 }}>No session assigned</div>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            Your onboarding schedule preloads the next 7 days. You can still create/edit a day manually here.
+        ) : (
+          <div className="trn-day-strip">
+            {week.map((d) => {
+              const dc = dotClass(d.iso);
+              return (
+                <button
+                  key={d.iso}
+                  className={`trn-day-btn${d.iso === selectedDate ? " active" : ""}`}
+                  onClick={() => setSelectedDate(d.iso)}
+                >
+                  <span className="trn-day-abbr">{d.abbr}</span>
+                  <span className="trn-day-num">{d.day}</span>
+                  <div className="trn-day-dot-row">
+                    {dc !== "none" && (
+                      <div className={`trn-day-dot${dc === "rest" ? " rest" : ""}`} />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
+        )}
 
-          <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
-            <button
-              onClick={() => createSession("training")}
-              disabled={busy}
-              style={{
-                padding: "0.7rem 1rem",
-                background: "#0b0b10",
-                color: "#fff",
-                border: "1px solid #2a1118",
-                cursor: "pointer"
-              }}
-            >
-              Create training day
-            </button>
-
-            <button
-              onClick={() => createSession("rest")}
-              disabled={busy}
-              style={{
-                padding: "0.7rem 1rem",
-                background: "transparent",
-                color: "#fff",
-                border: "1px solid #2a1118",
-                cursor: "pointer"
-              }}
-            >
-              Mark rest day
-            </button>
-          </div>
-        </div>
-      )}
-
-      {session && (
-        <div style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "1fr", gap: "1rem" }}>
-          <div style={card}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <div style={{ fontWeight: 700 }}>Day settings</div>
+        {/* ── No session ── */}
+        {!session && (
+          <div className="trn-no-session-card">
+            <div className="trn-no-session-title">No Session Assigned</div>
+            <div className="trn-no-session-sub">
+              Your onboarding schedule preloads the next 7 days. You can still create or edit a day manually here.
+            </div>
+            <div className="trn-no-session-actions">
               <button
-                onClick={toggleRestDay}
+                className="trn-create-training-btn"
+                onClick={() => createSession("training")}
                 disabled={busy}
-                style={{
-                  padding: "0.55rem 0.9rem",
-                  background: session.is_rest_day ? "transparent" : "#0b0b10",
-                  color: "#fff",
-                  border: "1px solid #2a1118",
-                  cursor: "pointer"
-                }}
               >
-                {session.is_rest_day ? "Switch to training day" : "Switch to rest day"}
+                Create Training Day
+              </button>
+              <button
+                className="trn-create-rest-btn"
+                onClick={() => createSession("rest")}
+                disabled={busy}
+              >
+                Mark Rest Day
               </button>
             </div>
-
-            {}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Session name</div>
-              <input
-                value={session.name || ""}
-                onChange={(e) => setSession({ ...session, name: e.target.value })}
-                onBlur={async (e) => {
-                  const val = e.target.value.trim();
-                  setSession((s) => ({ ...s, name: val }));
-                  const { error: nameErr } = await supabase
-                    .from("training_sessions")
-                    .update({ name: val })
-                    .eq("id", session.id)
-                    .eq("user_id", userId);
-
-                  if (nameErr) setError(nameErr.message);
-                  await fetchWeekSessions(userId);
-                }}
-                placeholder="e.g. Push, Pull, Legs"
-                style={input}
-              />
-            </div>
-
-            <div style={{ marginTop: "0.75rem" }}>
-              <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Workout notes</div>
-              <textarea
-                value={session.notes || ""}
-                onChange={(e) => setSession({ ...session, notes: e.target.value })}
-                onBlur={(e) => saveNotes(e.target.value)}
-                placeholder="Notes for today’s session"
-                style={{ ...input, minHeight: "110px" }}
-              />
-            </div>
           </div>
+        )}
 
-          {!session.is_rest_day && (
-            <div style={card}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div style={{ fontWeight: 700 }}>Exercises</div>
+        {/* ── Session card ── */}
+        {session && (
+          <div className="trn-session-card">
+
+            {/* Topbar */}
+            <div className="trn-session-topbar">
+              <div className="trn-session-topbar-left">
+                <span className="trn-session-id">
+                  TRN // {sessionDayName()} SESSION
+                </span>
+                <span className="trn-session-date">{fmtDateShort(selectedDate)}</span>
               </div>
-
-              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-                <input
-                  value={newExerciseName}
-                  onChange={(e) => setNewExerciseName(e.target.value)}
-                  placeholder="Add exercise"
-                  style={input}
-                />
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {badge && (
+                  <span className="trn-day-type-badge">{badge}</span>
+                )}
                 <button
-                  onClick={addExercise}
+                  className="trn-toggle-btn"
+                  onClick={toggleRestDay}
                   disabled={busy}
-                  style={{
-                    padding: "0.65rem 1rem",
-                    background: "#0b0b10",
-                    color: "#fff",
-                    border: "1px solid #2a1118",
-                    cursor: "pointer"
-                  }}
                 >
-                  Add
+                  {session.is_rest_day ? "Switch to Training" : "Switch to Rest"}
                 </button>
               </div>
+            </div>
 
-              {exercises.length === 0 && (
-                <div style={{ color: "#666", marginTop: "0.75rem" }}>
-                  Add your first exercise to start logging.
-                </div>
+            <div className="trn-session-body">
+
+              {/* Session name */}
+              <div>
+                <div className="trn-field-label">Session Name</div>
+                <input
+                  className="trn-input"
+                  value={session.name || ""}
+                  onChange={(e) => setSession({ ...session, name: e.target.value })}
+                  onBlur={async (e) => {
+                    const val = e.target.value.trim();
+                    setSession((s) => ({ ...s, name: val }));
+                    const { error: nameErr } = await supabase
+                      .from("training_sessions")
+                      .update({ name: val })
+                      .eq("id", session.id)
+                      .eq("user_id", userId);
+                    if (nameErr) setError(nameErr.message);
+                    await fetchWeekSessions(userId);
+                  }}
+                  placeholder="e.g. Push, Pull, Legs"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <div className="trn-field-label">Session Notes</div>
+                <textarea
+                  className="trn-textarea"
+                  value={session.notes || ""}
+                  onChange={(e) => setSession({ ...session, notes: e.target.value })}
+                  onBlur={(e) => saveNotes(e.target.value)}
+                  placeholder="Notes for today's session"
+                />
+              </div>
+
+              {/* Rest day view */}
+              {session.is_rest_day && (
+                <>
+                  <div className="trn-divider" />
+                  <div className="trn-rest-state">
+                    <div className="trn-rest-label">REST DAY</div>
+                    <div className="trn-rest-sub">Recovery Protocol Active</div>
+                  </div>
+                </>
               )}
 
-              <div style={{ marginTop: "1rem", display: "grid", gap: "1rem" }}>
-                {exercises.map((ex, idx) => {
-                  const sets = setsByExercise[ex.id] || [];
+              {/* Exercises section */}
+              {!session.is_rest_day && (
+                <>
+                  <div className="trn-divider" />
 
-                  return (
-                    <div key={ex.id} style={{ border: "1px solid #0b0b10", padding: "0.9rem" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
-                        <div style={{ fontWeight: 700 }}>{ex.name}</div>
-
-                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                          <button
-                            onClick={() => moveExercise(ex.id, -1)}
-                            disabled={busy || idx === 0}
-                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #2a1118", cursor: "pointer" }}
-                          >
-                            ↑
-                          </button>
-                          <button
-                            onClick={() => moveExercise(ex.id, 1)}
-                            disabled={busy || idx === exercises.length - 1}
-                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #2a1118", cursor: "pointer" }}
-                          >
-                            ↓
-                          </button>
-                          <button
-                            onClick={() => deleteExercise(ex.id)}
-                            disabled={busy}
-                            style={{ padding: "0.45rem 0.7rem", background: "transparent", color: "#ff6b6b", border: "1px solid #2a1118", cursor: "pointer" }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                        <div style={{ color: "#aaa" }}>Sets</div>
-                        <button
-                          onClick={() => addSet(ex.id)}
-                          disabled={busy}
-                          style={{
-                            padding: "0.45rem 0.8rem",
-                            background: "#0b0b10",
-                            color: "#fff",
-                            border: "1px solid #2a1118",
-                            cursor: "pointer"
-                          }}
-                        >
-                          Add set
-                        </button>
-                      </div>
-
-                      {sets.length === 0 && (
-                        <div style={{ color: "#666", marginTop: "0.5rem" }}>
-                          No sets yet.
-                        </div>
-                      )}
-
-                      {sets.length > 0 && (
-                        <div style={{ marginTop: "0.65rem", display: "grid", gap: "0.5rem" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 1fr 1fr 90px", gap: "0.5rem", color: "#aaa", fontSize: "0.9rem" }}>
-                            <div>Set</div>
-                            <div>Reps</div>
-                            <div>Weight</div>
-                            <div>RIR</div>
-                            <div></div>
-                          </div>
-
-                          {sets.map((s) => (
-                            <div
-                              key={s.id}
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "70px 1fr 1fr 1fr 90px",
-                                gap: "0.5rem",
-                                alignItems: "center"
-                              }}
-                            >
-                              <div style={{ color: "#aaa" }}>#{s.set_number}</div>
-
-                              <input
-                                type="number"
-                                value={s.reps ?? ""}
-                                onChange={(e) => updateSetLocal(ex.id, s.id, { reps: e.target.value })}
-                                onBlur={() => saveSet(ex.id, { ...s, reps: s.reps ?? "" })}
-                                style={input}
-                                placeholder="reps"
-                              />
-
-                              <input
-                                type="number"
-                                value={s.weight ?? ""}
-                                onChange={(e) => updateSetLocal(ex.id, s.id, { weight: e.target.value })}
-                                onBlur={() => saveSet(ex.id, { ...s, weight: s.weight ?? "" })}
-                                style={input}
-                                placeholder="weight"
-                              />
-
-                              <input
-                                type="number"
-                                value={s.rir ?? ""}
-                                onChange={(e) => updateSetLocal(ex.id, s.id, { rir: e.target.value })}
-                                onBlur={() => saveSet(ex.id, { ...s, rir: s.rir ?? "" })}
-                                style={input}
-                                placeholder="rir"
-                              />
-
-                              <button
-                                onClick={() => deleteSet(ex.id, s.id)}
-                                style={{
-                                  padding: "0.55rem 0.7rem",
-                                  background: "transparent",
-                                  color: "#ff6b6b",
-                                  border: "1px solid #2a1118",
-                                  cursor: "pointer"
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          ))}
-                        </div>
+                  <div className="trn-exercises-section">
+                    <div className="trn-exercises-header">
+                      <span className="trn-exercises-label">Exercises</span>
+                      {exercises.length > 0 && (
+                        <span className="trn-exercises-count">{exercises.length}</span>
                       )}
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Add exercise row */}
+                    <div className="trn-add-exercise-row">
+                      <input
+                        className="trn-add-exercise-input"
+                        value={newExerciseName}
+                        onChange={(e) => setNewExerciseName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") addExercise(); }}
+                        placeholder="Exercise name…"
+                      />
+                      <button
+                        className="trn-add-exercise-btn"
+                        onClick={addExercise}
+                        disabled={busy}
+                      >
+                        + Add
+                      </button>
+                    </div>
+
+                    {/* Empty state */}
+                    {exercises.length === 0 && (
+                      <div className="trn-empty-exercises">
+                        <div className="trn-empty-exercises-label">No Exercises Logged</div>
+                        <div className="trn-empty-exercises-sub">Add your first exercise above to start logging sets.</div>
+                      </div>
+                    )}
+
+                    {/* Exercise cards */}
+                    {exercises.map((ex, idx) => {
+                      const sets = setsByExercise[ex.id] || [];
+                      return (
+                        <div key={ex.id} className="trn-exercise-card">
+
+                          {/* Exercise header */}
+                          <div className="trn-exercise-header">
+                            <div className="trn-exercise-name">{ex.name}</div>
+                            <div className="trn-exercise-actions">
+                              <button
+                                className="trn-move-btn"
+                                onClick={() => moveExercise(ex.id, -1)}
+                                disabled={busy || idx === 0}
+                                title="Move up"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                className="trn-move-btn"
+                                onClick={() => moveExercise(ex.id, 1)}
+                                disabled={busy || idx === exercises.length - 1}
+                                title="Move down"
+                              >
+                                ↓
+                              </button>
+                              <button
+                                className="trn-delete-exercise-btn"
+                                onClick={() => deleteExercise(ex.id)}
+                                disabled={busy}
+                                title="Remove exercise"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Sets body */}
+                          <div className="trn-sets-body">
+                            {sets.length > 0 && (
+                              <>
+                                {/* Table header */}
+                                <div className="trn-sets-table-head">
+                                  <div className="trn-sets-th center">SET</div>
+                                  <div className="trn-sets-th center">REPS</div>
+                                  <div className="trn-sets-th center">WEIGHT</div>
+                                  <div className="trn-sets-th center">RIR</div>
+                                  <div className="trn-sets-th" />
+                                </div>
+
+                                {/* Set rows */}
+                                {sets.map((s) => (
+                                  <div key={s.id} className="trn-set-row">
+                                    <div className="trn-set-num">#{s.set_number}</div>
+
+                                    <input
+                                      type="number"
+                                      className="trn-set-input"
+                                      value={s.reps ?? ""}
+                                      onChange={(e) => updateSetLocal(ex.id, s.id, { reps: e.target.value })}
+                                      onBlur={() => saveSet(ex.id, { ...s, reps: s.reps ?? "" })}
+                                      placeholder="—"
+                                    />
+
+                                    <input
+                                      type="number"
+                                      className="trn-set-input"
+                                      value={s.weight ?? ""}
+                                      onChange={(e) => updateSetLocal(ex.id, s.id, { weight: e.target.value })}
+                                      onBlur={() => saveSet(ex.id, { ...s, weight: s.weight ?? "" })}
+                                      placeholder="—"
+                                    />
+
+                                    <input
+                                      type="number"
+                                      className="trn-set-input"
+                                      value={s.rir ?? ""}
+                                      onChange={(e) => updateSetLocal(ex.id, s.id, { rir: e.target.value })}
+                                      onBlur={() => saveSet(ex.id, { ...s, rir: s.rir ?? "" })}
+                                      placeholder="—"
+                                    />
+
+                                    <button
+                                      className="trn-delete-set-btn"
+                                      onClick={() => deleteSet(ex.id, s.id)}
+                                      title="Delete set"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </>
+                            )}
+
+                            <button
+                              className="trn-add-set-btn"
+                              onClick={() => addSet(ex.id)}
+                              disabled={busy}
+                            >
+                              + Add Set
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
-          )}
-        </div>
-      )}
-    </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
