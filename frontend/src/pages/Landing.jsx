@@ -1,417 +1,1319 @@
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
+
+// ─── Demo data ────────────────────────────────────────────────────────────────
+
+const WEIGHT_DATA = [
+  { d: 1, v: 89.2 }, { d: 2, v: 89.0 }, { d: 3, v: 88.8 },
+  { d: 4, v: 89.1 }, { d: 5, v: 88.6 }, { d: 6, v: 88.4 },
+  { d: 7, v: 88.7 }, { d: 8, v: 88.3 }, { d: 9, v: 88.1 },
+  { d: 10, v: 87.9 }, { d: 11, v: 87.7 }, { d: 12, v: 87.5 },
+  { d: 13, v: 87.8 }, { d: 14, v: 87.4 }
+];
+
+const AI_MSGS = [
+  "→ Calorie deficit held for 8 consecutive days. Protein on target.",
+  "→ Step count dropped this week — recommend +150 kcal buffer today.",
+  "→ Weight trending −0.6 kg/week. Cut is progressing well.",
+  "→ Lower training volume detected. Consider adjusting carb intake.",
+  "→ 3 check-ins logged. Body composition trending in the right direction.",
+  "→ Recovery data suggests a deload window in approximately 2 weeks."
+];
+
+const FEATURES = [
+  {
+    code: "NUT",
+    label: "Nutrition Tracking",
+    blurb:
+      "Log every meal. Track calories, macros, AND micronutrients down to vitamins and minerals — the level of detail normally only an experienced dietitian provides.",
+    detail: "Calories · Macros · Micros · Water · Salt"
+  },
+  {
+    code: "TRN",
+    label: "Training Engine",
+    blurb:
+      "Build training blocks, follow structured weekly or rolling splits, and log every set and rep. Your program stays progressive and organised in one place.",
+    detail: "Programs · Splits · Sets · Reps · Progressions"
+  },
+  {
+    code: "WGT",
+    label: "Weight Command",
+    blurb:
+      "Daily weigh-ins are noisy. PhysiquePilot shows you the real trend line — so you know whether your cut or bulk is actually working, without panicking over a bad day.",
+    detail: "Trend Line · Daily Log · Pattern Recognition"
+  },
+  {
+    code: "ACT",
+    label: "Activity Monitor",
+    blurb:
+      "Steps, cardio sessions, and water intake all feed into the same system. Your total daily expenditure is calculated holistically — not just from gym sessions.",
+    detail: "Steps · Cardio · TDEE · Water · Expenditure"
+  },
+  {
+    code: "AI",
+    label: "AI Flight Control",
+    blurb:
+      "The AI coach reads all your data — weight trend, training load, nutrition, and activity — and tells you exactly what to adjust and why. Ask it anything. It knows your history.",
+    detail: "Coach Adjustments · Q&A · Data-Driven Decisions"
+  },
+  {
+    code: "PRG",
+    label: "Progress Archives",
+    blurb:
+      "Check-ins, body measurements, and progress photos all stored together with your metrics. See exactly how far you've come with data and visuals side by side.",
+    detail: "Check-ins · Photos · Measurements · Timeline"
+  }
+];
+
+const STEPS = [
+  {
+    num: "01",
+    code: "PREFLIGHT",
+    label: "Set your parameters",
+    blurb:
+      "Tell us your starting weight, goal, training schedule, and dietary preferences. Takes 5 minutes. The system is calibrated to you before you log a single meal."
+  },
+  {
+    num: "02",
+    code: "ENGINES ON",
+    label: "Start logging everything",
+    blurb:
+      "Track your food, training, weight, steps, and cardio each day. Every data point you log makes the AI's coaching more accurate. No data goes to waste."
+  },
+  {
+    num: "03",
+    code: "CRUISE",
+    label: "Get coached by your data",
+    blurb:
+      "The AI analyses patterns across all your logs and suggests specific adjustments — drop 100 calories, add a cardio session, increase protein. Real coaching, driven by your real numbers."
+  }
+];
+
+const REPLACES = [
+  { app: "MyFitnessPal Premium", cost: "~£8/mo", what: "Food tracking" },
+  { app: "Cronometer Gold", cost: "~£7/mo", what: "Micronutrient detail" },
+  { app: "HappyScale / Libra", cost: "~£3/mo", what: "Weight trend tracking" },
+  { app: "Online PT / Coach", cost: "£100–400/mo", what: "Coaching & adjustments" }
+];
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function RingGauge({ value, max }) {
+  const r = 34;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(1, value / max);
+  const dash = circ * pct;
+  return (
+    <div style={{ position: "relative", width: 88, height: 88, flexShrink: 0 }}>
+      <svg width="88" height="88" viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+        <circle
+          cx="44" cy="44" r={r} fill="none"
+          stroke="var(--accent-3)"
+          strokeWidth="6"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          transform="rotate(-90 44 44)"
+          style={{ filter: "drop-shadow(0 0 6px var(--accent-2))", transition: "stroke-dasharray 1.4s ease" }}
+        />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", lineHeight: 1, color: "var(--text-1)" }}>
+          {Math.round(pct * 100)}%
+        </span>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.52rem", letterSpacing: "0.1em", color: "var(--text-3)", marginTop: 2 }}>CAL</span>
+      </div>
+    </div>
+  );
+}
+
+function MacroBar({ label, val, unit, pct, color }) {
+  return (
+    <div style={{ marginBottom: "0.55rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.6rem", letterSpacing: "0.1em", color: "var(--text-3)" }}>{label}</span>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: "var(--text-2)" }}>{val}{unit}</span>
+      </div>
+      <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 2, boxShadow: `0 0 5px ${color}`, transition: "width 1.4s ease" }} />
+      </div>
+    </div>
+  );
+}
+
+function ReadoutCell({ label, value, unit, blink }) {
+  return (
+    <div className="ld-readout">
+      <div className="ld-readout-label">{label}</div>
+      <div className="ld-readout-value">
+        {blink && <span className="ld-blink-dot" style={{ marginRight: 4 }} />}
+        {value}<span style={{ fontSize: "0.6rem", marginLeft: 2, color: "var(--text-3)" }}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const CSS = `
+  /* ── Root ── */
+  .ld-root {
+    width: 100%;
+    min-height: 100vh;
+    position: relative;
+    color: var(--text-1);
+    font-family: var(--font-body);
+    overflow-x: hidden;
+  }
+
+  /* ── Scan-line overlay ── */
+  .ld-root::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 3px,
+      rgba(0, 0, 0, 0.07) 4px
+    );
+  }
+
+  /* ── Centered content container ── */
+  .ld-inner {
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Nav ── */
+  .ld-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid rgba(181, 21, 60, 0.18);
+    background: rgba(9, 5, 6, 0.88);
+    backdrop-filter: blur(12px);
+  }
+
+  .ld-nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 2rem;
+    max-width: 1180px;
+    margin: 0 auto;
+    gap: 1rem;
+  }
+
+  .ld-brand {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--text-1);
+  }
+
+  .ld-brand-indicator {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent-3);
+    box-shadow: 0 0 8px var(--accent-2);
+    animation: ldBlink 2s ease-in-out infinite;
+  }
+
+  .ld-nav-actions { display: flex; gap: 0.65rem; align-items: center; }
+
+  /* ── Buttons ── */
+  .ld-btn-ghost {
+    padding: 0.52rem 1rem;
+    background: transparent;
+    border: 1px solid var(--line-1);
+    color: var(--text-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    transition: border-color 0.18s, color 0.18s, box-shadow 0.18s;
+  }
+  .ld-btn-ghost:hover {
+    border-color: var(--accent-2);
+    color: var(--text-1);
+    box-shadow: 0 0 12px rgba(181,21,60,0.22);
+  }
+
+  .ld-btn-primary {
+    padding: 0.55rem 1.25rem;
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+    border: 1px solid var(--accent-2);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: box-shadow 0.2s, transform 0.15s;
+    box-shadow: 0 0 16px rgba(181,21,60,0.32);
+  }
+  .ld-btn-primary:hover {
+    box-shadow: 0 0 28px rgba(222,41,82,0.55), 0 8px 20px rgba(0,0,0,0.4);
+    transform: translateY(-2px);
+  }
+
+  .ld-btn-primary-lg {
+    padding: 0.85rem 2.2rem;
+    font-size: 0.92rem;
+  }
+
+  .ld-btn-ghost-lg {
+    padding: 0.85rem 2rem;
+    font-size: 0.88rem;
+  }
+
+  /* ── Section layouts ── */
+  .ld-section {
+    padding: 5rem 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .ld-section-divider {
+    border-top: 1px solid rgba(181, 21, 60, 0.1);
+  }
+
+  .ld-section-label {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .ld-section-label::before {
+    content: "";
+    display: inline-block;
+    width: 20px;
+    height: 1px;
+    background: var(--accent-3);
+    box-shadow: 0 0 6px var(--accent-2);
+  }
+
+  .ld-h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 2.8vw, 2.4rem);
+    font-weight: 700;
+    margin: 0 0 1rem;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+  }
+
+  .ld-lead {
+    font-size: 1.05rem;
+    color: var(--text-2);
+    line-height: 1.75;
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  /* ── Hero ── */
+  .ld-hero {
+    padding: 5rem 0 4rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .ld-hero::after {
+    content: "";
+    position: absolute;
+    top: -40%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 600px;
+    background: radial-gradient(ellipse, rgba(181,21,60,0.14) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .ld-hero-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 3rem;
+    align-items: center;
+  }
+
+  .ld-hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    border: 1px solid rgba(181,21,60,0.3);
+    border-radius: 99px;
+    padding: 0.3rem 0.75rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .ld-hero-h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.2rem, 4vw, 3.6rem);
+    font-weight: 700;
+    line-height: 1.06;
+    letter-spacing: 0.02em;
+    margin: 0 0 1.25rem;
+  }
+
+  .ld-hero-h1 em {
+    font-style: normal;
+    color: var(--accent-3);
+    text-shadow: 0 0 24px rgba(222,41,82,0.45);
+  }
+
+  .ld-hero-sub {
+    font-size: 1.1rem;
+    color: var(--text-2);
+    line-height: 1.72;
+    max-width: 56ch;
+    margin: 0 0 1.8rem;
+  }
+
+  .ld-hero-ctas {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .ld-hero-fine {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    margin-top: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  /* ── Dashboard demo panel ── */
+  .ld-cluster {
+    border: 1px solid rgba(181,21,60,0.25);
+    border-radius: var(--radius-lg);
+    background: rgba(8, 3, 5, 0.92);
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(181,21,60,0.08), 0 24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+
+  .ld-cluster-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid rgba(181,21,60,0.15);
+    background: rgba(181,21,60,0.04);
+  }
+
+  .ld-cluster-title {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .ld-cluster-status {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    color: var(--ok);
+  }
+
+  .ld-cluster-body {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .ld-cluster-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .ld-cluster-macros {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ld-cluster-macros-title {
+    font-family: var(--font-display);
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 0.65rem;
+  }
+
+  .ld-weight-panel {
+    border: 1px solid rgba(181,21,60,0.12);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    background: rgba(181,21,60,0.03);
+  }
+
+  .ld-weight-panel-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
+  }
+
+  .ld-readout-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .ld-readout {
+    border: 1px solid rgba(181,21,60,0.12);
+    border-radius: 6px;
+    padding: 0.5rem 0.6rem;
+    background: rgba(181,21,60,0.03);
+  }
+
+  .ld-readout-label {
+    font-family: var(--font-display);
+    font-size: 0.52rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 3px;
+  }
+
+  .ld-readout-value {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-1);
+    display: flex;
+    align-items: center;
+  }
+
+  .ld-ai-panel {
+    border: 1px solid rgba(181,21,60,0.2);
+    border-radius: var(--radius-sm);
+    padding: 0.7rem 0.9rem;
+    background: rgba(181,21,60,0.05);
+  }
+
+  .ld-ai-panel-label {
+    font-family: var(--font-display);
+    font-size: 0.55rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    margin-bottom: 0.4rem;
+  }
+
+  .ld-ai-panel-msg {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    color: var(--text-2);
+    line-height: 1.5;
+    min-height: 2.2em;
+  }
+
+  /* ── Pitch / replace section ── */
+  .ld-pitch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .ld-replace-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .ld-replace-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm);
+    background: rgba(181,21,60,0.02);
+  }
+
+  .ld-replace-item-left { display: flex; flex-direction: column; gap: 0.15rem; }
+  .ld-replace-app { font-size: 0.9rem; font-weight: 500; color: var(--text-2); }
+  .ld-replace-what { font-size: 0.72rem; color: var(--text-3); }
+  .ld-replace-cost { font-family: var(--font-display); font-size: 0.78rem; color: var(--bad); }
+
+  .ld-vs-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    color: var(--text-3);
+    text-transform: uppercase;
+    position: relative;
+  }
+
+  .ld-replace-card {
+    border: 1px solid rgba(181,21,60,0.4);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    background: linear-gradient(135deg, rgba(138,15,46,0.12), rgba(9,5,6,0.9));
+    box-shadow: 0 0 40px rgba(181,21,60,0.15), inset 0 1px 0 rgba(255,255,255,0.025);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .ld-replace-card-label {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+  }
+
+  .ld-replace-card-name {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-1);
+    line-height: 1.1;
+  }
+
+  .ld-replace-check-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .ld-replace-check-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.88rem;
+    color: var(--text-2);
+  }
+
+  .ld-check-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(181,21,60,0.18);
+    border: 1px solid var(--accent-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.55rem;
+    color: var(--accent-3);
+  }
+
+  /* ── Features ── */
+  .ld-feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+
+  .ld-feature-card {
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    background: rgba(8,3,5,0.6);
+    cursor: default;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.18s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ld-feature-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(222,41,82,0), transparent);
+    transition: background 0.3s;
+  }
+
+  .ld-feature-card:hover {
+    border-color: var(--accent-2);
+    box-shadow: 0 0 24px rgba(181,21,60,0.22), 0 12px 30px rgba(0,0,0,0.4);
+    transform: translateY(-3px);
+  }
+
+  .ld-feature-card:hover::before {
+    background: linear-gradient(90deg, transparent, rgba(222,41,82,0.6), transparent);
+  }
+
+  .ld-feature-code {
+    font-family: var(--font-display);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    margin-bottom: 0.5rem;
+  }
+
+  .ld-feature-name {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 0.65rem;
+    letter-spacing: 0.02em;
+  }
+
+  .ld-feature-blurb {
+    font-size: 0.84rem;
+    color: var(--text-2);
+    line-height: 1.7;
+    margin-bottom: 0.9rem;
+  }
+
+  .ld-feature-detail {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--text-3);
+    border-top: 1px solid var(--line-1);
+    padding-top: 0.65rem;
+  }
+
+  /* ── Steps ── */
+  .ld-steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    position: relative;
+  }
+
+  .ld-steps-grid::before {
+    content: "";
+    position: absolute;
+    top: 2rem;
+    left: calc(16.6% + 0.75rem);
+    right: calc(16.6% + 0.75rem);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(181,21,60,0.4), rgba(181,21,60,0.4), transparent);
+    pointer-events: none;
+  }
+
+  .ld-step {
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    background: rgba(8,3,5,0.5);
+    position: relative;
+  }
+
+  .ld-step-num {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    color: rgba(181,21,60,0.22);
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+
+  .ld-step-code {
+    font-family: var(--font-display);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-3);
+    margin-bottom: 0.5rem;
+  }
+
+  .ld-step-label {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 0.6rem;
+  }
+
+  .ld-step-blurb {
+    font-size: 0.84rem;
+    color: var(--text-2);
+    line-height: 1.7;
+  }
+
+  /* ── Pricing ── */
+  .ld-pricing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    max-width: 760px;
+  }
+
+  .ld-price-card {
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    background: rgba(8,3,5,0.7);
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .ld-price-card.is-featured {
+    border-color: rgba(181,21,60,0.45);
+    background: linear-gradient(160deg, rgba(138,15,46,0.14), rgba(8,3,5,0.85));
+    box-shadow: 0 0 36px rgba(181,21,60,0.18), inset 0 1px 0 rgba(255,255,255,0.025);
+  }
+
+  .ld-price-tier {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .ld-price-card.is-featured .ld-price-tier { color: var(--accent-3); }
+
+  .ld-price-amount {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+  }
+
+  .ld-price-big {
+    font-family: var(--font-display);
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--text-1);
+    line-height: 1;
+  }
+
+  .ld-price-small {
+    font-size: 0.85rem;
+    color: var(--text-3);
+  }
+
+  .ld-price-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+  }
+
+  .ld-price-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    font-size: 0.88rem;
+    color: var(--text-2);
+  }
+
+  .ld-price-check { color: var(--accent-3); flex-shrink: 0; font-size: 0.75rem; margin-top: 2px; }
+
+  .ld-price-fine {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    text-align: center;
+    margin-top: 0.5rem;
+  }
+
+  /* ── Final CTA ── */
+  .ld-cta-banner {
+    padding: 5rem 2rem;
+    text-align: center;
+    position: relative;
+    border-top: 1px solid rgba(181,21,60,0.12);
+    overflow: hidden;
+  }
+
+  .ld-cta-banner::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 900px 500px at 50% 100%, rgba(181,21,60,0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .ld-cta-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 3.5vw, 3rem);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 1rem;
+    text-transform: uppercase;
+  }
+
+  /* ── Footer ── */
+  .ld-footer {
+    border-top: 1px solid rgba(181,21,60,0.1);
+    padding: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1180px;
+    margin: 0 auto;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .ld-footer-brand {
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .ld-footer-links {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .ld-footer-links span {
+    font-size: 0.8rem;
+    color: var(--text-3);
+    cursor: default;
+  }
+
+  /* ── Blinking dot ── */
+  .ld-blink-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 6px var(--ok);
+    animation: ldBlink 1.6s ease-in-out infinite;
+  }
+
+  /* ── Keyframes ── */
+  @keyframes ldBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.15; }
+  }
+
+  @keyframes ldFadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .ld-anim-1 { animation: ldFadeUp 0.55s ease both; }
+  .ld-anim-2 { animation: ldFadeUp 0.55s ease 0.1s both; }
+  .ld-anim-3 { animation: ldFadeUp 0.55s ease 0.2s both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ld-anim-1, .ld-anim-2, .ld-anim-3 { animation: none; }
+    .ld-blink-dot, .ld-brand-indicator { animation: none; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .ld-hero-grid { grid-template-columns: 1fr; }
+    .ld-feature-grid { grid-template-columns: 1fr 1fr; }
+    .ld-steps-grid { grid-template-columns: 1fr; }
+    .ld-steps-grid::before { display: none; }
+    .ld-pitch-grid { grid-template-columns: 1fr; }
+    .ld-pricing-grid { grid-template-columns: 1fr; max-width: 420px; }
+    .ld-readout-grid { grid-template-columns: repeat(3, 1fr); }
+    .ld-inner { padding: 0 1.25rem; }
+    .ld-nav-inner { padding: 0.8rem 1.25rem; }
+    .ld-section { padding: 3.5rem 0; }
+  }
+
+  @media (max-width: 580px) {
+    .ld-feature-grid { grid-template-columns: 1fr; }
+    .ld-hero { padding: 3rem 0 2.5rem; }
+    .ld-cluster-row { flex-direction: column; }
+    .ld-cta-banner { padding: 3.5rem 1.25rem; }
+  }
+`;
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 function Landing() {
   const navigate = useNavigate();
-
-  const slides = useMemo(
-    () => [
-      {
-        title: "Structured training, not random workouts",
-        text: "Build training blocks, follow weekly or rolling splits, and log sets and reps. Your training stays organised and progressive."
-      },
-      {
-        title: "Nutrition that adapts to your workload",
-        text: "Calories and macros adjust based on training days, rest days, steps, and cardio — so intake matches output."
-      },
-      {
-        title: "Everything connected in one system",
-        text: "Training, nutrition, weight, steps, cardio, check-ins, and photos all live together. Nothing is tracked in isolation."
-      },
-      {
-        title: "AI coaching that learns from your data",
-        text: "PhysiquePilot analyses your logs over time and applies coaching logic to guide adjustments as you progress."
-      }
-    ],
-    []
-  );
-
-  const [index, setIndex] = useState(0);
+  const [aiIdx, setAiIdx] = useState(0);
 
   useEffect(() => {
-    const i = setInterval(() => {
-      setIndex((v) => (v + 1) % slides.length);
-    }, 4500);
-    return () => clearInterval(i);
-  }, [slides.length]);
-
-  const wrap = { minHeight: "100vh" };
-
-  const header = {
-    borderBottom: "1px solid #050507",
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    backdropFilter: "none",
-    background: "transparent"
-  };
-
-  const headerInner = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "1rem 0",
-    gap: "1rem",
-    flexWrap: "wrap"
-  };
-
-  const brand = { fontWeight: 750, fontSize: "1.15rem", letterSpacing: "0.2px" };
-
-  const btnBase = {
-    padding: "0.55rem 1rem",
-    border: "1px solid #2a1118",
-    cursor: "pointer",
-    transition: "transform 0.18s ease, border-color 0.18s ease, background 0.18s ease",
-    borderRadius: "12px"
-  };
-
-  const btnGhost = { ...btnBase, background: "transparent", color: "#fff" };
-  const btnPrimary = { ...btnBase, background: "#0b0b10", color: "#fff" };
-
-  const section = { padding: "4.5rem 0" };
-
-  const heroGrid = {
-    display: "grid",
-    gridTemplateColumns: "1.1fr 0.9fr",
-    gap: "2.25rem",
-    alignItems: "start"
-  };
-
-  const heroTitle = {
-    fontSize: "clamp(2rem, 3vw, 3rem)",
-    margin: 0,
-    lineHeight: 1.12,
-    letterSpacing: "0.2px"
-  };
-
-  const heroText = {
-    marginTop: "1.1rem",
-    fontSize: "1.08rem",
-    lineHeight: 1.7,
-    color: "#aaa",
-    maxWidth: "60ch"
-  };
-
-  const ctas = {
-    display: "flex",
-    gap: "0.8rem",
-    marginTop: "1.6rem",
-    flexWrap: "wrap"
-  };
-
-  const panel = {
-    border: "1px solid #2a1118",
-    background: "#050507",
-    padding: "2rem",
-    borderRadius: "16px",
-    minHeight: "240px",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    transition: "transform 0.2s ease, border-color 0.2s ease"
-  };
-
-  const dots = { marginTop: "1.25rem", display: "flex", gap: "0.4rem" };
-  const dot = (active) => ({
-    width: "8px",
-    height: "8px",
-    borderRadius: "999px",
-    background: active ? "#fff" : "#2a1118"
-  });
-
-  const sectionDivider = { borderTop: "1px solid #050507" };
-
-  const gridCards = {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: "1.25rem"
-  };
-
-  const card = {
-    border: "1px solid #2a1118",
-    background: "#111",
-    padding: "1.5rem",
-    borderRadius: "16px",
-    transition: "transform 0.18s ease, border-color 0.18s ease"
-  };
-
-  const cardTitle = { marginTop: 0, marginBottom: "0.5rem" };
-  const cardText = { color: "#aaa", lineHeight: 1.7, margin: 0 };
-
-  // ✅ Key: proper mobile flow (title first, content underneath, no squash)
-  const responsiveStyle = `
-    /* Tablet + below */
-    @media (max-width: 980px) {
-      .pp-hero-grid { 
-        grid-template-columns: 1fr !important; 
-        gap: 1.25rem !important;
-      }
-      .pp-cards { grid-template-columns: 1fr !important; }
-      .pp-cards-3 { grid-template-columns: 1fr !important; }
-
-      .pp-hero-pad { 
-        padding-top: 2.75rem !important; 
-        padding-bottom: 2.25rem !important; 
-      }
-    }
-
-    /* Mobile */
-    @media (max-width: 520px) {
-      .pp-header-actions {
-        width: 100%;
-        display: flex !important;
-        gap: 0.6rem !important;
-        justify-content: flex-start !important;
-        flex-wrap: wrap !important;
-      }
-
-      .pp-hero-title {
-        font-size: 2.05rem !important;
-        line-height: 1.12 !important;
-      }
-
-      .pp-hero-text {
-        font-size: 1rem !important;
-        line-height: 1.6 !important;
-      }
-
-      .pp-panel {
-        padding: 1.25rem !important;
-        min-height: 0 !important;
-      }
-
-      .pp-section {
-        padding: 3.25rem 0 !important;
-      }
-
-      .pp-footer {
-        padding: 1.5rem 0 !important;
-      }
-    }
-  `;
-
-  const hoverLift = (e) => {
-    e.currentTarget.style.transform = "translateY(-4px)";
-    e.currentTarget.style.borderColor = "#2a1118";
-  };
-
-  const hoverReset = (e) => {
-    e.currentTarget.style.transform = "translateY(0)";
-    e.currentTarget.style.borderColor = "#2a1118";
-  };
-
-  const btnLift = (e) => (e.currentTarget.style.transform = "translateY(-1px)");
-  const btnReset = (e) => (e.currentTarget.style.transform = "translateY(0)");
+    const t = setInterval(() => setAiIdx(i => (i + 1) % AI_MSGS.length), 3800);
+    return () => clearInterval(t);
+  }, []);
 
   return (
-    <div className="public-page" style={wrap}>
-      <style>{`
-  ${responsiveStyle}
+    <div className="ld-root">
+      <style>{CSS}</style>
 
-  @keyframes ppFadeUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
+      {/* ── NAV ─────────────────────────────────────────────────────────── */}
+      <nav className="ld-nav">
+        <div className="ld-nav-inner">
+          <div className="ld-brand">
+            <span className="ld-brand-indicator" />
+            Physique Pilot
+          </div>
+          <div className="ld-nav-actions">
+            <button className="ld-btn-ghost" onClick={() => navigate("/login")}>Log in</button>
+            <button className="ld-btn-primary" onClick={() => navigate("/register")}>Start Free Trial</button>
+          </div>
+        </div>
+      </nav>
 
-  @keyframes ppGlow {
-    0%, 100% { opacity: 0.35; transform: translate(-10%, -10%) scale(1); }
-    50%      { opacity: 0.55; transform: translate(-10%, -10%) scale(1.06); }
-  }
+      {/* ── HERO ────────────────────────────────────────────────────────── */}
+      <section className="ld-hero">
+        <div className="ld-inner">
+          <div className="ld-hero-grid">
 
-  @keyframes ppFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
-  }
+            {/* Left — copy */}
+            <div className="ld-anim-1">
+              <div className="ld-hero-eyebrow">
+                <span className="ld-blink-dot" />
+                AI-Powered Bodybuilding System
+              </div>
 
-  .pp-anim-1 { animation: ppFadeUp 520ms ease both; }
-  .pp-anim-2 { animation: ppFadeUp 520ms ease both; animation-delay: 80ms; }
-  .pp-anim-3 { animation: ppFadeUp 520ms ease both; animation-delay: 160ms; }
-  .pp-anim-4 { animation: ppFadeUp 520ms ease both; animation-delay: 240ms; }
+              <h1 className="ld-hero-h1">
+                The app that acts as your<br />
+                <em>personal bodybuilding coach.</em>
+              </h1>
 
-  .pp-panel-float { animation: ppFloat 6s ease-in-out infinite; }
-  .pp-card-hover { will-change: transform; }
-  .pp-card-hover:hover { transform: translateY(-6px); }
+              <p className="ld-hero-sub">
+                Track your food, training, weight, cardio, and steps — all in one place.
+                PhysiquePilot analyses your data and tells you exactly what to adjust to
+                reach your bodybuilding goals. No guesswork. No spreadsheets.
+                No expensive coach required.
+              </p>
 
-  /* Respect reduced motion */
-  @media (prefers-reduced-motion: reduce) {
-    .pp-anim-1,.pp-anim-2,.pp-anim-3,.pp-anim-4 { animation: none !important; }
-    .pp-panel-float { animation: none !important; }
-  }
-`}</style>
+              <div className="ld-hero-ctas">
+                <button className="ld-btn-primary ld-btn-primary-lg" onClick={() => navigate("/register")}>
+                  Start 1 Month Free
+                </button>
+                <button className="ld-btn-ghost ld-btn-ghost-lg" onClick={() => navigate("/login")}>
+                  Log in
+                </button>
+              </div>
 
-      <div className="public-inner">
-        <header style={header}>
-          <div style={headerInner}>
-            <div style={brand}>PhysiquePilot</div>
+              <p className="ld-hero-fine">
+                <span className="ld-blink-dot" style={{ width: 5, height: 5 }} />
+                No credit card required · Full access for 30 days · Cancel anytime
+              </p>
+            </div>
 
-            <div className="pp-header-actions" style={{ display: "flex", gap: "0.75rem" }}>
-              <button onClick={() => navigate("/login")} style={btnGhost}>
-                Log in
-              </button>
+            {/* Right — animated dashboard demo */}
+            <div className="ld-anim-2">
+              <div className="ld-cluster">
+                {/* Topbar */}
+                <div className="ld-cluster-topbar">
+                  <span className="ld-cluster-title">Pilot Dashboard</span>
+                  <span className="ld-cluster-status">
+                    <span className="ld-blink-dot" />
+                    System Active
+                  </span>
+                </div>
 
-              <button
-                onClick={() => navigate("/register")}
-                style={btnPrimary}
-                onMouseEnter={btnLift}
-                onMouseLeave={btnReset}
-              >
-                Get started
-              </button>
+                <div className="ld-cluster-body">
+                  {/* Calorie ring + macro bars */}
+                  <div className="ld-cluster-row">
+                    <RingGauge value={1842} max={2400} />
+                    <div className="ld-cluster-macros">
+                      <div className="ld-cluster-macros-title">Macros Today</div>
+                      <MacroBar label="PROTEIN" val={156} unit="g" pct={82} color="var(--accent-3)" />
+                      <MacroBar label="CARBS"   val={210} unit="g" pct={70} color="#4d8eff" />
+                      <MacroBar label="FATS"    val={68}  unit="g" pct={68} color="#ffaa33" />
+                    </div>
+                  </div>
+
+                  {/* Weight trend mini-chart */}
+                  <div className="ld-weight-panel">
+                    <div className="ld-weight-panel-top">
+                      <span style={{ fontFamily: "var(--font-display)", fontSize: "0.58rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-3)" }}>
+                        Weight Trend — 14 Days
+                      </span>
+                      <span style={{ fontFamily: "var(--font-display)", fontSize: "0.78rem", color: "var(--accent-3)" }}>−1.8 kg</span>
+                    </div>
+                    <div style={{ height: 52 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={WEIGHT_DATA}>
+                          <Line
+                            type="monotone" dataKey="v" dot={false}
+                            stroke="var(--accent-3)" strokeWidth={2}
+                            style={{ filter: "drop-shadow(0 0 4px var(--accent-2))" }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Small readouts */}
+                  <div className="ld-readout-grid">
+                    <ReadoutCell label="Steps" value="8,247" unit="today" />
+                    <ReadoutCell label="Water" value="1.8" unit="L" />
+                    <ReadoutCell label="Training" value="Day 4" unit="" blink />
+                  </div>
+
+                  {/* AI coach message */}
+                  <div className="ld-ai-panel">
+                    <div className="ld-ai-panel-label">AI Coach</div>
+                    <div className="ld-ai-panel-msg" key={aiIdx} style={{ animation: "ldFadeUp 0.4s ease both" }}>
+                      {AI_MSGS[aiIdx]}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </header>
+        </div>
+      </section>
 
-        <main>
-          {/* HERO */}
-          <section className="pp-section pp-hero-pad" style={{ ...section, paddingTop: "4rem" }}>
-            <div className="pp-hero-grid" style={heroGrid}>
-              <div className="pp-anim-1">
-                <h1 className="pp-hero-title" style={heroTitle}>
-                  A connected training, nutrition, and progress system.
-                </h1>
+      {/* ── WHAT IT REPLACES ────────────────────────────────────────────── */}
+      <section className="ld-section ld-section-divider ld-anim-3">
+        <div className="ld-inner">
+          <div className="ld-pitch-grid">
 
-                <p className="pp-hero-text" style={heroText}>
-                  PhysiquePilot brings training, nutrition, and progress tracking into one system. As you log data,
-                  the platform learns and applies coaching logic to help guide smarter decisions over time.
+            <div>
+              <div className="ld-section-label">The Problem</div>
+              <h2 className="ld-h2">Stop paying for 4 different apps.</h2>
+              <p className="ld-lead">
+                Serious bodybuilders typically juggle a food tracker, a weight app,
+                a coaching service, and a training log — each in a different app, with no
+                connection between them. PhysiquePilot is all of that, unified, with an AI
+                coach that joins the dots.
+              </p>
+
+              <ul className="ld-replace-list" style={{ marginTop: "1.5rem" }}>
+                {REPLACES.map(r => (
+                  <li key={r.app} className="ld-replace-item">
+                    <div className="ld-replace-item-left">
+                      <span className="ld-replace-app">{r.app}</span>
+                      <span className="ld-replace-what">{r.what}</span>
+                    </div>
+                    <span className="ld-replace-cost">{r.cost}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <div className="ld-replace-card">
+                <div className="ld-replace-card-label">The Solution</div>
+                <div className="ld-replace-card-name">Physique<br />Pilot</div>
+                <p style={{ color: "var(--text-2)", fontSize: "0.9rem", lineHeight: 1.7, margin: 0 }}>
+                  One flat monthly subscription. Every tool. An AI coach that learns
+                  from all of it and tells you what to change.
                 </p>
-
-                <div style={ctas}>
-                  <button
-                    onClick={() => navigate("/register")}
-                    style={btnPrimary}
-                    onMouseEnter={btnLift}
-                    onMouseLeave={btnReset}
-                  >
-                    Create account
-                  </button>
-
-                  <button onClick={() => navigate("/login")} style={btnGhost}>
-                    Log in
-                  </button>
-                </div>
-              </div>
-
-              <div
-                className="pp-panel pp-anim-2 pp-panel-float"
-                style={panel}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.borderColor = "#2f2f2f";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#2a1118";
-                }}
-              >
-                <div style={{ fontSize: "1.25rem", fontWeight: 750 }}>{slides[index].title}</div>
-                <div style={{ marginTop: "0.8rem", color: "#aaa", lineHeight: 1.7 }}>{slides[index].text}</div>
-
-                <div style={dots}>
-                  {slides.map((_, i) => (
-                    <div key={i} style={dot(i === index)} />
+                <ul className="ld-replace-check-list">
+                  {[
+                    "Macro & micronutrient food tracking",
+                    "Intelligent weight trend analysis",
+                    "Structured training programs",
+                    "Steps, cardio & water logging",
+                    "AI coach powered by your real data",
+                    "Progress check-ins & photo archive"
+                  ].map(item => (
+                    <li key={item}>
+                      <span className="ld-check-icon">✓</span>
+                      {item}
+                    </li>
                   ))}
-                </div>
+                </ul>
+                <button className="ld-btn-primary" onClick={() => navigate("/register")} style={{ alignSelf: "flex-start", marginTop: "0.5rem" }}>
+                  Start Free — 1 Month
+                </button>
               </div>
             </div>
-          </section>
 
-          {/* 3 CORE PILLARS */}
-          <section className="pp-section pp-anim-3" style={{ ...sectionDivider, ...section }}>
-            <div className="pp-cards-3" style={gridCards}>
-              {[
-                {
-                  title: "Training",
-                  text: "Plan training blocks, follow structured splits, log sessions, and review performance trends over time."
-                },
-                {
-                  title: "Nutrition",
-                  text: "Daily calorie and macro targets that adapt to training load, activity, and recovery — without rigid plans."
-                },
-                {
-                  title: "Progress",
-                  text: "See long-term trends across weight, check-ins, photos, steps, and cardio so progress is always visible."
-                }
-              ].map((c) => (
-                <div
-                  key={c.title}
-                  className="pp-card-hover"
-                  style={card}
-                  onMouseEnter={hoverLift}
-                  onMouseLeave={hoverReset}
-                >
-                  <h3 style={cardTitle}>{c.title}</h3>
-                  <p style={cardText}>{c.text}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+          </div>
+        </div>
+      </section>
 
-          {/* HOW IT WORKS */}
-          <section className="pp-section pp-anim-4" style={{ ...sectionDivider, ...section }}>
-            <h2 style={{ marginTop: 0, marginBottom: "1.25rem" }}>How it works</h2>
+      {/* ── FEATURES ────────────────────────────────────────────────────── */}
+      <section className="ld-section ld-section-divider">
+        <div className="ld-inner">
+          <div className="ld-section-label">Your Cockpit</div>
+          <h2 className="ld-h2">Six instruments. One system.</h2>
+          <p className="ld-lead" style={{ marginBottom: "2.25rem" }}>
+            Every feature is designed to work together. Your training data informs
+            your nutrition targets. Your step count factors into your calorie needs.
+            Your weight trend shapes your AI coach's recommendations. Nothing works in isolation.
+          </p>
 
-            <div
-              className="pp-cards"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: "1.25rem"
-              }}
-            >
-              {[
-                {
-                  title: "1. Log your data",
-                  text: "Track training, nutrition, weight, steps, cardio, and check-ins. Everything feeds into one system."
-                },
-                {
-                  title: "2. The system learns",
-                  text: "PhysiquePilot analyses trends across workload, recovery, and progress — not just single data points."
-                },
-                {
-                  title: "3. Get guided adjustments",
-                  text: "Training, nutrition, and recovery decisions are guided by coaching logic that adapts as you progress."
-                }
-              ].map((c) => (
-                <div
-                  key={c.title}
-                  className="pp-card-hover"
-                  style={{ ...card, padding: "1.75rem" }}
-                  onMouseEnter={hoverLift}
-                  onMouseLeave={hoverReset}
-                >
-                  <div style={{ fontWeight: 750, fontSize: "1.05rem" }}>{c.title}</div>
-                  <p style={{ ...cardText, marginTop: "0.75rem" }}>{c.text}</p>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: "2rem", display: "flex", gap: "0.8rem", flexWrap: "wrap" }}>
-              <button
-                onClick={() => navigate("/register")}
-                style={btnPrimary}
-                onMouseEnter={btnLift}
-                onMouseLeave={btnReset}
-              >
-                Start onboarding
-              </button>
-              <button onClick={() => navigate("/login")} style={btnGhost}>
-                I already have an account
-              </button>
-            </div>
-          </section>
-
-          <footer className="pp-footer" style={{ borderTop: "1px solid #050507", padding: "2rem 0", color: "#777" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-              <div>© {new Date().getFullYear()} PhysiquePilot</div>
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                <span style={{ color: "#777" }}>Training</span>
-                <span style={{ color: "#777" }}>Nutrition</span>
-                <span style={{ color: "#777" }}>Progress</span>
+          <div className="ld-feature-grid">
+            {FEATURES.map(f => (
+              <div key={f.code} className="ld-feature-card">
+                <div className="ld-feature-code">{f.code}</div>
+                <div className="ld-feature-name">{f.label}</div>
+                <p className="ld-feature-blurb">{f.blurb}</p>
+                <div className="ld-feature-detail">{f.detail}</div>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ────────────────────────────────────────────────── */}
+      <section className="ld-section ld-section-divider">
+        <div className="ld-inner">
+          <div className="ld-section-label">Mission Briefing</div>
+          <h2 className="ld-h2">How it works.</h2>
+          <p className="ld-lead" style={{ marginBottom: "2.5rem" }}>
+            Getting started takes five minutes. After that, the more you log, the smarter the coaching gets.
+          </p>
+
+          <div className="ld-steps-grid">
+            {STEPS.map(s => (
+              <div key={s.num} className="ld-step">
+                <div className="ld-step-num">{s.num}</div>
+                <div className="ld-step-code">{s.code}</div>
+                <div className="ld-step-label">{s.label}</div>
+                <p className="ld-step-blurb">{s.blurb}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ─────────────────────────────────────────────────────── */}
+      <section className="ld-section ld-section-divider">
+        <div className="ld-inner">
+          <div className="ld-section-label">Pricing</div>
+          <h2 className="ld-h2">Simple. No surprises.</h2>
+          <p className="ld-lead" style={{ marginBottom: "2.5rem" }}>
+            One free month. One flat rate after that. No tiers, no upsells,
+            no features locked behind a higher plan.
+          </p>
+
+          <div className="ld-pricing-grid">
+            {/* Trial card */}
+            <div className="ld-price-card is-featured">
+              <div>
+                <div className="ld-price-tier">Free Trial</div>
+                <div className="ld-price-amount">
+                  <span className="ld-price-big">£0</span>
+                  <span className="ld-price-small">/ first month</span>
+                </div>
+              </div>
+              <ul className="ld-price-features">
+                {[
+                  "Full access to every feature",
+                  "AI coach from day one",
+                  "All tracking tools included",
+                  "No credit card needed to start"
+                ].map(f => (
+                  <li key={f}><span className="ld-price-check">✓</span>{f}</li>
+                ))}
+              </ul>
+              <button className="ld-btn-primary" onClick={() => navigate("/register")}>
+                Start Free Now
+              </button>
+              <p className="ld-price-fine">No card needed. Cancellable anytime.</p>
             </div>
-          </footer>
-        </main>
+
+            {/* Pro card */}
+            <div className="ld-price-card">
+              <div>
+                <div className="ld-price-tier">Pilot Pro</div>
+                <div className="ld-price-amount">
+                  <span className="ld-price-big">TBA</span>
+                  <span className="ld-price-small">/ month</span>
+                </div>
+              </div>
+              <ul className="ld-price-features">
+                {[
+                  "Everything in the free trial",
+                  "Continued AI coaching",
+                  "Full data history & trends",
+                  "Priority feature updates"
+                ].map(f => (
+                  <li key={f}><span className="ld-price-check">✓</span>{f}</li>
+                ))}
+              </ul>
+              <button className="ld-btn-ghost" onClick={() => navigate("/register")}>
+                Start with Free Trial
+              </button>
+              <p className="ld-price-fine">Try free first — upgrade when ready.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ───────────────────────────────────────────────────── */}
+      <div className="ld-cta-banner">
+        <div className="ld-section-label" style={{ justifyContent: "center", marginBottom: "1.25rem" }}>
+          Begin Your Mission
+        </div>
+        <h2 className="ld-cta-title">
+          Your data is waiting.<br />Let the AI fly it.
+        </h2>
+        <p style={{ color: "var(--text-2)", maxWidth: "52ch", margin: "0 auto 2rem", fontSize: "1.05rem", lineHeight: 1.7 }}>
+          Join PhysiquePilot free for a full month. Track everything.
+          Get coached by real data. See the difference a connected system makes.
+        </p>
+        <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
+          <button className="ld-btn-primary ld-btn-primary-lg" onClick={() => navigate("/register")}>
+            Start 1 Month Free — No Card
+          </button>
+          <button className="ld-btn-ghost ld-btn-ghost-lg" onClick={() => navigate("/login")}>
+            Already have an account
+          </button>
+        </div>
       </div>
+
+      {/* ── FOOTER ──────────────────────────────────────────────────────── */}
+      <footer style={{ position: "relative", zIndex: 1 }}>
+        <div className="ld-footer">
+          <div className="ld-footer-brand">
+            <span className="ld-brand-indicator" style={{ display: "inline-block", marginRight: "0.4rem" }} />
+            Physique Pilot © {new Date().getFullYear()}
+          </div>
+          <div className="ld-footer-links">
+            <span>Nutrition</span>
+            <span>Training</span>
+            <span>Weight</span>
+            <span>AI Coach</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
