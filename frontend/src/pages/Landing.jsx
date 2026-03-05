@@ -957,18 +957,54 @@ const CSS = `
     .ld-steps-grid { grid-template-columns: 1fr; }
     .ld-steps-grid::before { display: none; }
     .ld-pitch-grid { grid-template-columns: 1fr; }
-    .ld-pricing-grid { grid-template-columns: 1fr; max-width: 420px; }
+    .ld-pricing-grid { grid-template-columns: 1fr; max-width: 100%; }
     .ld-readout-grid { grid-template-columns: repeat(3, 1fr); }
     .ld-inner { padding: 0 1.25rem; }
     .ld-nav-inner { padding: 0.8rem 1.25rem; }
-    .ld-section { padding: 3.5rem 0; }
+    .ld-section { padding: 3rem 0; }
   }
 
   @media (max-width: 580px) {
-    .ld-feature-grid { grid-template-columns: 1fr; }
-    .ld-hero { padding: 3rem 0 2.5rem; }
-    .ld-cluster-row { flex-direction: column; }
-    .ld-cta-banner { padding: 3.5rem 1.25rem; }
+    /* Nav — prevent wrapping */
+    .ld-brand {
+      font-size: 0.82rem;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+    }
+    .ld-nav-login { display: none; }
+    .ld-btn-primary { font-size: 0.72rem; padding: 0.48rem 0.85rem; }
+
+    /* Hero */
+    .ld-hero { padding: 2.25rem 0 2rem; }
+    .ld-hero-h1 { font-size: 2rem; }
+    .ld-hero-sub { font-size: 0.95rem; }
+    .ld-hero-ctas { flex-direction: column; align-items: stretch; }
+    .ld-btn-primary-lg, .ld-btn-ghost-lg { padding: 0.85rem 1.25rem; font-size: 0.85rem; text-align: center; }
+
+    /* Dashboard cluster — compact on mobile */
+    .ld-cluster-row { flex-direction: row; align-items: center; }
+    .ld-cluster-body { gap: 0.75rem; }
+    .ld-weight-panel { display: none; }
+
+    /* Features — stay 2 columns */
+    .ld-feature-grid { grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+    .ld-feature-card { padding: 1rem; }
+    .ld-feature-blurb { display: none; }
+
+    /* Steps — tighter */
+    .ld-step { padding: 1rem; }
+
+    /* Sections */
+    .ld-section { padding: 2.25rem 0; }
+    .ld-h2 { font-size: 1.5rem; }
+    .ld-lead { font-size: 0.92rem; }
+
+    /* Pricing — stack full width */
+    .ld-price-card { padding: 1.5rem; }
+
+    /* CTA */
+    .ld-cta-banner { padding: 2.75rem 1.25rem; }
+    .ld-cta-title { font-size: 1.6rem; }
   }
 `;
 
@@ -995,7 +1031,7 @@ function Landing() {
             Physique Pilot
           </div>
           <div className="ld-nav-actions">
-            <button className="ld-btn-ghost" onClick={() => navigate("/login")}>Log in</button>
+            <button className="ld-btn-ghost ld-nav-login" onClick={() => navigate("/login")}>Log in</button>
             <button className="ld-btn-primary" onClick={() => navigate("/register")}>Start Free Trial</button>
           </div>
         </div>
