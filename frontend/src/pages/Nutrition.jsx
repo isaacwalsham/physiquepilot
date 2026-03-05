@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-
-const API_URL = (
-  String(import.meta.env.VITE_API_URL || "")
-    .trim()
-    .replace(/\/$/, "") ||
-  (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
-);
+import { apiFetch, API_URL } from "../lib/api";
 
 const dayLabel = {
   training: "Training day",
@@ -679,10 +673,9 @@ export default function Nutrition() {
     if (tErr) throw tErr;
 
     if (!tData || tData.length === 0) {
-      const r = await fetch(`${API_URL}/api/nutrition/init`, {
+      const r = await apiFetch("/api/nutrition/init", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: uid })
+        body: JSON.stringify({})
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
@@ -714,7 +707,7 @@ export default function Nutrition() {
   const loadDaySummary = async (uid, dateIso) => {
     setDayNutrientsLoading(true);
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`);
+      const r = await apiFetch(`/api/nutrition/day-summary?log_date=${encodeURIComponent(dateIso)}`);
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load day summary.");
 
@@ -770,7 +763,7 @@ export default function Nutrition() {
   };
 
   const loadMicroTargets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`);
+    const r = await apiFetch("/api/nutrition/micro-targets");
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load micronutrient targets.");
 
@@ -785,7 +778,7 @@ export default function Nutrition() {
   };
 
   const loadMealPresets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/meal-presets?user_id=${encodeURIComponent(uid)}`);
+    const r = await apiFetch("/api/nutrition/meal-presets");
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load meal presets.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -809,7 +802,7 @@ export default function Nutrition() {
   };
 
   const loadSavedMeals = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/saved-meals?user_id=${encodeURIComponent(uid)}`);
+    const r = await apiFetch("/api/nutrition/saved-meals");
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load saved meals.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -866,11 +859,9 @@ export default function Nutrition() {
           position: idx + 1
         }))
         .filter((s) => s.label);
-      const r = await fetch(`${API_URL}/api/nutrition/meal-presets`, {
+      const r = await apiFetch("/api/nutrition/meal-presets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           preset_id: createNew ? null : activePresetId || null,
           name: String(presetNameDraft || "").trim() || (createNew ? DEFAULT_CUSTOM_PRESET_NAME : DEFAULT_PRESET_NAME),
           make_default: true,
@@ -909,7 +900,7 @@ export default function Nutrition() {
     setSavingPreset(true);
     setError("");
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/meal-presets/${encodeURIComponent(activePresetId)}?user_id=${encodeURIComponent(userId)}`, {
+      const r = await apiFetch(`/api/nutrition/meal-presets/${encodeURIComponent(activePresetId)}`, {
         method: "DELETE"
       });
       const j = await r.json().catch(() => ({}));
@@ -946,11 +937,9 @@ export default function Nutrition() {
     setError("");
     try {
       const mealName = String(savedMealName || "").trim() || defaultName;
-      const r = await fetch(`${API_URL}/api/nutrition/saved-meals`, {
+      const r = await apiFetch("/api/nutrition/saved-meals", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           name: mealName,
           preset_id: activePresetId || null,
           segment_key: segmentKey,
@@ -1051,7 +1040,7 @@ export default function Nutrition() {
     setSavingSavedMeal(true);
     setError("");
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/saved-meals/${encodeURIComponent(savedMealSelection)}?user_id=${encodeURIComponent(userId)}`, {
+      const r = await apiFetch(`/api/nutrition/saved-meals/${encodeURIComponent(savedMealSelection)}`, {
         method: "DELETE"
       });
       const j = await r.json().catch(() => ({}));
@@ -1183,11 +1172,11 @@ export default function Nutrition() {
         const needed = effectiveTokens.length >= 2 ? 2 : 1;
         return hits >= needed;
       };
-      const fetchSearchItems = async (url, timeoutMs = 4500) => {
+      const fetchSearchItems = async (path, timeoutMs = 4500) => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
-          const r = await fetch(url, { cache: "no-store", signal: controller.signal });
+          const r = await apiFetch(path, { cache: "no-store", signal: controller.signal });
           const j = await r.json().catch(() => ({}));
           if (!r.ok || !j?.ok) throw new Error(j?.error || "Food search failed.");
           return dedupeByNameBrand(Array.isArray(j.items) ? j.items : []);
@@ -1216,7 +1205,7 @@ export default function Nutrition() {
           .filter(Boolean)
           .filter(strictMatch);
         const primaryItems = await fetchSearchItems(
-          `${API_URL}/api/foods/typeahead?q=${encodeURIComponent(q)}&user_id=${encodeURIComponent(userId)}&limit=10`
+          `/api/foods/typeahead?q=${encodeURIComponent(q)}&limit=10`
         );
         if (isStale()) return;
         let items = dedupeByNameBrand([...savedMealCandidates, ...primaryItems]);
@@ -1275,8 +1264,8 @@ export default function Nutrition() {
         String(mealEntryFood || "").trim().toLowerCase() !== q.toLowerCase();
       try {
         setMealFoodSearching(true);
-        const r = await fetch(
-          `${API_URL}/api/foods/typeahead?q=${encodeURIComponent(q)}&user_id=${encodeURIComponent(userId)}&limit=10`,
+        const r = await apiFetch(
+          `/api/foods/typeahead?q=${encodeURIComponent(q)}&limit=10`,
           { cache: "no-store" }
         );
         const j = await r.json().catch(() => ({}));
@@ -1364,12 +1353,10 @@ export default function Nutrition() {
       return { food_id: null, user_food_id: null, food_name: query };
     }
 
-    const bestResp = await fetch(`${API_URL}/api/foods/resolve-best`, {
+    const bestResp = await apiFetch("/api/foods/resolve-best", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         query,
-        user_id: userId,
         locale: "uk",
         prefer_remote: true
       })
@@ -1383,8 +1370,8 @@ export default function Nutrition() {
       };
     }
 
-    const r = await fetch(
-      `${API_URL}/api/foods/typeahead?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(userId)}&limit=8`
+    const r = await apiFetch(
+      `/api/foods/typeahead?q=${encodeURIComponent(query)}&limit=8`
     );
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Food search failed.");
@@ -1411,9 +1398,8 @@ export default function Nutrition() {
     if (!chosen) return { food_id: null, user_food_id: null, food_name: food };
 
     if (!chosen.food_id && !chosen.user_food_id && chosen.usda_fdc_id) {
-      const resp = await fetch(`${API_URL}/api/foods/resolve-usda`, {
+      const resp = await apiFetch("/api/foods/resolve-usda", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fdc_id: chosen.usda_fdc_id })
       });
       const body = await resp.json().catch(() => ({}));
@@ -1427,9 +1413,8 @@ export default function Nutrition() {
       };
     }
     if (!chosen.food_id && !chosen.user_food_id && chosen.off_code) {
-      const resp = await fetch(`${API_URL}/api/foods/resolve-off`, {
+      const resp = await apiFetch("/api/foods/resolve-off", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ off_code: chosen.off_code })
       });
       const body = await resp.json().catch(() => ({}));
@@ -1558,9 +1543,8 @@ export default function Nutrition() {
 
       if (!r?.food_id && !r?.user_food_id && r?.usda_fdc_id) {
         setFoodSearching(true);
-        const resp = await fetch(`${API_URL}/api/foods/resolve-usda`, {
+        const resp = await apiFetch("/api/foods/resolve-usda", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fdc_id: r.usda_fdc_id })
         });
         const body = await resp.json().catch(() => ({}));
@@ -1573,9 +1557,8 @@ export default function Nutrition() {
       }
       if (!r?.food_id && !r?.user_food_id && r?.off_code) {
         setFoodSearching(true);
-        const resp = await fetch(`${API_URL}/api/foods/resolve-off`, {
+        const resp = await apiFetch("/api/foods/resolve-off", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ off_code: r.off_code })
         });
         const body = await resp.json().catch(() => ({}));
@@ -1618,9 +1601,8 @@ export default function Nutrition() {
 
       if (!r?.food_id && !r?.user_food_id && r?.usda_fdc_id) {
         setMealFoodSearching(true);
-        const resp = await fetch(`${API_URL}/api/foods/resolve-usda`, {
+        const resp = await apiFetch("/api/foods/resolve-usda", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fdc_id: r.usda_fdc_id })
         });
         const body = await resp.json().catch(() => ({}));
@@ -1633,9 +1615,8 @@ export default function Nutrition() {
       }
       if (!r?.food_id && !r?.user_food_id && r?.off_code) {
         setMealFoodSearching(true);
-        const resp = await fetch(`${API_URL}/api/foods/resolve-off`, {
+        const resp = await apiFetch("/api/foods/resolve-off", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ off_code: r.off_code })
         });
         const body = await resp.json().catch(() => ({}));
@@ -1742,11 +1723,9 @@ export default function Nutrition() {
 
     try {
       const dateIso = todayIso();
-      const r = await fetch(`${API_URL}/api/nutrition/log`, {
+      const r = await apiFetch("/api/nutrition/log", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           log_date: dateIso,
           notes: logNotes || null,
           water_ml: waterMl || 0,
@@ -1831,11 +1810,9 @@ export default function Nutrition() {
     setSavingMicroTargets(true);
     setError("");
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
+      const r = await apiFetch("/api/nutrition/micro-targets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           mode: nextMode,
           overrides: []
         })
@@ -1863,11 +1840,9 @@ export default function Nutrition() {
         }))
         .filter((x) => Number.isFinite(x.target_amount) && x.target_amount >= 0);
 
-      const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
+      const r = await apiFetch("/api/nutrition/micro-targets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           mode: "custom",
           overrides,
           replace_overrides: true

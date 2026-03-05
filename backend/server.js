@@ -67,8 +67,42 @@ app.use(cors(corsOptions));
 
 app.options(/.*/, cors(corsOptions));
 
+app.use(express.json({ limit: "1mb" }));
 
-app.use(express.json());
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many requests, please slow down." }
+});
+app.use(globalLimiter);
+
+const authenticate = async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).json({ ok: false, error: "Authentication required" });
+  }
+  const token = authHeader.slice(7);
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data?.user?.id) {
+    return res.status(401).json({ ok: false, error: "Invalid or expired token" });
+  }
+  req.userId = data.user.id;
+  next();
+};
+
+const optionalAuth = async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const { data } = await supabase.auth.getUser(token);
+    req.userId = data?.user?.id || null;
+  } else {
+    req.userId = null;
+  }
+  next();
+};
 
 const toNum = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
 
@@ -1920,7 +1954,7 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, message: "Backend is running" });
 });
 
-app.post("/api/nutrition/parse", nutritionLimiter, async (req, res) => {
+app.post("/api/nutrition/parse", authenticate, nutritionLimiter, async (req, res) => {
   try {
     const body = req.body || {};
     const items = body.items || body.entries || [];
@@ -1934,19 +1968,15 @@ app.post("/api/nutrition/parse", nutritionLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
+app.post("/api/nutrition/log", authenticate, nutritionLimiter, async (req, res) => {
   try {
     const body = req.body || {};
-    const user_id = body.user_id || body.userId;
+    const user_id = req.userId;
     const log_date = body.log_date || isoDate(new Date());
     const notes = body.notes || null;
     const water_ml = body.water_ml ?? body.waterMl ?? 0;
     const salt_g = body.salt_g ?? body.saltG ?? 0;
     const items = body.items || body.entries || [];
-
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-    }
 
     const normalizedItems = normalizeLogItems(items);
     const warnings = [];
@@ -2207,11 +2237,11 @@ app.post("/api/nutrition/log", nutritionLimiter, async (req, res) => {
   }
 });
 
-app.get("/api/foods/typeahead", async (req, res) => {
+app.get("/api/foods/typeahead", optionalAuth, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const qRaw = String(req.query.q || "").trim();
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    const user_id = req.userId || String(req.query.user_id || req.query.userId || "").trim();
     const limit = Math.min(20, Math.max(1, Number(req.query.limit || 10)));
     if (qRaw.length < 2) return res.json({ ok: true, items: [] });
 
@@ -2469,11 +2499,11 @@ app.get("/api/foods/typeahead", async (req, res) => {
   }
 });
 
-app.get("/api/foods/search", async (req, res) => {
+app.get("/api/foods/search", optionalAuth, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const term = String(req.query.q || "").trim();
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    const user_id = req.userId || String(req.query.user_id || req.query.userId || "").trim();
     const localeRaw = String(req.query.locale || "any").trim().toLowerCase();
     const locale =
       localeRaw === "us" ? "en-us" :
@@ -3025,11 +3055,11 @@ app.post("/api/foods/resolve-off", async (req, res) => {
   }
 });
 
-app.post("/api/foods/resolve-best", async (req, res) => {
+app.post("/api/foods/resolve-best", optionalAuth, async (req, res) => {
   try {
     const body = req.body || {};
     const query = String(body.query || body.food || "").trim();
-    const user_id = String(body.user_id || body.userId || "").trim();
+    const user_id = req.userId || String(body.user_id || body.userId || "").trim();
     const localeRaw = String(body.locale || "uk").trim().toLowerCase();
     const locale = localeRaw === "uk" ? "en-gb" : localeRaw === "us" ? "en-us" : localeRaw;
     const useAiPick = String(body.use_ai || body.useAi || "0") === "1";
@@ -3048,9 +3078,14 @@ app.post("/api/foods/resolve-best", async (req, res) => {
       });
     }
 
+    const forwardAuth = req.headers["authorization"]
+      ? { Authorization: req.headers["authorization"] }
+      : {};
+
     let items = [];
     const typeaheadR = await fetch(
-      `http://127.0.0.1:${PORT}/api/foods/typeahead?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(user_id)}&limit=10`
+      `http://127.0.0.1:${PORT}/api/foods/typeahead?q=${encodeURIComponent(query)}&limit=10`,
+      { headers: forwardAuth }
     );
     const typeaheadJ = await typeaheadR.json().catch(() => ({}));
     if (typeaheadR.ok && typeaheadJ?.ok) {
@@ -3071,7 +3106,8 @@ app.post("/api/foods/resolve-best", async (req, res) => {
           ];
       for (const pass of searchPasses) {
         const searchR = await fetch(
-          `http://127.0.0.1:${PORT}/api/foods/search?q=${encodeURIComponent(query)}&user_id=${encodeURIComponent(user_id)}&locale=${encodeURIComponent(pass.locale)}&limit=${encodeURIComponent(pass.limit)}&include_usda=${encodeURIComponent(pass.include_usda)}&include_off=${encodeURIComponent(pass.include_off)}&fast=1`
+          `http://127.0.0.1:${PORT}/api/foods/search?q=${encodeURIComponent(query)}&locale=${encodeURIComponent(pass.locale)}&limit=${encodeURIComponent(pass.limit)}&include_usda=${encodeURIComponent(pass.include_usda)}&include_off=${encodeURIComponent(pass.include_off)}&fast=1`,
+          { headers: forwardAuth }
         );
         const searchJ = await searchR.json().catch(() => ({}));
         if (!searchR.ok || !searchJ?.ok) continue;
@@ -3185,12 +3221,9 @@ app.get("/api/nutrients", async (_req, res) => {
   }
 });
 
-app.get("/api/nutrition/micro-targets", async (req, res) => {
+app.get("/api/nutrition/micro-targets", authenticate, async (req, res) => {
   try {
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-    }
+    const user_id = req.userId;
 
     const [profileRes, nutrientsRes, prefRes, overridesRes] = await Promise.all([
       supabase
@@ -3291,17 +3324,13 @@ app.get("/api/nutrition/micro-targets", async (req, res) => {
   }
 });
 
-app.post("/api/nutrition/micro-targets", async (req, res) => {
+app.post("/api/nutrition/micro-targets", authenticate, async (req, res) => {
   try {
     const body = req.body || {};
-    const user_id = body.user_id || body.userId;
+    const user_id = req.userId;
     const mode = normalizeMode(body.mode || "rdi");
     const overrides = Array.isArray(body.overrides) ? body.overrides : [];
     const replaceOverrides = Boolean(body.replace_overrides);
-
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-    }
 
     const { error: prefErr } = await supabase
       .from("nutrition_target_preferences")
@@ -3337,13 +3366,10 @@ app.post("/api/nutrition/micro-targets", async (req, res) => {
   }
 });
 
-app.get("/api/nutrition/day-summary", async (req, res) => {
+app.get("/api/nutrition/day-summary", authenticate, async (req, res) => {
   try {
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
+    const user_id = req.userId;
     const log_date = String(req.query.log_date || req.query.logDate || isoDate(new Date())).trim();
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-    }
 
     const [summary, logResult] = await Promise.all([
       fetchDaySummary({ user_id, log_date }),
@@ -3382,12 +3408,9 @@ const isMissingNutritionMealsRelationError = (errLike) =>
   /relation .*nutrition_meal_/i.test(String(errLike?.message || errLike || "")) ||
   /relation .*nutrition_saved_meal/i.test(String(errLike?.message || errLike || ""));
 
-app.get("/api/nutrition/meal-presets", async (req, res) => {
+app.get("/api/nutrition/meal-presets", authenticate, async (req, res) => {
   try {
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-    }
+    const user_id = req.userId;
 
     const presets = await ensureDefaultMealPreset(user_id);
     return res.json({ ok: true, items: presets });
@@ -3402,18 +3425,15 @@ app.get("/api/nutrition/meal-presets", async (req, res) => {
   }
 });
 
-app.post("/api/nutrition/meal-presets", async (req, res) => {
+app.post("/api/nutrition/meal-presets", authenticate, async (req, res) => {
   try {
     const body = req.body || {};
-    const user_id = String(body.user_id || body.userId || "").trim();
+    const user_id = req.userId;
     const preset_id = String(body.preset_id || body.presetId || "").trim();
     const nameRaw = String(body.name || "").trim();
     const name = (nameRaw || (preset_id ? "Standard" : "Enter Preset Name")).slice(0, 80);
     const makeDefault = Boolean(body.make_default ?? body.makeDefault ?? false);
     const segments = normalizeMealSegmentsInput(body.segments || []);
-
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
     }
 
     let targetId = preset_id;
@@ -3489,12 +3509,12 @@ app.post("/api/nutrition/meal-presets", async (req, res) => {
   }
 });
 
-app.delete("/api/nutrition/meal-presets/:preset_id", async (req, res) => {
+app.delete("/api/nutrition/meal-presets/:preset_id", authenticate, async (req, res) => {
   try {
     const preset_id = String(req.params.preset_id || "").trim();
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
-    if (!preset_id || !user_id) {
-      return res.status(400).json({ ok: false, error: "preset_id and user_id are required" });
+    const user_id = req.userId;
+    if (!preset_id) {
+      return res.status(400).json({ ok: false, error: "preset_id is required" });
     }
 
     const { data: existing, error: existingErr } = await supabase
@@ -3526,12 +3546,9 @@ app.delete("/api/nutrition/meal-presets/:preset_id", async (req, res) => {
   }
 });
 
-app.get("/api/nutrition/saved-meals", async (req, res) => {
+app.get("/api/nutrition/saved-meals", authenticate, async (req, res) => {
   try {
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-    }
+    const user_id = req.userId;
 
     const { data: meals, error: mealsErr } = await supabase
       .from("nutrition_saved_meals")
@@ -3586,17 +3603,15 @@ app.get("/api/nutrition/saved-meals", async (req, res) => {
   }
 });
 
-app.post("/api/nutrition/saved-meals", async (req, res) => {
+app.post("/api/nutrition/saved-meals", authenticate, async (req, res) => {
   try {
     const body = req.body || {};
-    const user_id = String(body.user_id || body.userId || "").trim();
+    const user_id = req.userId;
     const saved_meal_id = String(body.saved_meal_id || body.savedMealId || "").trim();
     const name = String(body.name || "").trim().slice(0, 80);
     const preset_id = String(body.preset_id || body.presetId || "").trim() || null;
     const segment_key = normalizeMealSegmentKey(body.segment_key || body.segmentKey || "snacks");
     const items = normalizeLogItems(body.items || []);
-
-    if (!user_id) return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
     if (!name) return res.status(400).json({ ok: false, error: "name is required" });
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ ok: false, error: "items are required" });
 
@@ -3661,12 +3676,12 @@ app.post("/api/nutrition/saved-meals", async (req, res) => {
   }
 });
 
-app.delete("/api/nutrition/saved-meals/:saved_meal_id", async (req, res) => {
+app.delete("/api/nutrition/saved-meals/:saved_meal_id", authenticate, async (req, res) => {
   try {
     const saved_meal_id = String(req.params.saved_meal_id || "").trim();
-    const user_id = String(req.query.user_id || req.query.userId || "").trim();
-    if (!saved_meal_id || !user_id) {
-      return res.status(400).json({ ok: false, error: "saved_meal_id and user_id are required" });
+    const user_id = req.userId;
+    if (!saved_meal_id) {
+      return res.status(400).json({ ok: false, error: "saved_meal_id is required" });
     }
 
     const { error: delErr } = await supabase
@@ -3725,16 +3740,12 @@ const suggestCalories = ({ goalType, weeklyRateKg, weightKg }) => {
   return maintenance;
 };
 
-app.post("/api/profile/init", async (req, res) => {
+app.post("/api/profile/init", authenticate, async (req, res) => {
   try {
     const body = req.body || {};
 
-    const user_id = body.user_id || body.userId;
+    const user_id = req.userId;
     const email = body.email;
-
-    if (!user_id) {
-      return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-    }
 
     const { error } = await supabase
       .from("profiles")
@@ -3759,13 +3770,8 @@ app.post("/api/profile/init", async (req, res) => {
   }
 });
 
-app.post("/api/nutrition/init", async (req, res) => {
-  const body = req.body || {};
-  const user_id = body.user_id || body.userId;
-
-  if (!user_id) {
-    return res.status(400).json({ ok: false, error: "user_id (or userId) is required" });
-  }
+app.post("/api/nutrition/init", authenticate, async (req, res) => {
+  const user_id = req.userId;
 
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")

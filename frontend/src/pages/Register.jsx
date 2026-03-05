@@ -1,13 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
-
-const API_URL = (
-  String(import.meta.env.VITE_API_URL || "")
-    .trim()
-    .replace(/\/$/, "") ||
-  (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
-);
+import { apiFetch } from "../lib/api";
 
 function Register() {
   const navigate = useNavigate();
@@ -44,14 +38,9 @@ function Register() {
     // If this fails due to auth/RLS/endpoint issues, don't block signup—Onboarding can create it.
     if (user) {
       try {
-        const r = await fetch(`${API_URL}/api/profile/init`, {
+        const r = await apiFetch("/api/profile/init", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user.id,
-            user_id: user.id,
-            email: user.email || emailClean
-          })
+          body: JSON.stringify({ email: user.email || emailClean })
         });
 
         if (!r.ok) {

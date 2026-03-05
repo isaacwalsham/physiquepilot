@@ -2,14 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "../supabaseClient";
-
-const API_URL = (() => {
-  const raw =
-    import.meta?.env?.VITE_API_URL ||
-    import.meta?.env?.VITE_API_BASE_URL ||
-    (import.meta?.env?.PROD ? "https://physiquepilot.onrender.com" : "http://localhost:4000");
-  return String(raw || "").replace(/\/+$/, "");
-})();
+import { apiFetch, API_URL } from "../lib/api";
 
 const round1 = (n) => Math.round(n * 10) / 10;
 
@@ -193,10 +186,9 @@ function Dashboard() {
           setTodayTargets(null);
         } else {
           try {
-            const r = await fetch(`${API_URL}/api/nutrition/init`, {
+            const r = await apiFetch("/api/nutrition/init", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ user_id: user.id })
+              body: JSON.stringify({})
             });
 
             if (r.ok) {

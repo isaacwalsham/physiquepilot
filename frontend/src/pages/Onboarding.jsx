@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { apiFetch } from "../lib/api";
 
 const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -696,16 +697,9 @@ function Onboarding() {
       console.warn("Optional profile fields save skipped:", optRes.error.message);
     }
 
-    const API_URL = (
-      import.meta.env.VITE_API_URL ||
-      import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
-    ).replace(/\/$/, "");
-
-    const { error: initErr } = await fetch(`${API_URL}/api/nutrition/init`, {
+    const { error: initErr } = await apiFetch("/api/nutrition/init", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: profile.user_id })
+      body: JSON.stringify({})
     }).then(async (r) => {
       const j = await r.json();
       return r.ok ? { error: null } : { error: j?.error || "Nutrition init failed" };
