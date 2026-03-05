@@ -45,6 +45,444 @@ const buildInsights = (w) => {
   return out;
 };
 
+const CSS = `
+  @keyframes pp-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.15; }
+  }
+
+  .pp-coach-page {
+    width: 100%;
+    font-family: var(--font-body);
+  }
+
+  .pp-section-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    color: var(--accent-3);
+    text-transform: uppercase;
+    margin-bottom: 1.25rem;
+  }
+
+  .pp-section-label::before {
+    content: '';
+    display: block;
+    width: 2rem;
+    height: 1px;
+    background: var(--accent-3);
+    opacity: 0.6;
+  }
+
+  .pp-section-label::after {
+    content: '';
+    display: block;
+    flex: 1;
+    height: 1px;
+    background: var(--accent-3);
+    opacity: 0.15;
+  }
+
+  /* ── Metric cards ── */
+  .pp-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .pp-metric-card {
+    background: var(--surface-1);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .pp-metric-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.75rem;
+    background: rgba(181, 21, 60, 0.08);
+    border-bottom: 1px solid var(--line-1);
+  }
+
+  .pp-metric-code {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--accent-2);
+    background: rgba(181, 21, 60, 0.15);
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(181, 21, 60, 0.25);
+  }
+
+  .pp-metric-title {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    color: var(--text-2);
+    text-transform: uppercase;
+    flex: 1;
+  }
+
+  .pp-metric-blink {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-2);
+    animation: pp-blink 2.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  .pp-metric-body {
+    padding: 0.75rem;
+  }
+
+  .pp-metric-value {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--text-1);
+    line-height: 1.2;
+  }
+
+  .pp-metric-sub {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    margin-top: 0.25rem;
+  }
+
+  /* ── Chat panel ── */
+  .pp-chat-panel {
+    border: 1px solid rgba(181, 21, 60, 0.2);
+    border-radius: var(--radius-lg);
+    background: rgba(8, 3, 5, 0.9);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .pp-chat-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 1rem;
+    background: rgba(181, 21, 60, 0.07);
+    border-bottom: 1px solid rgba(181, 21, 60, 0.18);
+  }
+
+  .pp-chat-topbar-label {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    color: var(--text-2);
+    text-transform: uppercase;
+  }
+
+  .pp-chat-status {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    color: var(--ok);
+    text-transform: uppercase;
+  }
+
+  .pp-chat-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    animation: pp-blink 1.6s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  .pp-chat-messages {
+    padding: 1rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .pp-chat-empty {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    text-align: center;
+    padding: 2rem 0;
+  }
+
+  .pp-bubble-wrap-user {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .pp-bubble-wrap-ai {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .pp-bubble-user {
+    max-width: 82%;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, rgba(181, 21, 60, 0.25), rgba(138, 15, 46, 0.2));
+    border: 1px solid rgba(181, 21, 60, 0.3);
+    color: var(--text-1);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .pp-bubble-ai {
+    max-width: 82%;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    color: var(--text-1);
+    font-family: var(--font-display);
+    font-size: 0.88rem;
+    line-height: 1.55;
+    letter-spacing: 0.02em;
+  }
+
+  .pp-bubble-ts {
+    font-size: 0.62rem;
+    color: var(--text-3);
+    margin-top: 0.3rem;
+    font-family: var(--font-display);
+    letter-spacing: 0.06em;
+  }
+
+  .pp-bubble-ts-user {
+    text-align: right;
+  }
+
+  .pp-chat-input-row {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid rgba(181, 21, 60, 0.15);
+    background: rgba(8, 3, 5, 0.6);
+  }
+
+  .pp-chat-input {
+    flex: 1;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line-1);
+    background: rgba(5, 3, 5, 0.9);
+    color: var(--text-1);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+
+  .pp-chat-input:focus {
+    border-color: rgba(181, 21, 60, 0.55);
+    box-shadow: 0 0 0 2px rgba(181, 21, 60, 0.12), 0 0 8px rgba(181, 21, 60, 0.08);
+  }
+
+  .pp-chat-input::placeholder {
+    color: var(--text-3);
+    font-family: var(--font-display);
+    letter-spacing: 0.06em;
+    font-size: 0.82rem;
+  }
+
+  .pp-send-btn {
+    padding: 0.65rem 1.1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(181, 21, 60, 0.4);
+    background: linear-gradient(135deg, rgba(181, 21, 60, 0.3), rgba(138, 15, 46, 0.2));
+    color: var(--text-1);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.18s, border-color 0.18s, opacity 0.18s;
+  }
+
+  .pp-send-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(181, 21, 60, 0.45), rgba(138, 15, 46, 0.35));
+    border-color: rgba(181, 21, 60, 0.65);
+  }
+
+  .pp-send-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  /* ── Insights panel ── */
+  .pp-insights-panel {
+    background: var(--surface-1);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .pp-panel-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.9rem;
+    background: rgba(181, 21, 60, 0.06);
+    border-bottom: 1px solid var(--line-1);
+  }
+
+  .pp-panel-code {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--accent-2);
+    background: rgba(181, 21, 60, 0.12);
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(181, 21, 60, 0.2);
+  }
+
+  .pp-panel-title {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    color: var(--text-2);
+    text-transform: uppercase;
+  }
+
+  .pp-insights-body {
+    padding: 0.9rem;
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .pp-insight-row {
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line-1);
+    background: var(--surface-2);
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+
+  .pp-insight-positive {
+    border-color: rgba(0, 200, 100, 0.25);
+    color: var(--ok);
+    background: rgba(0, 200, 100, 0.05);
+  }
+
+  .pp-insight-warning {
+    border-color: rgba(255, 180, 0, 0.25);
+    color: var(--warn);
+    background: rgba(255, 180, 0, 0.05);
+  }
+
+  .pp-insight-info {
+    color: var(--text-2);
+  }
+
+  .pp-insights-footer {
+    padding: 0 0.9rem 0.75rem;
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    text-transform: uppercase;
+  }
+
+  /* ── Page header ── */
+  .pp-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.75rem;
+  }
+
+  .pp-page-title {
+    font-family: var(--font-display);
+    font-size: 1.85rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-1);
+    margin: 0;
+    line-height: 1.1;
+  }
+
+  .pp-page-date {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--text-3);
+    margin-top: 0.4rem;
+    text-transform: uppercase;
+  }
+
+  .pp-sending-badge {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    color: var(--accent-2);
+    text-transform: uppercase;
+    animation: pp-blink 1s ease-in-out infinite;
+    align-self: center;
+  }
+
+  .pp-error-banner {
+    background: rgba(181, 21, 60, 0.1);
+    border: 1px solid rgba(181, 21, 60, 0.35);
+    border-radius: var(--radius-md);
+    color: var(--bad);
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    padding: 0.65rem 0.9rem;
+    margin-bottom: 1rem;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 980px) {
+    .pp-metrics-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 520px) {
+    .pp-metrics-grid {
+      grid-template-columns: 1fr;
+    }
+    .pp-chat-input-row {
+      flex-direction: column;
+    }
+    .pp-page-title {
+      font-size: 1.4rem;
+    }
+    .pp-chat-messages {
+      height: 280px;
+    }
+  }
+
+  @media (min-width: 521px) {
+    .pp-chat-messages {
+      height: 380px;
+    }
+  }
+`;
+
 function Coach() {
   const todayIso = useMemo(() => formatISO(new Date()), []);
   const chatRef = useRef(null);
@@ -266,11 +704,17 @@ function Coach() {
     setSending(false);
   };
 
-  if (loading) return <div>Loading…</div>;
+  if (loading) {
+    return (
+      <div style={{ fontFamily: "var(--font-display)", color: "var(--text-3)", fontSize: "0.8rem", letterSpacing: "0.12em", padding: "2rem" }}>
+        LOADING FLIGHT DATA…
+      </div>
+    );
+  }
 
   const dayType = training?.is_rest_day ? "rest" : "training";
   const targetCalories = targets?.[dayType]?.calories ?? null;
-  const eaten = null; 
+  const eaten = null;
 
   const remaining = null;
 
@@ -293,148 +737,151 @@ function Coach() {
 
   const insights = buildInsights(weekStats);
 
-  const card = {
-    background: "#050507",
-    border: "1px solid #2a1118",
-    padding: "1rem",
-    borderRadius: "14px"
-  };
-
-  const section = {
-    ...card,
-    padding: "1.1rem",
-    marginTop: "1rem"
-  };
-
-  const small = { color: "#aaa", marginTop: "0.4rem" };
-
-  const todayGridCols = bp === "mobile" ? "1fr" : bp === "tablet" ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
-
-  const statRow = {
-    display: "grid",
-    gridTemplateColumns: todayGridCols,
-    gap: "1rem",
-    marginTop: "1rem"
-  };
-
-  const chatBox = {
-    height: bp === "mobile" ? "320px" : "420px",
-    overflowY: "auto",
-    border: "1px solid #2a1118",
-    borderRadius: "12px",
-    padding: "0.9rem",
-    background: "#111"
-  };
-
-  const bubble = (role) => ({
-    maxWidth: "85%",
-    marginLeft: role === "user" ? "auto" : 0,
-    marginRight: role === "user" ? 0 : "auto",
-    padding: "0.6rem 0.75rem",
-    borderRadius: "12px",
-    background: role === "user" ? "#08080d" : "#060609",
-    border: "1px solid #2a1118",
-    color: "#fff",
-    lineHeight: 1.45
-  });
-
-  const inputRow = {
-    display: "flex",
-    gap: "0.5rem",
-    marginTop: "0.65rem",
-    flexDirection: bp === "mobile" ? "column" : "row"
-  };
-
-  const inputStyle = {
-    flex: 1,
-    width: "100%",
-    padding: "0.7rem 0.8rem",
-    borderRadius: "12px",
-    border: "1px solid #2a1118",
-    background: "#111",
-    color: "#fff"
-  };
-
-  const btn = {
-    padding: "0.7rem 1rem",
-    borderRadius: "12px",
-    border: "1px solid #2a1118",
-    background: "#0b0b10",
-    color: "#fff",
-    cursor: "pointer",
-    whiteSpace: "nowrap"
-  };
-
   return (
-    <div style={{ width: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem", flexWrap: "wrap" }}>
+    <div className="pp-coach-page">
+      <style>{CSS}</style>
+
+      {/* Page header */}
+      <div className="pp-page-header">
         <div>
-          <h1 style={{ margin: 0 }}>Coach</h1>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+          <h1 className="pp-page-title">Coach</h1>
+          <div className="pp-page-date">
             {dayLabel(todayIso)} · {todayIso}
           </div>
         </div>
-        <div style={{ color: "#666" }}>{sending ? "Sending…" : ""}</div>
+        {sending && <div className="pp-sending-badge">Transmitting…</div>}
       </div>
 
-      {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
+      {error && <div className="pp-error-banner">{error}</div>}
 
-      {}
-      <div style={section}>
-        <div style={{ fontWeight: 700 }}>Today</div>
-        <div style={small}>Quick snapshot of today’s inputs.</div>
+      {/* Section label */}
+      <div className="pp-section-label">AI Flight Control</div>
 
-        <div style={statRow}>
-          <div style={card}>
-            <div style={{ fontWeight: 700 }}>Training</div>
-            <div style={{ marginTop: "0.35rem", color: "#aaa" }}>{training?.name || "Unassigned"}</div>
-            <div style={{ marginTop: "0.35rem", color: "#666", fontSize: "0.9rem" }}>{training?.is_rest_day ? "Rest day" : "Training day"}</div>
+      {/* Metrics snapshot */}
+      <div className="pp-metrics-grid">
+        <div className="pp-metric-card">
+          <div className="pp-metric-topbar">
+            <span className="pp-metric-code">TRN</span>
+            <span className="pp-metric-title">Training</span>
+            <span className="pp-metric-blink" />
           </div>
-
-          <div style={card}>
-            <div style={{ fontWeight: 700 }}>Nutrition</div>
-            <div style={{ marginTop: "0.35rem", color: "#aaa" }}>Target: {targetCalories ?? "—"}</div>
-            <div style={{ marginTop: "0.15rem", color: "#666", fontSize: "0.9rem" }}>
-              Intake logging not enabled yet.
-            </div>
+          <div className="pp-metric-body">
+            <div className="pp-metric-value">{training?.name || "Unassigned"}</div>
+            <div className="pp-metric-sub">{training?.is_rest_day ? "Rest day" : "Training day"}</div>
           </div>
+        </div>
 
-          <div style={card}>
-            <div style={{ fontWeight: 700 }}>Steps</div>
-            <div style={{ marginTop: "0.35rem", color: "#aaa" }}>{steps?.steps ?? 0}</div>
+        <div className="pp-metric-card">
+          <div className="pp-metric-topbar">
+            <span className="pp-metric-code">NUT</span>
+            <span className="pp-metric-title">Nutrition</span>
+            <span className="pp-metric-blink" />
           </div>
+          <div className="pp-metric-body">
+            <div className="pp-metric-value">{targetCalories ?? "—"}</div>
+            <div className="pp-metric-sub">Target kcal · intake logging pending</div>
+          </div>
+        </div>
 
-          <div style={card}>
-            <div style={{ fontWeight: 700 }}>Cardio</div>
-            <div style={{ marginTop: "0.35rem", color: "#aaa" }}>
-              {cardioMinutes ? `${cardioMinutes} min` : "None"}
-            </div>
+        <div className="pp-metric-card">
+          <div className="pp-metric-topbar">
+            <span className="pp-metric-code">ACT</span>
+            <span className="pp-metric-title">Steps</span>
+            <span className="pp-metric-blink" />
+          </div>
+          <div className="pp-metric-body">
+            <div className="pp-metric-value">{steps?.steps ?? 0}</div>
+            <div className="pp-metric-sub">Steps logged today</div>
+          </div>
+        </div>
+
+        <div className="pp-metric-card">
+          <div className="pp-metric-topbar">
+            <span className="pp-metric-code">CDO</span>
+            <span className="pp-metric-title">Cardio</span>
+            <span className="pp-metric-blink" />
+          </div>
+          <div className="pp-metric-body">
+            <div className="pp-metric-value">{cardioMinutes ? `${cardioMinutes} min` : "None"}</div>
             {cardioAvgHr ? (
-              <div style={{ marginTop: "0.15rem", color: "#666", fontSize: "0.9rem" }}>Avg HR: {cardioAvgHr}</div>
-            ) : null}
+              <div className="pp-metric-sub">Avg HR: {cardioAvgHr} bpm</div>
+            ) : (
+              <div className="pp-metric-sub">No session recorded</div>
+            )}
           </div>
         </div>
       </div>
 
-      {}
-      <div style={section}>
-        <div style={{ fontWeight: 700 }}>Insights</div>
-        <div style={small}>Based on the last 7 days.</div>
+      {/* Chat panel */}
+      <div className="pp-chat-panel">
+        <div className="pp-chat-topbar">
+          <span className="pp-chat-topbar-label">Pilot ↔ AI Coach</span>
+          <div className="pp-chat-status">
+            <span className="pp-chat-status-dot" />
+            Online
+          </div>
+        </div>
 
-        <div style={{ marginTop: "0.85rem", display: "grid", gap: "0.6rem" }}>
+        <div className="pp-chat-messages" ref={chatRef}>
+          {messages.length === 0 ? (
+            <div className="pp-chat-empty">// No transmissions logged. Send a message to begin. //</div>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className={m.role === "user" ? "pp-bubble-wrap-user" : "pp-bubble-wrap-ai"}>
+                <div>
+                  <div className={m.role === "user" ? "pp-bubble-user" : "pp-bubble-ai"}>
+                    {m.content}
+                  </div>
+                  {m.created_at && (
+                    <div className={`pp-bubble-ts ${m.role === "user" ? "pp-bubble-ts-user" : ""}`}>
+                      {new Date(m.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="pp-chat-input-row">
+          <input
+            className="pp-chat-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Transmit message to AI Coach…"
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          />
+          <button
+            className="pp-send-btn"
+            onClick={sendMessage}
+            disabled={sending}
+          >
+            {sending ? "Sending…" : "Transmit"}
+          </button>
+        </div>
+      </div>
+
+      {/* Insights panel */}
+      <div className="pp-insights-panel">
+        <div className="pp-panel-topbar">
+          <span className="pp-panel-code">INTEL</span>
+          <span className="pp-panel-title">Weekly Intelligence Report</span>
+        </div>
+
+        <div className="pp-insights-body">
           {insights.length === 0 ? (
-            <div style={{ color: "#aaa" }}>No insights yet.</div>
+            <div className="pp-insight-row pp-insight-info">No intelligence data available yet.</div>
           ) : (
             insights.map((i, idx) => (
               <div
                 key={idx}
-                style={{
-                  padding: "0.75rem 0.85rem",
-                  borderRadius: "12px",
-                  border: "1px solid #2a1118",
-                  background: "#111",
-                  color: i.type === "positive" ? "#b9f6ca" : i.type === "warning" ? "#ffb86b" : "#aaa"
-                }}
+                className={`pp-insight-row ${
+                  i.type === "positive"
+                    ? "pp-insight-positive"
+                    : i.type === "warning"
+                    ? "pp-insight-warning"
+                    : "pp-insight-info"
+                }`}
               >
                 {i.text}
               </div>
@@ -442,39 +889,8 @@ function Coach() {
           )}
         </div>
 
-        <div style={{ marginTop: "0.85rem", color: "#666", fontSize: "0.9rem" }}>
-          Weigh-ins counted: {weekStats.weightLoggedDays} · Training sessions: {weekStats.sessionsCompleted}/{weekStats.sessionsPlanned}
-        </div>
-      </div>
-
-      {}
-      <div style={section}>
-        <div style={{ fontWeight: 700 }}>Coach chat</div>
-        <div style={small}>This is currently a simple log. Next step is wiring responses.</div>
-
-        <div ref={chatRef} style={{ ...chatBox, marginTop: "0.85rem" }}>
-          {messages.length === 0 ? (
-            <div style={{ color: "#666" }}>No messages yet.</div>
-          ) : (
-            messages.map((m) => (
-              <div key={m.id} style={{ marginBottom: "0.55rem" }}>
-                <div style={bubble(m.role)}>{m.content}</div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={inputRow}>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            style={inputStyle}
-            placeholder="Message Coach…"
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          />
-          <button onClick={sendMessage} disabled={sending} style={{ ...btn, opacity: sending ? 0.6 : 1, cursor: sending ? "default" : "pointer" }}>
-            Send
-          </button>
+        <div className="pp-insights-footer">
+          Weigh-ins: {weekStats.weightLoggedDays} days · Sessions: {weekStats.sessionsCompleted}/{weekStats.sessionsPlanned}
         </div>
       </div>
     </div>
