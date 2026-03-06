@@ -3434,7 +3434,6 @@ app.post("/api/nutrition/meal-presets", authenticate, async (req, res) => {
     const name = (nameRaw || (preset_id ? "Standard" : "Enter Preset Name")).slice(0, 80);
     const makeDefault = Boolean(body.make_default ?? body.makeDefault ?? false);
     const segments = normalizeMealSegmentsInput(body.segments || []);
-    }
 
     let targetId = preset_id;
     if (targetId) {
