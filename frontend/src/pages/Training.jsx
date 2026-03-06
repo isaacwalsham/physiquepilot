@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { useProfile } from "../context/ProfileContext";
 
 const CSS = `
   .trn-page {
@@ -852,6 +853,7 @@ const fmtDateShort = (iso) => {
 };
 
 export default function Training() {
+  const { profile, updateProfile } = useProfile();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1021,19 +1023,7 @@ export default function Training() {
     if (preloadWeekFromProfile._didPersistOnce) return;
     preloadWeekFromProfile._didPersistOnce = true;
 
-    const { data: profile, error: pErr } = await supabase
-      .from("profiles")
-      .select(
-        "split_mode, training_days, rolling_start_date, rolling_pattern, rolling_cycle_length, training_frequency_range"
-      )
-      .eq("user_id", uid)
-      .maybeSingle();
-
-    if (pErr && pErr.code !== "PGRST116") {
-      setError(pErr.message);
-      return;
-    }
-
+    // Use profile from ProfileContext — no separate DB fetch needed
     const splitMode = profile?.split_mode || "fixed";
     const fixedDays = Array.isArray(profile?.training_days) ? profile.training_days : [];
 
@@ -1240,33 +1230,25 @@ export default function Training() {
 
   const syncTodayDayTypeToProfile = async (nextSession) => {
     const t = todayISO();
-    if (!userId) return;
-    if (selectedDate !== t) return;
+    if (!userId || selectedDate !== t) return;
 
     if (!nextSession) {
-      await supabase
-        .from("profiles")
-        .update({
-          today_day_type: null,
-          today_day_type_date: null,
-          training_day_type_override: false,
-          nutrition_day_type_override: false
-        })
-        .eq("user_id", userId);
+      await updateProfile({
+        today_day_type: null,
+        today_day_type_date: null,
+        training_day_type_override: false,
+        nutrition_day_type_override: false,
+      });
       return;
     }
 
     const dayType = nextSession.is_rest_day ? "rest" : "training";
-
-    await supabase
-      .from("profiles")
-      .update({
-        today_day_type: dayType,
-        today_day_type_date: t,
-        training_day_type_override: true,
-        nutrition_day_type_override: true
-      })
-      .eq("user_id", userId);
+    await updateProfile({
+      today_day_type: dayType,
+      today_day_type_date: t,
+      training_day_type_override: true,
+      nutrition_day_type_override: true,
+    });
   };
 
   useEffect(() => {

@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "../supabaseClient";
-import { apiFetch, API_URL } from "../lib/api";
+import { useProfile } from "../context/ProfileContext";
+
+const API_URL = (() => {
+  const raw =
+    import.meta?.env?.VITE_API_URL ||
+    import.meta?.env?.VITE_API_BASE_URL ||
+    (import.meta?.env?.PROD ? "https://physiquepilot.onrender.com" : "http://localhost:4000");
+  return String(raw || "").replace(/\/+$/, "");
+})();
 
 const round1 = (n) => Math.round(n * 10) / 10;
 
@@ -32,544 +40,11 @@ const diffDays = (a, b) => {
   return Math.floor((da.getTime() - db.getTime()) / (24 * 60 * 60 * 1000));
 };
 
-function inferTodayType(profile, todayIso) {
-  const storedType = profile?.today_day_type_date === todayIso ? profile?.today_day_type : null;
-  if (storedType) return storedType;
-
-  const mode = profile?.split_mode || "fixed";
-  if (mode === "rolling") {
-    const start = profile?.rolling_start_date;
-    const pattern = Array.isArray(profile?.rolling_pattern) ? profile.rolling_pattern : null;
-    if (start && pattern && pattern.length) {
-      const d = diffDays(todayIso, start);
-      const idx = ((d % pattern.length) + pattern.length) % pattern.length;
-      const v = String(pattern[idx] || "rest");
-      if (v === "high") return "high";
-      if (v === "training") return "training";
-      return "rest";
-    }
-  }
-
-  const trainingDays = Array.isArray(profile?.training_days) ? profile.training_days : [];
-  const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const todayShort = dayMap[new Date().getDay()];
-  return trainingDays.includes(todayShort) ? "training" : "rest";
-}
-
-// ─── CSS ──────────────────────────────────────────────────────────────────────
-
-const CSS = `
-  .db-root {
-    width: 100%;
-    color: var(--text-1);
-    font-family: var(--font-body);
-  }
-
-  /* ── Page header ── */
-  .db-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 1.75rem;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .db-header-left {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .db-section-label {
-    font-family: var(--font-display);
-    font-size: 0.65rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--accent-3);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .db-section-label::before {
-    content: "";
-    display: inline-block;
-    width: 20px;
-    height: 1px;
-    background: var(--accent-3);
-    box-shadow: 0 0 6px var(--accent-2);
-  }
-
-  .db-page-title {
-    font-family: var(--font-display);
-    font-size: clamp(1.4rem, 3vw, 1.9rem);
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    margin: 0;
-    color: var(--text-1);
-    line-height: 1.1;
-  }
-
-  .db-date-badge {
-    font-family: var(--font-display);
-    font-size: 0.65rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--text-3);
-    padding: 0.3rem 0.65rem;
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-sm);
-    background: var(--surface-1);
-    white-space: nowrap;
-  }
-
-  /* ── Error banner ── */
-  .db-error {
-    color: var(--bad);
-    margin-bottom: 1rem;
-    white-space: pre-wrap;
-    font-size: 0.85rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid rgba(255, 79, 115, 0.3);
-    border-radius: var(--radius-sm);
-    background: rgba(255, 79, 115, 0.06);
-  }
-
-  /* ── Loading state ── */
-  .db-loading {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    color: var(--text-3);
-    font-family: var(--font-display);
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    padding: 2rem 0;
-  }
-
-  .db-loading-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent-3);
-    box-shadow: 0 0 8px var(--accent-2);
-    animation: dbPulse 1.4s ease-in-out infinite;
-  }
-
-  @keyframes dbPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.35; transform: scale(0.7); }
-  }
-
-  /* ── Card base ── */
-  .db-card {
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-md);
-    background: var(--surface-1);
-    overflow: hidden;
-    transition:
-      border-color var(--motion-fast) ease,
-      box-shadow var(--motion-med) ease;
-  }
-
-  .db-card:hover {
-    border-color: var(--line-2);
-    box-shadow: 0 0 20px rgba(181, 21, 60, 0.14);
-  }
-
-  /* ── Card topbar ── */
-  .db-card-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.52rem 0.85rem;
-    background: rgba(0, 0, 0, 0.22);
-    border-bottom: 1px solid var(--line-1);
-  }
-
-  .db-card-topbar-left {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-  }
-
-  .db-card-code {
-    font-family: var(--font-display);
-    font-size: 0.58rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--accent-3);
-  }
-
-  .db-card-title {
-    font-family: var(--font-display);
-    font-size: 0.62rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--text-3);
-  }
-
-  .db-status-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .db-status-dot--ok   { background: var(--ok);   box-shadow: 0 0 5px var(--ok); }
-  .db-status-dot--warn { background: var(--warn);  box-shadow: 0 0 5px var(--warn); }
-  .db-status-dot--bad  { background: var(--bad);   box-shadow: 0 0 5px var(--bad); }
-  .db-status-dot--dim  { background: var(--line-2); }
-
-  /* ── Card body ── */
-  .db-card-body {
-    padding: 1rem;
-  }
-
-  /* ── Stat readout ── */
-  .db-stat {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
-  .db-stat-value {
-    font-family: var(--font-display);
-    font-size: 2rem;
-    font-weight: 700;
-    line-height: 1;
-    color: var(--text-1);
-    letter-spacing: 0.02em;
-  }
-
-  .db-stat-value--md {
-    font-size: 1.55rem;
-  }
-
-  .db-stat-label {
-    font-family: var(--font-display);
-    font-size: 0.58rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--text-3);
-  }
-
-  .db-stat-sub {
-    font-family: var(--font-display);
-    font-size: 0.62rem;
-    letter-spacing: 0.1em;
-    color: var(--text-3);
-    margin-top: 0.3rem;
-  }
-
-  /* ── Stat group grid ── */
-  .db-stat-row {
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-    margin-top: 0.6rem;
-  }
-
-  /* ── Section divider ── */
-  .db-divider {
-    border-top: 1px solid rgba(181, 21, 60, 0.1);
-    margin: 0.85rem 0;
-  }
-
-  /* ── Grids ── */
-  .db-grid-sm {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.85rem;
-    margin-top: 1.25rem;
-  }
-
-  .db-grid-lg {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-    gap: 0.85rem;
-    margin-top: 0.85rem;
-  }
-
-  /* ── Mini stat cards (inner) ── */
-  .db-mini-card {
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-sm);
-    background: var(--surface-2);
-    padding: 0.7rem 0.85rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    transition:
-      border-color var(--motion-fast) ease,
-      box-shadow var(--motion-med) ease;
-  }
-
-  .db-mini-card:hover {
-    border-color: var(--line-2);
-    box-shadow: 0 0 12px rgba(181, 21, 60, 0.1);
-  }
-
-  .db-mini-label {
-    font-family: var(--font-display);
-    font-size: 0.56rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--text-3);
-  }
-
-  .db-mini-value {
-    font-family: var(--font-display);
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: var(--text-1);
-    line-height: 1.1;
-  }
-
-  /* ── Ghost action buttons ── */
-  .db-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.52rem 0.95rem;
-    background: transparent;
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-sm);
-    color: var(--text-2);
-    cursor: pointer;
-    font-family: var(--font-display);
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    transition:
-      border-color var(--motion-fast) ease,
-      color var(--motion-fast) ease,
-      box-shadow var(--motion-med) ease;
-  }
-
-  .db-btn:hover {
-    border-color: var(--accent-2);
-    color: var(--text-1);
-    box-shadow: 0 0 14px rgba(181, 21, 60, 0.28);
-  }
-
-  .db-btn--primary {
-    background: linear-gradient(135deg, rgba(181,21,60,0.22), rgba(138,15,46,0.18));
-    border-color: var(--line-2);
-    color: var(--text-1);
-  }
-
-  .db-btn--primary:hover {
-    border-color: var(--accent-2);
-    box-shadow: 0 0 18px rgba(181, 21, 60, 0.4);
-  }
-
-  .db-btn-row {
-    display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-    margin-top: 1rem;
-  }
-
-  /* ── Alert banner ── */
-  .db-alert {
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-md);
-    background: var(--surface-1);
-    overflow: hidden;
-    margin-bottom: 0.85rem;
-  }
-
-  .db-alert-topbar {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    padding: 0.45rem 0.85rem;
-    background: rgba(229, 161, 0, 0.08);
-    border-bottom: 1px solid rgba(229, 161, 0, 0.18);
-  }
-
-  .db-alert-code {
-    font-family: var(--font-display);
-    font-size: 0.58rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--warn);
-  }
-
-  .db-alert-body {
-    padding: 0.85rem 1rem;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .db-alert-text {
-    font-size: 0.82rem;
-    color: var(--text-2);
-    line-height: 1.5;
-  }
-
-  /* ── Select override ── */
-  .db-select {
-    width: 100%;
-    background: var(--surface-2);
-    color: var(--text-1);
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-sm);
-    padding: 0.55rem 0.7rem;
-    font-family: var(--font-display);
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    margin-top: 0.5rem;
-    cursor: pointer;
-    transition: border-color var(--motion-fast) ease;
-  }
-
-  .db-select:hover {
-    border-color: var(--line-2);
-  }
-
-  /* ── Day type badge ── */
-  .db-day-badge {
-    font-family: var(--font-display);
-    font-size: 0.6rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    padding: 0.22rem 0.55rem;
-    border-radius: var(--radius-sm);
-    border: 1px solid;
-  }
-
-  .db-day-badge--training {
-    color: var(--ok);
-    border-color: rgba(40, 183, 141, 0.35);
-    background: rgba(40, 183, 141, 0.08);
-  }
-
-  .db-day-badge--rest {
-    color: var(--text-3);
-    border-color: var(--line-1);
-    background: transparent;
-  }
-
-  .db-day-badge--high {
-    color: var(--warn);
-    border-color: rgba(229, 161, 0, 0.35);
-    background: rgba(229, 161, 0, 0.08);
-  }
-
-  /* ── Quick actions strip ── */
-  .db-quick-actions {
-    margin-top: 1.25rem;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(181, 21, 60, 0.1);
-    display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .db-quick-label {
-    font-family: var(--font-display);
-    font-size: 0.56rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--text-3);
-    margin-right: 0.25rem;
-  }
-
-  /* ── Focus rows in check-in card ── */
-  .db-focus-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.65rem;
-    margin-top: 0.85rem;
-  }
-
-  .db-focus-item {
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-sm);
-    background: var(--surface-2);
-    padding: 0.75rem 0.85rem;
-  }
-
-  .db-focus-title {
-    font-family: var(--font-display);
-    font-size: 0.58rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent-3);
-    margin-bottom: 0.35rem;
-  }
-
-  .db-focus-text {
-    font-size: 0.8rem;
-    color: var(--text-2);
-    line-height: 1.5;
-  }
-
-  .db-helper-text {
-    font-size: 0.75rem;
-    color: var(--text-3);
-    margin-top: 0.75rem;
-    line-height: 1.5;
-  }
-
-  /* ── Trend indicator ── */
-  .db-trend-up   { color: var(--bad); }
-  .db-trend-down { color: var(--ok); }
-  .db-trend-flat { color: var(--text-3); }
-
-  /* ── Steps progress bar ── */
-  .db-progress-track {
-    height: 3px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 0.6rem;
-  }
-
-  .db-progress-fill {
-    height: 100%;
-    border-radius: 2px;
-    background: var(--accent-3);
-    box-shadow: 0 0 6px var(--accent-2);
-    transition: width 0.8s ease;
-    max-width: 100%;
-  }
-
-  /* ── Responsive ── */
-  @media (max-width: 640px) {
-    .db-grid-sm {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .db-grid-lg {
-      grid-template-columns: 1fr;
-    }
-
-    .db-stat-value {
-      font-size: 1.6rem;
-    }
-  }
-
-  @media (max-width: 380px) {
-    .db-grid-sm {
-      grid-template-columns: 1fr;
-    }
-  }
-`;
-
-// ─── Component ────────────────────────────────────────────────────────────────
+// Day type is now computed by ProfileContext via getDayType() — no local inference needed.
 
 function Dashboard() {
   const navigate = useNavigate();
+  const { profile, todayDayType, loading: profileLoading } = useProfile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -599,37 +74,18 @@ function Dashboard() {
 
       const todayIso = todayLocalISO();
 
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("unit_system, check_in_day, training_days, today_day_type, today_day_type_date, split_mode, rolling_start_date, rolling_pattern, steps_target")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (profileErr && profileErr.code !== "PGRST116") {
-        setError(profileErr.message);
-        setLoading(false);
-        return;
-      }
-
+      // Profile data comes from ProfileContext — no separate fetch needed
       if (profile?.unit_system === "imperial") setUnit("lb");
       else setUnit("kg");
 
       if (profile?.check_in_day) setCheckInDay(profile.check_in_day);
-      if (profile?.steps_target !== undefined && profile?.steps_target !== null) {
-        setStepsTarget(Number(profile.steps_target));
-      } else {
-        setStepsTarget(null);
-      }
 
-      const inferredType = inferTodayType(profile, todayIso);
-      setTodayType(inferredType);
+      // Step target: prefer baseline from onboarding, fall back to steps_target field
+      const stepTarget = profile?.baseline_steps_per_day ?? profile?.steps_target ?? null;
+      setStepsTarget(stepTarget !== null ? Number(stepTarget) : null);
 
-      if (profile?.today_day_type_date !== todayIso) {
-        await supabase
-          .from("profiles")
-          .update({ today_day_type: inferredType, today_day_type_date: todayIso })
-          .eq("user_id", user.id);
-      }
+      // todayDayType comes from ProfileContext (computed via getDayType)
+      setTodayType(todayDayType || "rest");
 
       const { data: logs, error: logsErr } = await supabase
         .from("weight_logs")
@@ -680,11 +136,13 @@ function Dashboard() {
       }
       setCardioToday(cRows && cRows.length ? cRows[0] : null);
 
+      const dayType = todayDayType || "rest";
+
       const { data: tRow, error: tErr } = await supabase
         .from("nutrition_day_targets")
         .select("day_type, calories, protein_g, carbs_g, fats_g")
         .eq("user_id", user.id)
-        .eq("day_type", inferredType)
+        .eq("day_type", dayType)
         .maybeSingle();
 
       if (tErr) {
@@ -698,9 +156,10 @@ function Dashboard() {
           setTodayTargets(null);
         } else {
           try {
-            const r = await apiFetch("/api/nutrition/init", {
+            const r = await fetch(`${API_URL}/api/nutrition/init`, {
               method: "POST",
-              body: JSON.stringify({})
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ user_id: user.id })
             });
 
             if (r.ok) {
@@ -708,7 +167,7 @@ function Dashboard() {
                 .from("nutrition_day_targets")
                 .select("day_type, calories, protein_g, carbs_g, fats_g")
                 .eq("user_id", user.id)
-                .eq("day_type", inferredType)
+                .eq("day_type", dayType)
                 .maybeSingle();
               setTodayTargets(tRow2 || null);
             } else {
@@ -725,8 +184,8 @@ function Dashboard() {
       setLoading(false);
     };
 
-    load();
-  }, [navigate]);
+    if (!profileLoading) load();
+  }, [navigate, profile, todayDayType, profileLoading]);
 
   const loggedToday = useMemo(() => {
     if (!latest) return false;
@@ -756,250 +215,199 @@ function Dashboard() {
     await supabase.from("profiles").update({ check_in_day: day }).eq("user_id", user.id);
   };
 
-  if (loading) {
-    return (
-      <div className="db-loading">
-        <span className="db-loading-dot" />
-        Acquiring data
-      </div>
-    );
-  }
+  if (profileLoading || loading) return <div>Loading...</div>;
 
-  // Derived display helpers
-  const trendDiff = latest && avg7 !== null ? Number(latest.weight_kg) - Number(avg7) : null;
-  const trendClass =
-    trendDiff === null ? "" :
-    trendDiff > 0.05  ? "db-trend-up" :
-    trendDiff < -0.05 ? "db-trend-down" :
-    "db-trend-flat";
-
-  const stepsPct = stepsToday !== null && stepsTarget ? Math.min(100, Math.round((stepsToday / stepsTarget) * 100)) : 0;
-  const stepsStatus = stepsToday === null ? "dim" : stepsPct >= 100 ? "ok" : stepsPct >= 60 ? "warn" : "bad";
-
-  const dayTypeClass =
-    todayType === "training" ? "db-day-badge--training" :
-    todayType === "high"     ? "db-day-badge--high" :
-    "db-day-badge--rest";
+  const card = { background: "#050507", padding: "1rem", border: "1px solid #2a1118" };
 
   return (
-    <div className="db-root">
-      <style>{CSS}</style>
-
-      {/* ── Page header ── */}
-      <div className="db-header">
-        <div className="db-header-left">
-          <div className="db-section-label">Physique Pilot</div>
-          <h1 className="db-page-title">Overview</h1>
-        </div>
-        <div className="db-date-badge">{todayLocalISO()}</div>
+    <div style={{ width: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h1 style={{ margin: 0 }}>Dashboard</h1>
+        <div style={{ color: "#666" }}>{todayLocalISO()}</div>
       </div>
 
-      {error && <div className="db-error">{error}</div>}
+      {error && <div style={{ color: "#ff6b6b", marginTop: "1rem", whiteSpace: "pre-wrap" }}>{error}</div>}
 
-      {/* ── Weight-not-logged alert ── */}
-      {!loggedToday && (
-        <div className="db-alert">
-          <div className="db-alert-topbar">
-            <span className="db-status-dot db-status-dot--warn" />
-            <span className="db-alert-code">WGT · Action Required</span>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: "1rem",
+          marginTop: "1.5rem"
+        }}
+      >
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Current weight</div>
+          <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>
+            {latest ? displayWeight(latest.weight_kg) : "—"}
           </div>
-          <div className="db-alert-body">
-            <div className="db-alert-text">
-              Log your weight first thing in the morning before eating or drinking, ideally after using the bathroom.
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>
+            {latest ? `Last logged: ${latest.log_date}` : "No logs yet"}
+          </div>
+        </div>
+
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Average trend</div>
+          <div style={{ fontSize: "1.2rem", marginTop: "0.4rem" }}>{avg7 !== null ? displayWeight(avg7) : "—"}</div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>{trendText}</div>
+        </div>
+
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Today</div>
+          <div style={{ fontSize: "1.2rem", marginTop: "0.4rem" }}>{loggedToday ? "Logged" : "Not logged"}</div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>
+            {loggedToday ? "Nice — keep the streak going." : "Log your weight first thing tomorrow morning."}
+          </div>
+        </div>
+
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Steps</div>
+          <div style={{ fontSize: "1.2rem", marginTop: "0.4rem" }}>
+            {stepsToday !== null ? `${stepsToday}` : "—"}
+          </div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>
+            Target: {stepsTarget !== null ? stepsTarget : "—"}
+          </div>
+          <button
+            onClick={() => navigate("/app/cardio-steps")}
+            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #2a1118" }}
+          >
+            Log steps
+          </button>
+        </div>
+
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Cardio</div>
+          <div style={{ fontSize: "1.2rem", marginTop: "0.4rem" }}>
+            {cardioToday ? `${cardioToday.minutes} min` : "—"}
+          </div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>
+            {cardioToday && cardioToday.avg_hr ? `Avg HR: ${cardioToday.avg_hr}` : "No session logged today"}
+          </div>
+          <button
+            onClick={() => navigate("/app/cardio-steps")}
+            style={{ marginTop: "0.75rem", padding: "0.45rem 0.75rem", background: "transparent", color: "#fff", border: "1px solid #2a1118" }}
+          >
+            Log cardio
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gap: "1rem",
+          marginTop: "1rem",
+          alignItems: "stretch"
+        }}
+      >
+        <div style={{ ...card, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div style={{ fontWeight: 700 }}>Today’s nutrition</div>
+            <div style={{ color: "#666" }}>{dayLabel[todayType] || todayType}</div>
+          </div>
+
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Auto-selected by date (and your split). You can override in Nutrition.
+          </div>
+
+          <div
+            style={{
+              marginTop: "1rem",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: "0.75rem"
+            }}
+          >
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
+              <div style={{ color: "#aaa" }}>Calories</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.25rem", fontWeight: 700 }}>
+                {todayTargets?.calories ?? "—"}
+              </div>
             </div>
-            <button className="db-btn db-btn--primary" onClick={() => navigate("/app/weight")}>
-              Log weight
+
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
+              <div style={{ color: "#aaa" }}>Protein</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
+                {todayTargets ? `${todayTargets.protein_g}g` : "—"}
+              </div>
+            </div>
+
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
+              <div style={{ color: "#aaa" }}>Carbs</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
+                {todayTargets ? `${todayTargets.carbs_g}g` : "—"}
+              </div>
+            </div>
+
+            <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
+              <div style={{ color: "#aaa" }}>Fats</div>
+              <div style={{ marginTop: "0.35rem", fontSize: "1.1rem" }}>
+                {todayTargets ? `${todayTargets.fats_g}g` : "—"}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button
+              onClick={() => navigate("/app/nutrition")}
+              style={{
+                padding: "0.6rem 1rem",
+                background: "#0b0b10",
+                color: "#fff",
+                border: "1px solid #2a1118",
+                cursor: "pointer"
+              }}
+            >
+              Open nutrition
+            </button>
+
+            <button
+              onClick={() => navigate("/app/training")}
+              style={{
+                padding: "0.6rem 1rem",
+                background: "transparent",
+                color: "#fff",
+                border: "1px solid #2a1118",
+                cursor: "pointer"
+              }}
+            >
+              Open training
             </button>
           </div>
         </div>
-      )}
 
-      {/* ── Top stat cards grid ── */}
-      <div className="db-grid-sm">
-
-        {/* Weight card */}
-        <div className="db-card">
-          <div className="db-card-topbar">
-            <div className="db-card-topbar-left">
-              <span className="db-card-code">WGT</span>
-              <span className="db-card-title">Current weight</span>
-            </div>
-            <span className={`db-status-dot db-status-dot--${loggedToday ? "ok" : "warn"}`} />
-          </div>
-          <div className="db-card-body">
-            <div className="db-stat">
-              <div className="db-stat-value">
-                {latest ? displayWeight(latest.weight_kg) : "—"}
-              </div>
-              <div className="db-stat-label">
-                {loggedToday ? "Logged today" : latest ? `Last: ${latest.log_date}` : "No logs yet"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Trend card */}
-        <div className="db-card">
-          <div className="db-card-topbar">
-            <div className="db-card-topbar-left">
-              <span className="db-card-code">WGT</span>
-              <span className="db-card-title">7-day average</span>
-            </div>
-          </div>
-          <div className="db-card-body">
-            <div className="db-stat">
-              <div className="db-stat-value db-stat-value--md">
-                {avg7 !== null ? displayWeight(avg7) : "—"}
-              </div>
-              <div className={`db-stat-label ${trendClass}`}>
-                {trendText}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Steps card */}
-        <div className="db-card">
-          <div className="db-card-topbar">
-            <div className="db-card-topbar-left">
-              <span className="db-card-code">ACT</span>
-              <span className="db-card-title">Steps today</span>
-            </div>
-            <span className={`db-status-dot db-status-dot--${stepsStatus}`} />
-          </div>
-          <div className="db-card-body">
-            <div className="db-stat">
-              <div className="db-stat-value db-stat-value--md">
-                {stepsToday !== null ? stepsToday.toLocaleString() : "—"}
-              </div>
-              <div className="db-stat-label">
-                Target: {stepsTarget !== null ? stepsTarget.toLocaleString() : "—"}
-              </div>
-            </div>
-            {stepsTarget !== null && stepsToday !== null && (
-              <div className="db-progress-track">
-                <div className="db-progress-fill" style={{ width: `${stepsPct}%` }} />
-              </div>
-            )}
-            <div className="db-btn-row">
-              <button className="db-btn" onClick={() => navigate("/app/cardio-steps")}>
-                Log steps
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Cardio card */}
-        <div className="db-card">
-          <div className="db-card-topbar">
-            <div className="db-card-topbar-left">
-              <span className="db-card-code">ACT</span>
-              <span className="db-card-title">Cardio</span>
-            </div>
-            <span className={`db-status-dot db-status-dot--${cardioToday ? "ok" : "dim"}`} />
-          </div>
-          <div className="db-card-body">
-            <div className="db-stat">
-              <div className="db-stat-value db-stat-value--md">
-                {cardioToday ? `${cardioToday.minutes} min` : "—"}
-              </div>
-              <div className="db-stat-label">
-                {cardioToday && cardioToday.avg_hr
-                  ? `Avg HR: ${cardioToday.avg_hr} bpm`
-                  : "No session logged today"}
-              </div>
-            </div>
-            <div className="db-btn-row">
-              <button className="db-btn" onClick={() => navigate("/app/cardio-steps")}>
-                Log cardio
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Wide cards row ── */}
-      <div className="db-grid-lg">
-
-        {/* Nutrition card */}
-        <div className="db-card" style={{ display: "flex", flexDirection: "column" }}>
-          <div className="db-card-topbar">
-            <div className="db-card-topbar-left">
-              <span className="db-card-code">NUT</span>
-              <span className="db-card-title">Today&apos;s nutrition</span>
-            </div>
-            <span className={`db-day-badge ${dayTypeClass}`}>
-              {dayLabel[todayType] || todayType}
-            </span>
-          </div>
-
-          <div className="db-card-body" style={{ flex: 1 }}>
-            <div className="db-stat-label" style={{ marginBottom: "0.65rem" }}>
-              Auto-selected by date and split — override in Nutrition
-            </div>
-
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-              gap: "0.6rem"
-            }}>
-              <div className="db-mini-card">
-                <div className="db-mini-label">Calories</div>
-                <div className="db-mini-value">
-                  {todayTargets?.calories ?? "—"}
-                </div>
-              </div>
-              <div className="db-mini-card">
-                <div className="db-mini-label">Protein</div>
-                <div className="db-mini-value">
-                  {todayTargets ? `${todayTargets.protein_g}g` : "—"}
-                </div>
-              </div>
-              <div className="db-mini-card">
-                <div className="db-mini-label">Carbs</div>
-                <div className="db-mini-value">
-                  {todayTargets ? `${todayTargets.carbs_g}g` : "—"}
-                </div>
-              </div>
-              <div className="db-mini-card">
-                <div className="db-mini-label">Fats</div>
-                <div className="db-mini-value">
-                  {todayTargets ? `${todayTargets.fats_g}g` : "—"}
-                </div>
-              </div>
-            </div>
-
-            <div className="db-btn-row">
-              <button className="db-btn db-btn--primary" onClick={() => navigate("/app/nutrition")}>
-                Open nutrition
-              </button>
-              <button className="db-btn" onClick={() => navigate("/app/training")}>
-                Open training
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Check-in card */}
-        <div className="db-card" style={{ display: "flex", flexDirection: "column" }}>
-          <div className="db-card-topbar">
-            <div className="db-card-topbar-left">
-              <span className="db-card-code">CHK</span>
-              <span className="db-card-title">Weekly check-in</span>
-            </div>
-            <button className="db-btn" style={{ fontSize: "0.6rem", padding: "0.3rem 0.65rem" }} onClick={() => navigate("/app/check-ins")}>
+        <div style={{ ...card, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Weekly check-in</h2>
+            <button
+              onClick={() => navigate("/app/check-ins")}
+              style={{
+                padding: "0.5rem 0.8rem",
+                background: "transparent",
+                color: "#fff",
+                border: "1px solid #2a1118",
+                cursor: "pointer"
+              }}
+            >
               Go to check-ins
             </button>
           </div>
 
-          <div className="db-card-body" style={{ flex: 1 }}>
-            <div className="db-stat-label" style={{ marginBottom: "0.35rem" }}>
-              Check-in day
-            </div>
+          <div style={{ marginTop: "0.75rem" }}>
+            <div style={{ color: "#aaa" }}>Check-in day</div>
             <select
-              className="db-select"
               value={checkInDay}
               onChange={(e) => updateCheckInDay(e.target.value)}
+              style={{
+                marginTop: "0.5rem",
+                width: "100%",
+                background: "#111",
+                color: "#fff",
+                border: "1px solid #2a1118",
+                padding: "0.6rem 0.6rem"
+              }}
             >
               <option>Monday</option>
               <option>Tuesday</option>
@@ -1010,39 +418,69 @@ function Dashboard() {
               <option>Sunday</option>
             </select>
 
-            <div className="db-focus-grid">
-              <div className="db-focus-item">
-                <div className="db-focus-title">This week&apos;s focus</div>
-                <div className="db-focus-text">
+            <div
+              style={{
+                marginTop: "0.9rem",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "0.75rem"
+              }}
+            >
+              <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
+                <div style={{ color: "#aaa" }}>This week’s focus</div>
+                <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.95rem" }}>
                   Log weight, steps and cardio. Then submit your weekly check-in for adjustments.
                 </div>
               </div>
-              <div className="db-focus-item">
-                <div className="db-focus-title">What you&apos;ll get</div>
-                <div className="db-focus-text">
+
+              <div style={{ background: "#111", border: "1px solid #2a1118", padding: "0.75rem" }}>
+                <div style={{ color: "#aaa" }}>What you’ll get</div>
+                <div style={{ color: "#666", marginTop: "0.35rem", fontSize: "0.95rem" }}>
                   A summary + insights (PDF later), and AI coaching once we wire it in.
                 </div>
               </div>
             </div>
 
-            <div className="db-helper-text">
+            <div style={{ color: "#666", marginTop: "0.9rem" }}>
               Weekly check-ins will generate a PDF summary you can view anytime in the Check-ins tab.
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Quick actions strip ── */}
-      <div className="db-quick-actions">
-        <span className="db-quick-label">Quick access</span>
-        <button className="db-btn" onClick={() => navigate("/app/weight")}>
+      {!loggedToday && (
+        <div style={{ marginTop: "1rem", background: "#050507", padding: "1rem", border: "1px solid #2a1118" }}>
+          <div style={{ color: "#aaa" }}>Reminder</div>
+          <div style={{ marginTop: "0.5rem" }}>
+            Log your weight first thing in the morning before eating or drinking, ideally after using the bathroom.
+          </div>
+          <button
+            onClick={() => navigate("/app/weight")}
+            style={{ marginTop: "0.75rem", padding: "0.6rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
+          >
+            Log weight
+          </button>
+        </div>
+      )}
+
+      <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+        <button
+          onClick={() => navigate("/app/weight")}
+          style={{ padding: "0.7rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
+        >
           Log weight
         </button>
-        <button className="db-btn" onClick={() => navigate("/app/training")}>
-          View training
+        <button
+          onClick={() => navigate("/app/training")}
+          style={{ padding: "0.7rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
+        >
+          View today’s training
         </button>
-        <button className="db-btn" onClick={() => navigate("/app/nutrition")}>
-          View meal plan
+        <button
+          onClick={() => navigate("/app/nutrition")}
+          style={{ padding: "0.7rem 1rem", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
+        >
+          View today’s meal plan
         </button>
       </div>
     </div>

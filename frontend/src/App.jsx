@@ -1,11 +1,12 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import { ProfileProvider, useProfile } from "./context/ProfileContext";
 
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Onboarding from "./pages/Onboarding";
+import Onboarding from "./pages/onboarding/index";
 import Dashboard from "./pages/Dashboard";
 import AppLayout from "./layouts/AppLayout";
 import WeightTracking from "./pages/WeightTracking";
@@ -15,6 +16,8 @@ import Training from "./pages/Training";
 import CheckIns from "./pages/CheckIns";
 import Coach from "./pages/Coach";
 import Settings from "./pages/Settings";
+
+// ─── Auth guard — checks Supabase session ─────────────────────────────────────
 
 function RequireAuth({ children }) {
   const [ready, setReady] = useState(false);
@@ -46,58 +49,30 @@ function RequireAuth({ children }) {
   return children;
 }
 
+// ─── Onboarding guard — reads from ProfileContext (no extra DB call) ──────────
+
 function RequireOnboardingComplete({ children }) {
-  const [ready, setReady] = useState(false);
-  const [allowed, setAllowed] = useState(false);
+  const { profile, loading } = useProfile();
 
-  useEffect(() => {
-    let mounted = true;
+  if (loading) return <div style={{ padding: "2rem" }}>Loading…</div>;
 
-    const run = async () => {
-      // Must be logged in first
-      const { data: userRes } = await supabase.auth.getUser();
-      const user = userRes?.user;
-      if (!user) {
-        if (!mounted) return;
-        setAllowed(false);
-        setReady(true);
-        return;
-      }
+  const complete =
+    profile?.onboarding_complete === true || profile?.onboarding_completed === true;
 
-      // Support both column names just in case
-      const { data: pData } = await supabase
-        .from("profiles")
-        .select("onboarding_complete, onboarding_completed")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const complete = pData?.onboarding_complete === true || pData?.onboarding_completed === true;
-
-      if (!mounted) return;
-      setAllowed(!!complete);
-      setReady(true);
-    };
-
-    run();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (!ready) return <div style={{ padding: "2rem" }}>Loading…</div>;
-  if (!allowed) return <Navigate to="/app/onboarding" replace />;
+  if (!complete) return <Navigate to="/app/onboarding" replace />;
   return children;
 }
 
-function App() {
+// ─── App ──────────────────────────────────────────────────────────────────────
+
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      {/* Onboarding: must be logged in, but does NOT require onboarding completion */}
+      {/* Onboarding: must be logged in, does NOT require onboarding completion */}
       <Route
         path="/app/onboarding"
         element={
@@ -131,6 +106,14 @@ function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  );
+}
+
+function App() {
+  return (
+    <ProfileProvider>
+      <AppRoutes />
+    </ProfileProvider>
   );
 }
 
