@@ -382,14 +382,14 @@ function Register() {
         <div className="register-topbar">
           <div className="register-topbar-left">
             <span className="register-blink-dot" aria-hidden="true" />
-            <span className="register-section-code">ENLIST // CREATE ACCOUNT</span>
+            <span className="register-section-code">CREATE ACCOUNT</span>
           </div>
           <span className="register-channel-status">SECURE CHANNEL</span>
         </div>
 
         {/* Body */}
         <div className="register-body">
-          <h1 className="register-heading">Begin your mission.</h1>
+          <h1 className="register-heading">Create your account.</h1>
           <p className="register-subtitle">
             Start your free 30-day trial. No card required.
           </p>
@@ -403,7 +403,7 @@ function Register() {
                 type="email"
                 required
                 autoComplete="email"
-                placeholder="pilot@domain.com"
+                placeholder="email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />

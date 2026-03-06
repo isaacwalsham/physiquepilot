@@ -707,7 +707,7 @@ function Coach() {
   if (loading) {
     return (
       <div style={{ fontFamily: "var(--font-display)", color: "var(--text-3)", fontSize: "0.8rem", letterSpacing: "0.12em", padding: "2rem" }}>
-        LOADING FLIGHT DATA…
+        Loading...
       </div>
     );
   }
@@ -755,7 +755,7 @@ function Coach() {
       {error && <div className="pp-error-banner">{error}</div>}
 
       {/* Section label */}
-      <div className="pp-section-label">AI Flight Control</div>
+      <div className="pp-section-label">AI Coach</div>
 
       {/* Metrics snapshot */}
       <div className="pp-metrics-grid">
@@ -815,7 +815,7 @@ function Coach() {
       {/* Chat panel */}
       <div className="pp-chat-panel">
         <div className="pp-chat-topbar">
-          <span className="pp-chat-topbar-label">Pilot ↔ AI Coach</span>
+          <span className="pp-chat-topbar-label">You ↔ AI Coach</span>
           <div className="pp-chat-status">
             <span className="pp-chat-status-dot" />
             Online
@@ -824,7 +824,7 @@ function Coach() {
 
         <div className="pp-chat-messages" ref={chatRef}>
           {messages.length === 0 ? (
-            <div className="pp-chat-empty">// No transmissions logged. Send a message to begin. //</div>
+            <div className="pp-chat-empty">No messages yet. Send one to get started.</div>
           ) : (
             messages.map((m) => (
               <div key={m.id} className={m.role === "user" ? "pp-bubble-wrap-user" : "pp-bubble-wrap-ai"}>

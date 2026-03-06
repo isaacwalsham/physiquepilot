@@ -51,7 +51,7 @@ function Sidebar() {
           aria-label="Logout"
           style={{ fontFamily: "var(--font-display)", letterSpacing: "0.08em", fontSize: "0.72rem" }}
         >
-          ⏻ EJECT
+          ⏻ Sign out
         </button>
       </div>
 
@@ -162,7 +162,7 @@ function Sidebar() {
             textTransform: "uppercase",
           }}
         >
-          SYSTEM ONLINE
+          
         </span>
       </div>
 

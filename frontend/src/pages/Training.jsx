@@ -1726,7 +1726,7 @@ export default function Training() {
                   <div className="trn-divider" />
                   <div className="trn-rest-state">
                     <div className="trn-rest-label">REST DAY</div>
-                    <div className="trn-rest-sub">Recovery Protocol Active</div>
+                    <div className="trn-rest-sub">Rest Day</div>
                   </div>
                 </>
               )}

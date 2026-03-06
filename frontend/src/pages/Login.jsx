@@ -355,14 +355,14 @@ function Login() {
         <div className="login-topbar">
           <div className="login-topbar-left">
             <span className="login-blink-dot" aria-hidden="true" />
-            <span className="login-section-code">AUTH // PILOT LOGIN</span>
+            <span className="login-section-code">SIGN IN</span>
           </div>
           <span className="login-system-status">SYSTEM ACTIVE</span>
         </div>
 
         {/* Body */}
         <div className="login-body">
-          <h1 className="login-heading">Welcome back, Pilot.</h1>
+          <h1 className="login-heading">Welcome back.</h1>
           <p className="login-subtitle">
             Log in to access your dashboard, training log, nutrition targets, and trends.
           </p>
@@ -376,7 +376,7 @@ function Login() {
                 type="email"
                 required
                 autoComplete="email"
-                placeholder="pilot@domain.com"
+                placeholder="email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />

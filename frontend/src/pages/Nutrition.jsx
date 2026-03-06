@@ -2040,7 +2040,7 @@ export default function Nutrition() {
     return (
       <div className="nc-loading">
         <style>{CSS}</style>
-        <span>Initialising nutrition systems...</span>
+        <span>Loading...</span>
       </div>
     );
   }
@@ -2054,7 +2054,7 @@ export default function Nutrition() {
         <div>
           <div className="nc-label-row">
             <div className="nc-accent-line" />
-            <span className="nc-label-text">NUTRITION CONTROL</span>
+            <span className="nc-label-text">NUTRITION</span>
           </div>
           <h1 className="nc-page-title">Nutrition</h1>
         </div>
@@ -2658,7 +2658,7 @@ export default function Nutrition() {
             <span className="nc-card-title">Meal Plan</span>
           </div>
           <div className="nc-card-body">
-            <div className="nc-coming-soon">Mission planning module coming soon</div>
+            <div className="nc-coming-soon">Coming soon</div>
           </div>
         </div>
       )}

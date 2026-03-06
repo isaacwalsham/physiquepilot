@@ -355,7 +355,7 @@ const CSS = `
     transform: none;
   }
 
-  /* ── Mission Log (history sidebar) ── */
+  /* ── History (history sidebar) ── */
   .ci-history-list {
     display: flex;
     flex-direction: column;
@@ -1270,7 +1270,7 @@ function CheckIns() {
         <div className="ci-loading-dot" />
         <div className="ci-loading-dot" />
         <div className="ci-loading-dot" />
-        <span>Initialising mission debrief...</span>
+        <span>Loading...</span>
       </div>
     );
   }
@@ -1301,7 +1301,7 @@ function CheckIns() {
         <div className="ci-page-title-group">
           <div className="ci-accent-prefix">
             <div className="ci-accent-line" />
-            <span className="ci-page-label">Mission Debrief</span>
+            <span className="ci-page-label">Check-ins</span>
           </div>
           <h1 className="ci-page-title">Check-Ins</h1>
         </div>
@@ -1317,10 +1317,10 @@ function CheckIns() {
       {/* ── Main two-column layout ── */}
       <div className="ci-main-grid">
 
-        {/* ── LEFT: Mission Log (history) ── */}
+        {/* ── LEFT: History (history) ── */}
         <div className="ci-panel">
           <div className="ci-panel-topbar">
-            <span className="ci-panel-topbar-title">Mission Log</span>
+            <span className="ci-panel-topbar-title">History</span>
             <span className="ci-panel-topbar-meta">{history.length} entries</span>
           </div>
           <div className="ci-panel-body">
@@ -1410,7 +1410,7 @@ function CheckIns() {
           {/* PILOT ASSESSMENT // Subjective ratings */}
           <div className="ci-panel">
             <div className="ci-panel-topbar">
-              <span className="ci-panel-topbar-title">Pilot Assessment</span>
+              <span className="ci-panel-topbar-title">Self Assessment</span>
               <span className="ci-panel-topbar-meta">subjective 1–5 scale</span>
             </div>
             <div className="ci-panel-body">
@@ -1437,10 +1437,10 @@ function CheckIns() {
             </div>
           </div>
 
-          {/* MISSION NOTES */}
+          {/* NOTES */}
           <div className="ci-panel">
             <div className="ci-panel-topbar">
-              <span className="ci-panel-topbar-title">Mission Notes</span>
+              <span className="ci-panel-topbar-title">Notes</span>
             </div>
             <div className="ci-panel-body">
               <textarea
@@ -1521,7 +1521,7 @@ function CheckIns() {
                   </div>
                 </div>
 
-                <div className="ci-detail-section-label">Pilot Ratings</div>
+                <div className="ci-detail-section-label">Ratings</div>
                 <div className="ci-detail-ratings">
                   {[
                     { label: "Hunger", val: selected.hunger_rating },

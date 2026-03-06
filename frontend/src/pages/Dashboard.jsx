@@ -789,7 +789,7 @@ function Dashboard() {
       <div className="db-header">
         <div className="db-header-left">
           <div className="db-section-label">Physique Pilot</div>
-          <h1 className="db-page-title">Mission Status</h1>
+          <h1 className="db-page-title">Overview</h1>
         </div>
         <div className="db-date-badge">{todayLocalISO()}</div>
       </div>

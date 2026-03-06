@@ -79,7 +79,7 @@ function CockpitLoader() {
           animation: "pp-loader-fade 0.6s ease forwards",
         }}
       >
-        INITIALISING SYSTEMS...
+        Loading...
       </div>
 
       {/* Red progress bar at the bottom of the viewport */}

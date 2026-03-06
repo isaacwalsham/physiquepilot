@@ -1282,7 +1282,7 @@ function Onboarding() {
         <style>{CSS}</style>
         <div className="ob-wrap">
           <div className="ob-status-card">
-            <div className="ob-status-code">PREFLIGHT · SYSTEM CHECK</div>
+            <div className="ob-status-code">SETUP · SYSTEM CHECK</div>
             <div className="ob-status-title">Initialising…</div>
             <div className="ob-status-sub">Loading your profile.</div>
           </div>
@@ -1297,7 +1297,7 @@ function Onboarding() {
         <style>{CSS}</style>
         <div className="ob-wrap">
           <div className="ob-status-card">
-            <div className="ob-status-code">PREFLIGHT · FAULT DETECTED</div>
+            <div className="ob-status-code">SETUP · ERROR</div>
             <div className="ob-status-title">System fault.</div>
             <div className="ob-status-sub" style={{ color: "var(--bad)", marginTop: "0.75rem" }}>{error}</div>
           </div>
@@ -1316,7 +1316,7 @@ function Onboarding() {
           <div className="ob-progress-bar-track">
             <div className="ob-progress-bar-fill" style={{ width: `${pct}%` }} />
           </div>
-          <div className="ob-progress-label">PREFLIGHT &middot; STEP {step} OF {TOTAL_STEPS}</div>
+          <div className="ob-progress-label">SETUP · STEP {step} OF {TOTAL_STEPS}</div>
         </div>
 
         {/* ── main card ── */}
@@ -1328,7 +1328,7 @@ function Onboarding() {
               <span className="ob-topbar-dot" />
               {meta.code}
             </div>
-            <div className="ob-topbar-right">PREFLIGHT</div>
+            <div className="ob-topbar-right">SETUP</div>
           </div>
 
           {/* body */}
@@ -1878,7 +1878,7 @@ function Onboarding() {
                   onClick={handleSubmit}
                   disabled={saving}
                 >
-                  {saving ? "Saving…" : "Finish preflight"}
+                  {saving ? "Saving…" : "Finish setup"}
                 </button>
               )}
             </div>
