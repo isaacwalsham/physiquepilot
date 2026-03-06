@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { useProfile } from "../context/ProfileContext";
 
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
@@ -289,6 +290,7 @@ const normalizeSegmentKey = (value) =>
     .slice(0, 40) || "snacks";
 
 export default function Nutrition() {
+  const { profile, todayDayType: contextDayType, updateProfile } = useProfile();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -296,6 +298,12 @@ export default function Nutrition() {
   const [userId, setUserId] = useState(null);
   const [tab, setTab] = useState("log");
   const [showMicronutrientsSection, setShowMicronutrientsSection] = useState(true);
+
+  // Allergen / dietary preference data from onboarding profile
+  const foodAllergies = useMemo(() => {
+    const raw = profile?.food_allergies || "";
+    return raw.split(/[,;\n]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  }, [profile?.food_allergies]);
 
   const [todayType, setTodayType] = useState("rest");
   const [targets, setTargets] = useState({ training: null, rest: null, high: null });
@@ -1076,20 +1084,10 @@ export default function Nutrition() {
         if (!user) throw new Error("Not logged in.");
         setUserId(user.id);
 
-        const { data: pData, error: pErr } = await supabase
-          .from("profiles")
-          .select("training_days, today_day_type, today_day_type_date")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (pErr) throw pErr;
-
-        const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const inferred = Array.isArray(pData?.training_days) && pData.training_days.includes(dayMap[new Date().getDay()])
-          ? "training"
-          : "rest";
         const dateIso = todayIso();
-        const storedType = pData?.today_day_type_date === dateIso ? pData?.today_day_type : null;
-        setTodayType(storedType || inferred);
+
+        // Day type is computed by ProfileContext via getDayType() — no separate profile fetch needed
+        setTodayType(contextDayType || "rest");
 
         const targetRows = await loadTargets(user.id);
         const mapped = mapTargets(targetRows);
@@ -1124,7 +1122,12 @@ export default function Nutrition() {
     };
 
     load();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep todayType in sync when ProfileContext recomputes it (e.g. after training toggle)
+  useEffect(() => {
+    if (contextDayType) setTodayType(contextDayType);
+  }, [contextDayType]);
 
   useEffect(() => {
     if (!userId) return;
@@ -1332,16 +1335,13 @@ export default function Nutrition() {
   const saveTodayType = async (nextType) => {
     if (!userId) return;
     setTodayType(nextType);
-    const { error: e } = await supabase
-      .from("profiles")
-      .update({
-        today_day_type: nextType,
-        today_day_type_date: todayIso(),
-        training_day_type_override: true,
-        nutrition_day_type_override: true
-      })
-      .eq("user_id", userId);
-    if (e) setError(e.message);
+    const { error: e } = await updateProfile({
+      today_day_type: nextType,
+      today_day_type_date: todayIso(),
+      training_day_type_override: true,
+      nutrition_day_type_override: true,
+    });
+    if (e) setError(e);
   };
 
   const resolveFoodFromInput = async ({ food, currentFoodId, currentUserFoodId }) => {
@@ -2057,17 +2057,28 @@ export default function Nutrition() {
                           </div>
                         ) : (
                           foodResults.length > 0 ? (
-                            foodResults.map((r) => (
-                              <button
-                                key={`${r.source}:${r.id}`}
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => selectFoodResult(r)}
-                                style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
-                              >
-                                <div style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
-                              </button>
-                            ))
+                            foodResults.map((r) => {
+                              const nameLower = String(r.name || "").toLowerCase();
+                              const hasAllergen = foodAllergies.length > 0 && foodAllergies.some((a) => nameLower.includes(a));
+                              return (
+                                <button
+                                  key={`${r.source}:${r.id}`}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => selectFoodResult(r)}
+                                  style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                                    <span style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</span>
+                                    {hasAllergen && (
+                                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "4px", background: "rgba(255,184,107,0.15)", color: "#ffb86b", border: "1px solid rgba(255,184,107,0.3)", whiteSpace: "nowrap" }}>
+                                        ⚠ Allergen
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })
                           ) : (
                             <div style={{ padding: "0.65rem", color: "#888" }}>
                               {foodNoMatches

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { useProfile } from "../context/ProfileContext";
 
 const formatDate = (d) => {
   const dt = new Date(d);
@@ -12,6 +13,7 @@ const formatDate = (d) => {
 const todayLocalISO = () => formatDate(new Date());
 
 function CardioSteps() {
+  const { profile } = useProfile();
   const [loading, setLoading] = useState(true);
   const [savingSteps, setSavingSteps] = useState(false);
   const [savingCardio, setSavingCardio] = useState(false);
@@ -30,6 +32,13 @@ function CardioSteps() {
   const [recentSteps, setRecentSteps] = useState([]);
   const [recentCardio, setRecentCardio] = useState([]);
 
+  // Set step target from onboarding baseline (prefer baseline_steps_per_day, fallback to steps_target)
+  useEffect(() => {
+    if (!profile) return;
+    const target = profile.baseline_steps_per_day ?? profile.steps_target ?? null;
+    setStepsTarget(target !== null ? Number(target) : null);
+  }, [profile]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -44,23 +53,7 @@ function CardioSteps() {
       }
 
       setUserId(user.id);
-
-      const { data: profile, error: pErr } = await supabase
-        .from("profiles")
-        .select("steps_target")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (pErr) {
-        setError(pErr.message);
-        setLoading(false);
-        return;
-      }
-
-      setStepsTarget(profile?.steps_target ?? null);
-
       await refreshAll(user.id);
-
       setLoading(false);
     };
 

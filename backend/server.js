@@ -3700,29 +3700,67 @@ const startOfWeekMonday = (d = new Date()) => {
   return `${y}-${m}-${dd}`;
 };
 
-const macrosFromCalories = ({ calories, weightKg }) => {
-  const weightLb = weightKg * 2.2046226218;
-  const proteinG = Math.round(weightLb * 0.8);
-  const fatG = Math.max(50, Math.round(weightLb * 0.3));
-  const proteinCals = proteinG * 4;
-  const fatCals = fatG * 9;
-  const remaining = Math.max(0, calories - proteinCals - fatCals);
-  const carbsG = Math.round(remaining / 4);
-  return { calories, proteinG, carbsG, fatG };
+// ─── TDEE & Macro Calculations (Mifflin-St Jeor) ────────────────────────────
+
+const ACTIVITY_MULTIPLIERS = {
+  inactive: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  heavy: 1.725,
+  extreme: 1.9,
 };
 
-const suggestCalories = ({ goalType, weeklyRateKg, weightKg }) => {
-  const maintenance = Math.round(weightKg * 33);
-  if (!goalType || goalType === "maintain") return maintenance;
+const getAgeFromDOB = (dateOfBirth) => {
+  if (!dateOfBirth) return 30;
+  const dob = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return Math.max(15, Math.min(100, age));
+};
+
+const calculateBMR = ({ weightKg, heightCm, ageYears, sex }) => {
+  const base = 10 * weightKg + 6.25 * heightCm - 5 * ageYears;
+  return Math.round(sex === "female" ? base - 161 : base + 5);
+};
+
+const macrosFromCalories = ({ calories, weightKg, bodyFatPct }) => {
+  const cal = Math.round(calories);
+  // Protein: 2.4g/kg lean mass if BF% known, else 2.0g/kg bodyweight
+  let proteinG;
+  if (bodyFatPct != null && bodyFatPct >= 3 && bodyFatPct <= 60) {
+    const leanMassKg = weightKg * (1 - bodyFatPct / 100);
+    proteinG = Math.round(leanMassKg * 2.4);
+  } else {
+    proteinG = Math.round(weightKg * 2.0);
+  }
+  // Fat: at least 0.8g/kg bodyweight, minimum 20% of calories
+  const fatFloor = Math.round(weightKg * 0.8);
+  const fatFromCals = Math.round((cal * 0.20) / 9);
+  const fatG = Math.max(fatFloor, fatFromCals);
+  const carbsG = Math.max(0, Math.round((cal - proteinG * 4 - fatG * 9) / 4));
+  return { calories: cal, proteinG, carbsG, fatG };
+};
+
+const suggestCalories = ({ goalType, weeklyRateKg, weightKg, heightCm, sex, dateOfBirth, activityLevel, calorieMode, customCalories }) => {
+  if (calorieMode === "custom" && customCalories) {
+    return Math.round(Math.min(6000, Math.max(1200, Number(customCalories))));
+  }
+  const ageYears = getAgeFromDOB(dateOfBirth);
+  const bmr = calculateBMR({ weightKg, heightCm: heightCm || weightKg * 2.5, ageYears, sex: sex || "male" });
+  const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] ?? ACTIVITY_MULTIPLIERS.moderate;
+  const tdee = Math.round(bmr * multiplier);
+
+  if (!goalType || goalType === "maintain") return tdee;
 
   const rate = Math.abs(Number(weeklyRateKg || 0));
-  const weeklyCals = rate * 7700;
-  const dailyDelta = Math.round(weeklyCals / 7);
+  const dailyDelta = Math.round((rate * 7700) / 7);
 
-  if (goalType === "lose" || goalType === "cut") return Math.max(1200, maintenance - dailyDelta);
-  if (goalType === "gain" || goalType === "bulk") return maintenance + dailyDelta;
+  if (goalType === "lose" || goalType === "cut") return Math.max(1200, tdee - dailyDelta);
+  if (goalType === "gain" || goalType === "bulk") return Math.min(6000, tdee + dailyDelta);
 
-  return maintenance;
+  return tdee;
 };
 
 app.post("/api/profile/init", async (req, res) => {
@@ -3769,7 +3807,7 @@ app.post("/api/nutrition/init", async (req, res) => {
 
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
-    .select("current_weight_kg, goal_type, weekly_weight_change_target_kg")
+    .select("current_weight_kg, goal_type, weekly_weight_change_target_kg, height_cm, sex, date_of_birth, activity_level, body_fat_pct, calorie_mode, custom_calories, rest_day_deficit, high_day_surplus")
     .eq("user_id", user_id)
     .maybeSingle();
 
@@ -3784,16 +3822,35 @@ app.post("/api/nutrition/init", async (req, res) => {
 
   const goalType = profile?.goal_type || "maintain";
   const weeklyRateKg = Number(profile?.weekly_weight_change_target_kg || 0);
+  const heightCm = Number(profile?.height_cm || 0) || null;
+  const sex = profile?.sex || "male";
+  const dateOfBirth = profile?.date_of_birth || null;
+  const activityLevel = profile?.activity_level || "moderate";
+  const bodyFatPct = profile?.body_fat_pct != null ? Number(profile.body_fat_pct) : null;
+  const calorieMode = profile?.calorie_mode || "ai";
+  const customCalories = profile?.custom_calories ? Number(profile.custom_calories) : null;
+  const restDayDeficit = profile?.rest_day_deficit != null ? Number(profile.rest_day_deficit) : 250;
+  const highDaySurplus = profile?.high_day_surplus != null ? Number(profile.high_day_surplus) : 200;
 
-  const baseCalories = suggestCalories({ goalType, weeklyRateKg, weightKg });
+  const baseCalories = suggestCalories({
+    goalType,
+    weeklyRateKg,
+    weightKg,
+    heightCm,
+    sex,
+    dateOfBirth,
+    activityLevel,
+    calorieMode,
+    customCalories,
+  });
 
   const trainingCals = baseCalories;
-  const restCals = Math.max(1200, baseCalories - 250);
-  const highCals = baseCalories + 200;
+  const restCals = Math.max(1200, baseCalories - restDayDeficit);
+  const highCals = Math.min(6000, baseCalories + highDaySurplus);
 
-  const training = macrosFromCalories({ calories: trainingCals, weightKg });
-  const rest = macrosFromCalories({ calories: restCals, weightKg });
-  const high = macrosFromCalories({ calories: highCals, weightKg });
+  const training = macrosFromCalories({ calories: trainingCals, weightKg, bodyFatPct });
+  const rest = macrosFromCalories({ calories: restCals, weightKg, bodyFatPct });
+  const high = macrosFromCalories({ calories: highCals, weightKg, bodyFatPct });
 
   const targets = [
     { user_id, day_type: "training", calories: training.calories, protein_g: training.proteinG, carbs_g: training.carbsG, fats_g: training.fatG },

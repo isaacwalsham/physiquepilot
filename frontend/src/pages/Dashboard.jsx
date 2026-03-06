@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "../supabaseClient";
+import { useProfile } from "../context/ProfileContext";
 
 const API_URL = (() => {
   const raw =
@@ -39,32 +40,11 @@ const diffDays = (a, b) => {
   return Math.floor((da.getTime() - db.getTime()) / (24 * 60 * 60 * 1000));
 };
 
-function inferTodayType(profile, todayIso) {
-  const storedType = profile?.today_day_type_date === todayIso ? profile?.today_day_type : null;
-  if (storedType) return storedType;
-
-  const mode = profile?.split_mode || "fixed";
-  if (mode === "rolling") {
-    const start = profile?.rolling_start_date;
-    const pattern = Array.isArray(profile?.rolling_pattern) ? profile.rolling_pattern : null;
-    if (start && pattern && pattern.length) {
-      const d = diffDays(todayIso, start);
-      const idx = ((d % pattern.length) + pattern.length) % pattern.length;
-      const v = String(pattern[idx] || "rest");
-      if (v === "high") return "high";
-      if (v === "training") return "training";
-      return "rest";
-    }
-  }
-
-  const trainingDays = Array.isArray(profile?.training_days) ? profile.training_days : [];
-  const dayMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const todayShort = dayMap[new Date().getDay()];
-  return trainingDays.includes(todayShort) ? "training" : "rest";
-}
+// Day type is now computed by ProfileContext via getDayType() — no local inference needed.
 
 function Dashboard() {
   const navigate = useNavigate();
+  const { profile, todayDayType, loading: profileLoading } = useProfile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -94,37 +74,18 @@ function Dashboard() {
 
       const todayIso = todayLocalISO();
 
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("unit_system, check_in_day, training_days, today_day_type, today_day_type_date, split_mode, rolling_start_date, rolling_pattern, steps_target")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (profileErr && profileErr.code !== "PGRST116") {
-        setError(profileErr.message);
-        setLoading(false);
-        return;
-      }
-
+      // Profile data comes from ProfileContext — no separate fetch needed
       if (profile?.unit_system === "imperial") setUnit("lb");
       else setUnit("kg");
 
       if (profile?.check_in_day) setCheckInDay(profile.check_in_day);
-      if (profile?.steps_target !== undefined && profile?.steps_target !== null) {
-        setStepsTarget(Number(profile.steps_target));
-      } else {
-        setStepsTarget(null);
-      }
 
-      const inferredType = inferTodayType(profile, todayIso);
-      setTodayType(inferredType);
+      // Step target: prefer baseline from onboarding, fall back to steps_target field
+      const stepTarget = profile?.baseline_steps_per_day ?? profile?.steps_target ?? null;
+      setStepsTarget(stepTarget !== null ? Number(stepTarget) : null);
 
-      if (profile?.today_day_type_date !== todayIso) {
-        await supabase
-          .from("profiles")
-          .update({ today_day_type: inferredType, today_day_type_date: todayIso })
-          .eq("user_id", user.id);
-      }
+      // todayDayType comes from ProfileContext (computed via getDayType)
+      setTodayType(todayDayType || "rest");
 
       const { data: logs, error: logsErr } = await supabase
         .from("weight_logs")
@@ -175,11 +136,13 @@ function Dashboard() {
       }
       setCardioToday(cRows && cRows.length ? cRows[0] : null);
 
+      const dayType = todayDayType || "rest";
+
       const { data: tRow, error: tErr } = await supabase
         .from("nutrition_day_targets")
         .select("day_type, calories, protein_g, carbs_g, fats_g")
         .eq("user_id", user.id)
-        .eq("day_type", inferredType)
+        .eq("day_type", dayType)
         .maybeSingle();
 
       if (tErr) {
@@ -204,7 +167,7 @@ function Dashboard() {
                 .from("nutrition_day_targets")
                 .select("day_type, calories, protein_g, carbs_g, fats_g")
                 .eq("user_id", user.id)
-                .eq("day_type", inferredType)
+                .eq("day_type", dayType)
                 .maybeSingle();
               setTodayTargets(tRow2 || null);
             } else {
@@ -221,8 +184,8 @@ function Dashboard() {
       setLoading(false);
     };
 
-    load();
-  }, [navigate]);
+    if (!profileLoading) load();
+  }, [navigate, profile, todayDayType, profileLoading]);
 
   const loggedToday = useMemo(() => {
     if (!latest) return false;
@@ -252,7 +215,7 @@ function Dashboard() {
     await supabase.from("profiles").update({ check_in_day: day }).eq("user_id", user.id);
   };
 
-  if (loading) return <div>Loading...</div>;
+  if (profileLoading || loading) return <div>Loading...</div>;
 
   const card = { background: "#050507", padding: "1rem", border: "1px solid #2a1118" };
 
