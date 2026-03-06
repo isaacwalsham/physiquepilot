@@ -312,9 +312,15 @@ export function useOnboardingForm() {
     }
 
     // Trigger nutrition init (backend calculates day targets with new TDEE formula)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
     const initRes = await fetch(`${API_URL}/api/nutrition/init`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ user_id: profile.user_id }),
     }).then(async (r) => {
       const j = await r.json();

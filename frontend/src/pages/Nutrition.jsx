@@ -687,9 +687,14 @@ export default function Nutrition() {
     if (tErr) throw tErr;
 
     if (!tData || tData.length === 0) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
       const r = await fetch(`${API_URL}/api/nutrition/init`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ user_id: uid })
       });
       if (!r.ok) {

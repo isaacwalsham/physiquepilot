@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useProfile } from "../context/ProfileContext";
+import { supabase } from "../supabaseClient";
 
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
@@ -131,11 +132,16 @@ function Settings() {
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  const triggerNutritionRecalc = () => {
+  const triggerNutritionRecalc = async () => {
     if (!profile?.user_id) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
     fetch(`${API_URL}/api/nutrition/init`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ user_id: profile.user_id }),
     }).catch(() => {
       // silent — recalc is best-effort
