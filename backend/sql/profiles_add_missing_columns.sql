@@ -255,3 +255,15 @@ DO $$ BEGIN
     END IF;
   END IF;
 END $$;
+
+-- daily_nutrition_items (used by Dashboard to show consumed vs target progress bars)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'daily_nutrition_items') THEN
+    EXECUTE 'ALTER TABLE public.daily_nutrition_items ENABLE ROW LEVEL SECURITY';
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'daily_nutrition_items' AND policyname = 'dni_all_own'
+    ) THEN
+      EXECUTE 'CREATE POLICY dni_all_own ON public.daily_nutrition_items FOR ALL USING (auth.uid() = user_id)';
+    END IF;
+  END IF;
+END $$;
