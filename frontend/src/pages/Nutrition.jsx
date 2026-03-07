@@ -307,7 +307,6 @@ export default function Nutrition() {
 
   const [todayType, setTodayType] = useState("rest");
   const [targets, setTargets] = useState({ training: null, rest: null, high: null });
-  const [editTargets, setEditTargets] = useState({ training: null, rest: null, high: null });
 
   const [entries, setEntries] = useState([]);
   const [entryFood, setEntryFood] = useState("");
@@ -1114,8 +1113,6 @@ export default function Nutrition() {
         const targetRows = await loadTargets(user.id);
         const mapped = mapTargets(targetRows);
         setTargets(mapped);
-        setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
-
         await loadDaySummary(user.id, dateIso);
         await loadMicroTargets(user.id);
         try {
@@ -1799,54 +1796,6 @@ export default function Nutrition() {
     }
   };
 
-  const updateEditField = (dayType, field, value) => {
-    const maxCalories = 6000;
-    const minCalories = 800;
-
-    setEditTargets((prev) => {
-      const cur = prev?.[dayType];
-      if (!cur) return prev;
-      const next = { ...cur };
-
-      if (field === "calories") next.calories = clampInt(value, minCalories, maxCalories);
-      if (field === "protein_g") next.protein_g = clampInt(value, 0, 400);
-      if (field === "carbs_g") next.carbs_g = clampInt(value, 0, 800);
-      if (field === "fats_g") next.fats_g = clampInt(value, 0, 250);
-      if (field === "protein_g" || field === "carbs_g" || field === "fats_g") {
-        next.calories = clampInt(calcCalories(next.protein_g, next.carbs_g, next.fats_g), minCalories, maxCalories);
-      }
-
-      return { ...prev, [dayType]: next };
-    });
-  };
-
-  const saveTargets = async () => {
-    if (!userId) return;
-    setSaving(true);
-    setError("");
-    try {
-      const rows = ["training", "rest", "high"].map((dayType) => ({
-        user_id: userId,
-        day_type: dayType,
-        protein_g: Number(editTargets?.[dayType]?.protein_g || 0),
-        carbs_g: Number(editTargets?.[dayType]?.carbs_g || 0),
-        fats_g: Number(editTargets?.[dayType]?.fats_g || 0)
-      })).map((row) => ({
-        ...row,
-        calories: calcCalories(row.protein_g, row.carbs_g, row.fats_g)
-      }));
-      const { error: e } = await supabase.from("nutrition_day_targets").upsert(rows, { onConflict: "user_id,day_type" });
-      if (e) throw e;
-
-      const mapped = mapTargets(rows);
-      setTargets(mapped);
-      setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
-    } catch (e) {
-      setError(String(e?.message || e));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const saveMicroMode = async (nextMode) => {
     if (!userId) return;
@@ -2100,11 +2049,18 @@ export default function Nutrition() {
     .nt-plan-empty-title { font-family:var(--font-display); font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-2); margin-bottom:0.4rem; }
     .nt-plan-empty-sub { font-size:0.85rem; color:var(--text-3); margin-bottom:1.2rem; max-width:360px; margin-left:auto; margin-right:auto; line-height:1.5; }
     .nt-settings-grid { display:grid; gap:0.65rem; }
-    .nt-targets-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:0.65rem; }
+    .nt-targets-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0.65rem; }
     .nt-target-day { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.8rem; }
-    .nt-target-day-name { font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-3); margin-bottom:0.6rem; }
-    .nt-target-field-label { font-size:0.76rem; color:var(--text-3); margin-bottom:0.18rem; }
-    @media (max-width:540px) { .nt-modal-add-row { grid-template-columns:1fr 1fr; } .nt-targets-grid { grid-template-columns:1fr; } }
+    .nt-target-day-name { font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--accent-3); margin-bottom:0.65rem; padding-bottom:0.45rem; border-bottom:1px solid var(--line-1); }
+    .nt-target-ro-row { display:flex; justify-content:space-between; align-items:baseline; gap:0.4rem; padding:0.22rem 0; }
+    .nt-target-ro-label { font-size:0.78rem; color:var(--text-3); }
+    .nt-target-ro-val { font-family:var(--font-display); font-size:0.82rem; color:var(--text-1); letter-spacing:0.03em; }
+    .nt-target-ro-unit { font-size:0.65rem; color:var(--text-3); margin-left:0.18rem; }
+    .nt-log-layout { display:grid; grid-template-columns:1fr 300px; gap:0.7rem; align-items:start; }
+    .nt-log-main { display:grid; gap:0.6rem; }
+    .nt-sidebar { display:grid; gap:0.6rem; position:sticky; top:1rem; }
+    @media (max-width:900px) { .nt-log-layout { grid-template-columns:1fr; } .nt-sidebar { position:static; } .nt-targets-grid { grid-template-columns:1fr; } }
+    @media (max-width:540px) { .nt-modal-add-row { grid-template-columns:1fr 1fr; } }
   `;
 
   // ── Shared input style (used for inline inputs) ────────────────────────────
@@ -2288,262 +2244,269 @@ export default function Nutrition() {
             </div>
           </div>
 
-          {/* Macro summary */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ MACRO OVERVIEW</div>
-            <div className="nt-segment-pills">
-              {summarySegments.map((seg) => (
-                <button
-                  key={seg.key}
-                  className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`}
-                  onClick={() => setSummarySegment(seg.key)}
-                >
-                  {seg.label}
-                </button>
-              ))}
-            </div>
-            <div className="nt-macro-summary">
-              {(() => {
-                const cals = Number(effectiveLogTotals.calories || 0);
-                const target = Number(todaysTargets?.calories || 0);
-                const fillPct = target > 0 ? Math.min(100, (cals / target) * 100) : 0;
+          {/* Two-column layout: meal log + sidebar */}
+          <div className="nt-log-layout">
+
+            {/* Left: meal cards */}
+            <div className="nt-log-main">
+              {displaySegments.map((seg) => {
+                const rows = groupedRowsBySegment.get(seg.key) || [];
+                const segTotals = segmentTotalsByKey?.[seg.key];
+                const expanded = !isCollapsed(`seg_${seg.key}`);
                 return (
-                  <>
-                    <div className="nt-calorie-row">
-                      <span className="nt-calorie-num">{Math.round(cals)}</span>
-                      <span className="nt-calorie-target">/ {target} kcal</span>
-                    </div>
-                    <div className="nt-calorie-track">
-                      <div className="nt-calorie-fill" style={{ width: `${fillPct}%` }} />
-                    </div>
-                  </>
-                );
-              })()}
-              <div className="nt-macro-bars">
-                {[
-                  { key: "protein_g", label: "Protein", val: effectiveLogTotals.protein_g, target: todaysTargets?.protein_g, color: "var(--accent-3)" },
-                  { key: "carbs_g",   label: "Carbs",   val: effectiveLogTotals.carbs_g,   target: todaysTargets?.carbs_g,   color: "#4a9eff" },
-                  { key: "fats_g",    label: "Fats",    val: effectiveLogTotals.fats_g,    target: todaysTargets?.fats_g,    color: "#e5a100" }
-                ].map((m) => {
-                  const val = round1(m.val || 0);
-                  const tgt = Number(m.target || 0);
-                  const fillPct = tgt > 0 ? Math.min(100, (val / tgt) * 100) : 0;
-                  const over = tgt > 0 && val > tgt * 1.05;
-                  return (
-                    <div className="nt-macro-bar-row" key={m.key}>
-                      <span className="nt-macro-label">{m.label}</span>
-                      <div className="nt-macro-track">
-                        <div className="nt-macro-fill" style={{ width: `${fillPct}%`, background: over ? "var(--warn)" : m.color }} />
+                  <div className="nt-meal-card" key={seg.key}>
+                    <div className="nt-meal-header" onClick={() => toggleSection(`seg_${seg.key}`)}>
+                      <div className="nt-meal-header-left">
+                        <span className="nt-meal-name">{seg.label}</span>
+                        {segTotals && segTotals.calories > 0 && (
+                          <span className="nt-meal-kcal">{Math.round(segTotals.calories)} kcal</span>
+                        )}
                       </div>
-                      <span className={`nt-macro-val${over ? " nt-macro-over" : ""}`}>{val}/{tgt}g</span>
+                      <span className={`nt-meal-chevron${expanded ? " nt-meal-chevron--open" : ""}`}>▼</span>
                     </div>
-                  );
-                })}
-              </div>
-              {hasMacroPieData && (
-                <div className="nt-pie-wrap">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={macroPieDisplayData} dataKey="value" nameKey="name" innerRadius={36} outerRadius={58} paddingAngle={2}>
-                        {macroPieDisplayData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value, name, ctx) => [`${Math.round(Number(value || 0))} kcal · ${round1(ctx?.payload?.grams || 0)}g`, String(name || "")]}
-                        contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--line-1)", borderRadius: "8px", color: "var(--text-1)" }}
-                        itemStyle={{ color: "var(--text-1)" }}
-                        cursor={false}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Hydration */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ HYDRATION</div>
-            <div className="nt-hydration-grid">
-              <div>
-                <div className="nt-hydration-label">Water (ml)</div>
-                <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={inp} />
-              </div>
-              <div>
-                <div className="nt-hydration-label">Salt (g)</div>
-                <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={inp} />
-              </div>
-            </div>
-          </div>
-
-          {/* Meal segments */}
-          <div className="nt-meals-grid">
-            {displaySegments.map((seg) => {
-              const rows = groupedRowsBySegment.get(seg.key) || [];
-              const segTotals = segmentTotalsByKey?.[seg.key];
-              const expanded = !isCollapsed(`seg_${seg.key}`);
-              return (
-                <div className="nt-meal-card" key={seg.key}>
-                  <div className="nt-meal-header" onClick={() => toggleSection(`seg_${seg.key}`)}>
-                    <div className="nt-meal-header-left">
-                      <span className="nt-meal-name">{seg.label}</span>
-                      {segTotals && segTotals.calories > 0 && (
-                        <span className="nt-meal-kcal">{Math.round(segTotals.calories)} kcal</span>
-                      )}
-                    </div>
-                    <span className={`nt-meal-chevron${expanded ? " nt-meal-chevron--open" : ""}`}>▼</span>
-                  </div>
-
-                  {expanded && (
-                    <div className="nt-meal-body">
-                      {rows.length === 0 && (
-                        <div style={{ fontSize: "0.82rem", color: "var(--text-3)", textAlign: "center", padding: "0.2rem 0" }}>
-                          Nothing logged yet
-                        </div>
-                      )}
-                      {rows.map((row, rowIdx) => {
-                        if (row.kind === "item") {
-                          const it = row.item;
-                          return (
-                            <div className="nt-food-row" key={it.id || rowIdx}>
-                              <div style={{ minWidth: 0 }}>
-                                <div className="nt-food-name">{it.food}</div>
-                                <div className="nt-food-meta">{it.qty}{it.unit} · {it.state}</div>
+                    {expanded && (
+                      <div className="nt-meal-body">
+                        {rows.length === 0 && (
+                          <div style={{ fontSize: "0.82rem", color: "var(--text-3)", textAlign: "center", padding: "0.2rem 0" }}>
+                            Nothing logged yet
+                          </div>
+                        )}
+                        {rows.map((row, rowIdx) => {
+                          if (row.kind === "item") {
+                            const it = row.item;
+                            return (
+                              <div className="nt-food-row" key={it.id || rowIdx}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="nt-food-name">{it.food}</div>
+                                  <div className="nt-food-meta">{it.qty}{it.unit} · {it.state}</div>
+                                </div>
+                                <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
                               </div>
-                              <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
+                            );
+                          }
+                          return (
+                            <div key={row.mealId}>
+                              <div
+                                className="nt-meal-group-hdr"
+                                onClick={() => setExpandedSavedMealRows((prev) => ({ ...prev, [row.mealId]: !prev[row.mealId] }))}
+                              >
+                                <span style={{ fontSize: "0.82rem", color: "var(--text-2)", fontWeight: 600 }}>{row.mealName}</span>
+                                <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{row.items.length} foods {expandedSavedMealRows[row.mealId] ? "▲" : "▼"}</span>
+                              </div>
+                              {expandedSavedMealRows[row.mealId] && (
+                                <div style={{ display: "grid", gap: "0.28rem", marginTop: "0.28rem" }}>
+                                  {row.items.map((it, iti) => (
+                                    <div className="nt-food-row" key={it.id || iti}>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div className="nt-food-name">{it.food}</div>
+                                        <div className="nt-food-meta">{it.qty}{it.unit}</div>
+                                      </div>
+                                      <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           );
-                        }
-                        return (
-                          <div key={row.mealId}>
-                            <div
-                              className="nt-meal-group-hdr"
-                              onClick={() => setExpandedSavedMealRows((prev) => ({ ...prev, [row.mealId]: !prev[row.mealId] }))}
-                            >
-                              <span style={{ fontSize: "0.82rem", color: "var(--text-2)", fontWeight: 600 }}>{row.mealName}</span>
-                              <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{row.items.length} foods {expandedSavedMealRows[row.mealId] ? "▲" : "▼"}</span>
-                            </div>
-                            {expandedSavedMealRows[row.mealId] && (
-                              <div style={{ display: "grid", gap: "0.28rem", marginTop: "0.28rem" }}>
-                                {row.items.map((it, iti) => (
-                                  <div className="nt-food-row" key={it.id || iti}>
-                                    <div style={{ minWidth: 0 }}>
-                                      <div className="nt-food-name">{it.food}</div>
-                                      <div className="nt-food-meta">{it.qty}{it.unit}</div>
-                                    </div>
-                                    <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                        })}
 
-                      <button
-                        className="nt-add-food-btn"
-                        onClick={() => {
-                          setEntrySegment(seg.key);
-                          setEntryFood("");
-                          setEntryQty("");
-                          setEntryFoodId(null);
-                          setEntryUserFoodId(null);
-                          setEntryFoodLocked(false);
-                          setFoodResults([]);
-                          setFoodModalOpen(true);
-                        }}
-                      >
-                        + Add Food
-                      </button>
+                        <button
+                          className="nt-add-food-btn"
+                          onClick={() => {
+                            setEntrySegment(seg.key);
+                            setEntryFood("");
+                            setEntryQty("");
+                            setEntryFoodId(null);
+                            setEntryUserFoodId(null);
+                            setEntryFoodLocked(false);
+                            setFoodResults([]);
+                            setFoodModalOpen(true);
+                          }}
+                        >
+                          + Add Food
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Right: stats sidebar */}
+            <div className="nt-sidebar">
+
+              {/* Macro summary */}
+              <div className="nt-panel">
+                <div className="nt-section-label">◈ MACROS</div>
+                <div className="nt-segment-pills">
+                  {summarySegments.map((seg) => (
+                    <button
+                      key={seg.key}
+                      className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`}
+                      onClick={() => setSummarySegment(seg.key)}
+                    >
+                      {seg.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="nt-macro-summary">
+                  {(() => {
+                    const cals = Number(effectiveLogTotals.calories || 0);
+                    const target = Number(todaysTargets?.calories || 0);
+                    const fillPct = target > 0 ? Math.min(100, (cals / target) * 100) : 0;
+                    return (
+                      <>
+                        <div className="nt-calorie-row">
+                          <span className="nt-calorie-num">{Math.round(cals)}</span>
+                          <span className="nt-calorie-target">/ {target} kcal</span>
+                        </div>
+                        <div className="nt-calorie-track">
+                          <div className="nt-calorie-fill" style={{ width: `${fillPct}%` }} />
+                        </div>
+                      </>
+                    );
+                  })()}
+                  <div className="nt-macro-bars">
+                    {[
+                      { key: "protein_g", label: "Protein", val: effectiveLogTotals.protein_g, target: todaysTargets?.protein_g, color: "var(--accent-3)" },
+                      { key: "carbs_g",   label: "Carbs",   val: effectiveLogTotals.carbs_g,   target: todaysTargets?.carbs_g,   color: "#4a9eff" },
+                      { key: "fats_g",    label: "Fats",    val: effectiveLogTotals.fats_g,    target: todaysTargets?.fats_g,    color: "#e5a100" }
+                    ].map((m) => {
+                      const val = round1(m.val || 0);
+                      const tgt = Number(m.target || 0);
+                      const fillPct = tgt > 0 ? Math.min(100, (val / tgt) * 100) : 0;
+                      const over = tgt > 0 && val > tgt * 1.05;
+                      return (
+                        <div className="nt-macro-bar-row" key={m.key}>
+                          <span className="nt-macro-label">{m.label}</span>
+                          <div className="nt-macro-track">
+                            <div className="nt-macro-fill" style={{ width: `${fillPct}%`, background: over ? "var(--warn)" : m.color }} />
+                          </div>
+                          <span className={`nt-macro-val${over ? " nt-macro-over" : ""}`}>{val}/{tgt}g</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {hasMacroPieData && (
+                    <div className="nt-pie-wrap">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={macroPieDisplayData} dataKey="value" nameKey="name" innerRadius={36} outerRadius={58} paddingAngle={2}>
+                            {macroPieDisplayData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value, name, ctx) => [`${Math.round(Number(value || 0))} kcal · ${round1(ctx?.payload?.grams || 0)}g`, String(name || "")]}
+                            contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--line-1)", borderRadius: "8px", color: "var(--text-1)" }}
+                            itemStyle={{ color: "var(--text-1)" }}
+                            cursor={false}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Micronutrients */}
-          {showMicronutrientsSection && (
-            <>
-              <div className="nt-micro-toggle" onClick={() => toggleSection("micros")}>
-                <span className="nt-micro-toggle-label">
-                  ◈ MICRONUTRIENTS{visibleMicroRows.length > 0 ? ` (${visibleMicroRows.length})` : ""}
-                </span>
-                <span style={{ color: "var(--text-3)", fontSize: "0.78rem" }}>{isCollapsed("micros") ? "Expand ▼" : "Collapse ▲"}</span>
               </div>
 
-              {!isCollapsed("micros") && (
+              {/* Hydration */}
+              <div className="nt-panel">
+                <div className="nt-section-label">◈ HYDRATION</div>
+                <div className="nt-hydration-grid">
+                  <div>
+                    <div className="nt-hydration-label">Water (ml)</div>
+                    <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={inp} />
+                  </div>
+                  <div>
+                    <div className="nt-hydration-label">Salt (g)</div>
+                    <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={inp} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Micronutrients */}
+              {showMicronutrientsSection && (
                 <div className="nt-panel">
-                  <div style={{ display: "flex", gap: "0.55rem", flexWrap: "wrap", marginBottom: "0.8rem", alignItems: "center" }}>
-                    <div className="nt-segment-pills" style={{ margin: 0, flex: 1 }}>
-                      {summarySegments.map((seg) => (
-                        <button key={`mi-${seg.key}`} className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`} onClick={() => setSummarySegment(seg.key)}>
-                          {seg.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                      <select value={microGroupFilter} onChange={(e) => setMicroGroupFilter(e.target.value)} style={{ ...sel, width: "auto", fontSize: "0.78rem", padding: "0.35rem 0.6rem" }}>
-                        <option value="all">All groups</option>
-                        {microGroups.map((g) => <option key={g} value={g}>{g}</option>)}
-                      </select>
-                      <select value={microTargetMode} onChange={(e) => saveMicroMode(e.target.value)} disabled={savingMicroTargets} style={{ ...sel, width: "auto", fontSize: "0.78rem", padding: "0.35rem 0.6rem" }}>
-                        <option value="rdi">RDI</option>
-                        <option value="bodyweight">Bodyweight</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                    </div>
+                  <div className="nt-micro-toggle" style={{ padding: 0, background: "none", border: "none", borderRadius: 0 }} onClick={() => toggleSection("micros")}>
+                    <span className="nt-micro-toggle-label">
+                      ◈ MICRONUTRIENTS{visibleMicroRows.length > 0 ? ` (${visibleMicroRows.length})` : ""}
+                    </span>
+                    <span style={{ color: "var(--text-3)", fontSize: "0.78rem" }}>{isCollapsed("micros") ? "▼" : "▲"}</span>
                   </div>
 
-                  {dayNutrientsLoading ? (
-                    <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>Loading micronutrients...</div>
-                  ) : visibleMicroRows.length === 0 ? (
-                    <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>
-                      {summarySegment === "all" ? "Log some food to see micronutrients." : `No micronutrient data in ${selectedSummaryLabel.toLowerCase()} yet.`}
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: "0.4rem", maxHeight: "420px", overflowY: "auto", paddingRight: "0.15rem" }}>
-                      {visibleMicroRows.map((n) => (
-                        <div className="nt-micro-item" key={n.code}>
-                          <div className="nt-micro-item-top">
-                            <div>
-                              <span className="nt-micro-name">{displayNutrientLabel(n.code, n.label)}</span>
-                              <span className="nt-micro-group"> · {displayNutrientGroup(n.code, n.sort_group)}</span>
-                            </div>
-                            <span className="nt-micro-amount">
-                              {formatNutrientAmount(n.amount)} {formatNutrientUnit(n.unit)}
-                              {" / "}
-                              {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${formatNutrientUnit(n.unit)}` : "N/T"}
-                            </span>
-                          </div>
-                          {microTargetMode === "custom" && (
-                            <div style={{ marginTop: "0.28rem", display: "flex", justifyContent: "flex-end" }}>
-                              <input
-                                type="number"
-                                value={microTargetDrafts[n.code] ?? 0}
-                                onChange={(e) => setMicroTargetDrafts((prev) => ({ ...prev, [n.code]: Math.max(0, Number(e.target.value || 0)) }))}
-                                style={{ ...inp, width: "110px", fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
-                              />
-                            </div>
-                          )}
-                          <div className="nt-micro-track" style={{ marginTop: "0.22rem" }}>
-                            <div className="nt-micro-fill" style={{ width: `${n.amount <= 0 ? 0 : Math.max(2, n.sliderPct)}%` }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {!isCollapsed("micros") && (
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.65rem" }}>
+                        <select value={microGroupFilter} onChange={(e) => setMicroGroupFilter(e.target.value)} style={{ ...sel, flex: 1, fontSize: "0.78rem", padding: "0.35rem 0.5rem" }}>
+                          <option value="all">All groups</option>
+                          {microGroups.map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                        <select value={microTargetMode} onChange={(e) => saveMicroMode(e.target.value)} disabled={savingMicroTargets} style={{ ...sel, flex: 1, fontSize: "0.78rem", padding: "0.35rem 0.5rem" }}>
+                          <option value="rdi">RDI</option>
+                          <option value="bodyweight">BW</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      <div className="nt-segment-pills" style={{ marginBottom: "0.6rem" }}>
+                        {summarySegments.map((seg) => (
+                          <button key={`mi-${seg.key}`} className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`} onClick={() => setSummarySegment(seg.key)}>
+                            {seg.label}
+                          </button>
+                        ))}
+                      </div>
 
-                  {microTargetMode === "custom" && (
-                    <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end" }}>
-                      <button className="nt-btn nt-btn--primary nt-btn--sm" onClick={saveCustomMicroTargets} disabled={savingMicroTargets}>
-                        Save Targets
-                      </button>
+                      {dayNutrientsLoading ? (
+                        <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>Loading...</div>
+                      ) : visibleMicroRows.length === 0 ? (
+                        <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>
+                          {summarySegment === "all" ? "Log food to see micros." : `No data in ${selectedSummaryLabel.toLowerCase()} yet.`}
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gap: "0.4rem", maxHeight: "380px", overflowY: "auto", paddingRight: "0.15rem" }}>
+                          {visibleMicroRows.map((n) => (
+                            <div className="nt-micro-item" key={n.code}>
+                              <div className="nt-micro-item-top">
+                                <div>
+                                  <span className="nt-micro-name">{displayNutrientLabel(n.code, n.label)}</span>
+                                  <span className="nt-micro-group"> · {displayNutrientGroup(n.code, n.sort_group)}</span>
+                                </div>
+                                <span className="nt-micro-amount">
+                                  {formatNutrientAmount(n.amount)} {formatNutrientUnit(n.unit)}
+                                  {" / "}
+                                  {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${formatNutrientUnit(n.unit)}` : "N/T"}
+                                </span>
+                              </div>
+                              {microTargetMode === "custom" && (
+                                <div style={{ marginTop: "0.28rem", display: "flex", justifyContent: "flex-end" }}>
+                                  <input
+                                    type="number"
+                                    value={microTargetDrafts[n.code] ?? 0}
+                                    onChange={(e) => setMicroTargetDrafts((prev) => ({ ...prev, [n.code]: Math.max(0, Number(e.target.value || 0)) }))}
+                                    style={{ ...inp, width: "110px", fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
+                                  />
+                                </div>
+                              )}
+                              <div className="nt-micro-track" style={{ marginTop: "0.22rem" }}>
+                                <div className="nt-micro-fill" style={{ width: `${n.amount <= 0 ? 0 : Math.max(2, n.sliderPct)}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {microTargetMode === "custom" && (
+                        <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end" }}>
+                          <button className="nt-btn nt-btn--primary nt-btn--sm" onClick={saveCustomMicroTargets} disabled={savingMicroTargets}>
+                            Save Targets
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
-            </>
-          )}
+
+            </div>
+          </div>
         </>
       )}
 
@@ -2662,35 +2625,30 @@ export default function Nutrition() {
       {tab === "settings" && (
         <div className="nt-settings-grid">
 
-          {/* Macro targets */}
+          {/* Macro targets - read only */}
           <div className="nt-panel">
             <div className="nt-section-label">◈ MACRO TARGETS</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--text-3)", marginBottom: "0.85rem", lineHeight: 1.5 }}>
+              Calculated by your onboarding algorithm. Update them by adjusting your profile in Settings.
+            </div>
             <div className="nt-targets-grid">
               {["training", "rest", "high"].map((dayType) => {
-                const t = editTargets?.[dayType];
+                const t = targets?.[dayType];
                 if (!t) return null;
                 return (
                   <div key={dayType} className="nt-target-day">
                     <div className="nt-target-day-name">{dayLabel[dayType]}</div>
-                    <div style={{ display: "grid", gap: "0.45rem" }}>
-                      {[["calories", "Calories"], ["protein_g", "Protein (g)"], ["carbs_g", "Carbs (g)"], ["fats_g", "Fats (g)"]].map(([f, lbl]) => (
-                        <div key={f}>
-                          <div className="nt-target-field-label">{lbl}</div>
-                          <input
-                            type="number"
-                            value={t[f]}
-                            onChange={(e) => updateEditField(dayType, f, e.target.value)}
-                            style={inp}
-                          />
+                    <div style={{ display: "grid", gap: "0.32rem" }}>
+                      {[["calories", "Calories", "kcal"], ["protein_g", "Protein", "g"], ["carbs_g", "Carbs", "g"], ["fats_g", "Fats", "g"]].map(([f, lbl, unit]) => (
+                        <div key={f} className="nt-target-ro-row">
+                          <span className="nt-target-ro-label">{lbl}</span>
+                          <span className="nt-target-ro-val">{t[f] ?? "—"}<span className="nt-target-ro-unit">{unit}</span></span>
                         </div>
                       ))}
                     </div>
                   </div>
                 );
               })}
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.85rem" }}>
-              <button className="nt-btn nt-btn--primary" onClick={saveTargets}>Save Targets</button>
             </div>
           </div>
 
