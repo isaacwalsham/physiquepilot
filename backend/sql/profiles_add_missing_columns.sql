@@ -44,6 +44,10 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS training_days           tex
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS training_days_per_week  integer;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS training_frequency_range text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS rolling_start_date      date;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS high_day_schedule       text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS high_day_weekdays       text[];
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS high_day_interval       integer;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS high_day_start_date     date;
 
 -- Training experience & gym
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS experience_level        text;
