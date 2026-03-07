@@ -1,422 +1,129 @@
 import { useEffect, useMemo, useState } from "react";
+import { useProfile } from "../context/ProfileContext";
 import { supabase } from "../supabaseClient";
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+const API_URL = (
+  String(import.meta.env.VITE_API_URL || "")
+    .trim()
+    .replace(/\/$/, "") ||
+  (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
+);
 
 const activityOptions = [
   { value: "inactive", label: "Inactive", desc: "Mostly sitting, little walking" },
   { value: "light", label: "Lightly active", desc: "Some walking, low daily movement" },
   { value: "moderate", label: "Moderately active", desc: "Regular walking, active job or lifestyle" },
   { value: "heavy", label: "Heavily active", desc: "High daily movement, physical job" },
-  { value: "extreme", label: "Extreme", desc: "Very high daily activity (rare)" }
+  { value: "extreme", label: "Extreme", desc: "Very high daily activity (rare)" },
 ];
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+const dietaryOptions = [
+  { value: "omnivore", label: "Omnivore" },
+  { value: "vegetarian", label: "Vegetarian" },
+  { value: "vegan", label: "Vegan" },
+  { value: "pescatarian", label: "Pescatarian" },
+  { value: "keto", label: "Keto" },
+  { value: "other", label: "Other" },
+];
 
-const CSS = `
-  /* ── Page wrapper ── */
-  .settings-page {
-    width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-    font-family: var(--font-body);
-    color: var(--text-1);
-  }
-
-  /* ── Page header ── */
-  .settings-page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1.5rem;
-    gap: 1rem;
-  }
-
-  .settings-page-label-row {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    margin-bottom: 0.35rem;
-  }
-
-  .settings-page-accent-line {
-    width: 20px;
-    height: 1px;
-    background: var(--accent-3);
-    flex-shrink: 0;
-  }
-
-  .settings-page-label {
-    font-family: var(--font-display);
-    font-size: 0.65rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--accent-3);
-  }
-
-  .settings-page-title {
-    font-family: var(--font-display);
-    font-size: 1.9rem;
-    font-weight: 700;
-    margin: 0;
-    color: var(--text-1);
-    line-height: 1.1;
-  }
-
-  .settings-page-desc {
-    font-size: 0.88rem;
-    color: var(--text-3);
-    margin: 0.4rem 0 0;
-  }
-
-  .settings-save-status {
-    font-family: var(--font-display);
-    font-size: 0.62rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--text-3);
-    padding-top: 0.35rem;
-    flex-shrink: 0;
-  }
-
-  .settings-save-status.saving {
-    color: var(--warn);
-  }
-
-  /* ── Error banner ── */
-  .settings-error {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.45rem;
-    margin-bottom: 1rem;
-    padding: 0.65rem 0.85rem;
-    background: rgba(222,41,82,0.06);
-    border: 1px solid rgba(222,41,82,0.22);
-    border-radius: var(--radius-sm);
-    color: var(--bad);
-    font-size: 0.82rem;
-    line-height: 1.45;
-  }
-
-  /* ── Settings grid ── */
-  .settings-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  /* ── Cockpit card ── */
-  .settings-card {
-    background: rgba(8,3,5,0.85);
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(181,21,60,0.04);
-  }
-
-  .settings-card-full {
-    margin-bottom: 1rem;
-  }
-
-  /* ── Card topbar ── */
-  .settings-card-topbar {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0.6rem 1rem;
-    background: rgba(181,21,60,0.04);
-    border-bottom: 1px solid var(--line-1);
-  }
-
-  .settings-card-code {
-    font-family: var(--font-display);
-    font-size: 0.58rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--accent-3);
-    opacity: 0.7;
-    flex-shrink: 0;
-  }
-
-  .settings-card-sep {
-    width: 1px;
-    height: 10px;
-    background: var(--line-2);
-    flex-shrink: 0;
-  }
-
-  .settings-card-title {
-    font-family: var(--font-display);
-    font-size: 0.62rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--text-3);
-  }
-
-  /* ── Card body ── */
-  .settings-card-body {
-    padding: 1.25rem;
-  }
-
-  /* ── Card description ── */
-  .settings-card-desc {
-    font-size: 0.8rem;
-    color: var(--text-3);
-    margin: 0 0 1rem;
-    line-height: 1.5;
-  }
-
-  /* ── Section label inside card ── */
-  .settings-section-label {
-    font-family: var(--font-display);
-    font-size: 0.78rem;
-    color: var(--text-2);
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    margin-top: 1rem;
-  }
-
-  .settings-section-label:first-child {
-    margin-top: 0;
-  }
-
-  /* ── Hint text ── */
-  .settings-hint {
-    font-size: 0.78rem;
-    color: var(--text-3);
-    margin-top: 0.5rem;
-    line-height: 1.45;
-  }
-
-  /* ── Pill button group ── */
-  .settings-pill-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
-  }
-
-  .settings-pill {
-    font-family: var(--font-display);
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    border-radius: var(--radius-sm);
-    padding: 0.45rem 0.9rem;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, color 0.15s;
-    border: 1px solid var(--line-1);
-    background: transparent;
-    color: var(--text-3);
-  }
-
-  .settings-pill:hover {
-    border-color: var(--line-2);
-    color: var(--text-2);
-  }
-
-  .settings-pill.active {
-    background: linear-gradient(135deg, rgba(181,21,60,0.3), rgba(138,15,46,0.2));
-    border: 1px solid var(--accent-2);
-    color: var(--text-1);
-  }
-
-  /* ── Select dropdown ── */
-  .settings-select {
-    width: 100%;
-    padding: 0.55rem 0.75rem;
-    background: rgba(10,5,8,0.9);
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-sm);
-    color: var(--text-1);
-    font-family: var(--font-body);
-    font-size: 0.9rem;
-    outline: none;
-    box-sizing: border-box;
-    cursor: pointer;
-    transition: border-color 0.15s;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a7f89'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    padding-right: 2rem;
-    margin-top: 0.5rem;
-  }
-
-  .settings-select:focus {
-    border-color: var(--accent-3);
-  }
-
-  .settings-select option {
-    background: #0e0608;
-    color: var(--text-1);
-  }
-
-  /* ── Toggle row (checkbox) ── */
-  .settings-toggle-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    background: rgba(181,21,60,0.025);
-    border: 1px solid var(--line-1);
-    border-radius: var(--radius-sm);
-    padding: 0.75rem 1rem;
-    margin-top: 0.6rem;
-    transition: border-color 0.15s;
-  }
-
-  .settings-toggle-row:hover {
-    border-color: var(--line-2);
-  }
-
-  .settings-toggle-label {
-    font-family: var(--font-body);
-    font-size: 0.9rem;
-    color: var(--text-2);
-    font-weight: 500;
-    margin-bottom: 0.15rem;
-  }
-
-  .settings-toggle-desc {
-    font-size: 0.78rem;
-    color: var(--text-3);
-    line-height: 1.4;
-  }
-
-  /* ── Checkbox styling ── */
-  .settings-checkbox {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--accent-2);
-    flex-shrink: 0;
-    cursor: pointer;
-  }
-
-  /* ── Loading state ── */
-  .settings-loading {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 2rem;
-    font-family: var(--font-display);
-    font-size: 0.75rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--text-3);
-  }
-
-  /* ── Account placeholder ── */
-  .settings-account-placeholder {
-    font-size: 0.85rem;
-    color: var(--text-3);
-    padding: 0.5rem 0;
-    line-height: 1.5;
-  }
-
-  /* ── Responsive ── */
-  @media (max-width: 980px) {
-    .settings-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 520px) {
-    .settings-page-title {
-      font-size: 1.5rem;
-    }
-
-    .settings-card-body {
-      padding: 1rem;
-    }
-  }
-`;
-
-// ─── Component ────────────────────────────────────────────────────────────────
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function Settings() {
-  const [loading, setLoading] = useState(true);
+  const { profile, loading, updateProfile } = useProfile();
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [userId, setUserId] = useState(null);
+  // ── UI-only prefs (localStorage) ─────────────────────────────────────────
+  const [uiMotion, setUiMotion] = useState("medium");
+  const [uiContrast, setUiContrast] = useState("normal");
 
-  // Profile fields we care about
-  const [unitSystem, setUnitSystem] = useState("metric"); // metric | imperial
+  // ── General ──────────────────────────────────────────────────────────────
+  const [unitSystem, setUnitSystem] = useState("metric");
   const [checkInDay, setCheckInDay] = useState("Monday");
 
-  // Baseline lifestyle (used later by AI for steps/cardio targets)
-  const [lifestyleActivity, setLifestyleActivity] = useState("moderate");
+  // ── Body metrics (explicit Save) ─────────────────────────────────────────
+  const [heightInput, setHeightInput] = useState("");
+  const [startingWeightInput, setStartingWeightInput] = useState("");
+  const [bodyFatPctInput, setBodyFatPctInput] = useState("");
 
-  // Nutrition display preferences
-  const [nutritionViewMode, setNutritionViewMode] = useState("macros"); // macros | meal_plan
-  const [showMealMacros, setShowMealMacros] = useState(true); // show macros per meal (when meal plan mode exists)
-  const [showDayMacros, setShowDayMacros] = useState(true); // show full-day macros
+  // ── Goal ─────────────────────────────────────────────────────────────────
+  const [goalType, setGoalType] = useState("maintain"); // lose | maintain | gain
+  const [weeklyRateInput, setWeeklyRateInput] = useState("");
 
-  // Split preferences (optional: keep editable here)
-  const [splitMode, setSplitMode] = useState("fixed"); // fixed | rolling
-  const [uiMotion, setUiMotion] = useState("medium"); // low | medium
-  const [uiContrast, setUiContrast] = useState("normal"); // normal | high
+  // ── Activity level ────────────────────────────────────────────────────────
+  const [activityLevel, setActivityLevel] = useState("moderate");
 
-  const statusText = useMemo(() => {
-    if (saving) return "Saving...";
-    return "Saved";
-  }, [saving]);
+  // ── Dietary preferences ──────────────────────────────────────────────────
+  const [dietaryPreference, setDietaryPreference] = useState("omnivore");
+  const [dietaryAdditional, setDietaryAdditional] = useState("");
+  const [dislikes, setDislikes] = useState("");
 
+  // ── Allergies ─────────────────────────────────────────────────────────────
+  const [foodAllergies, setFoodAllergies] = useState("");
+
+  // ── Nutrition display ─────────────────────────────────────────────────────
+  const [nutritionViewMode, setNutritionViewMode] = useState("macros");
+  const [showMealMacros, setShowMealMacros] = useState(true);
+  const [showDayMacros, setShowDayMacros] = useState(true);
+
+  // ── Training ──────────────────────────────────────────────────────────────
+  const [splitMode, setSplitMode] = useState("fixed");
+
+  // ── Initialise state from profile ────────────────────────────────────────
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
+    if (!profile) return;
 
-      const { data: userData, error: uErr } = await supabase.auth.getUser();
-      if (uErr || !userData?.user) {
-        setError("Not logged in.");
-        setLoading(false);
-        return;
-      }
+    if (profile.unit_system) setUnitSystem(profile.unit_system);
+    if (profile.check_in_day) setCheckInDay(profile.check_in_day);
 
-      const user = userData.user;
-      setUserId(user.id);
+    // Body metrics — display in user's unit system
+    const isImperial = (profile.unit_system || "metric") === "imperial";
+    if (profile.height_cm != null) {
+      const val = isImperial
+        ? String(Math.round(profile.height_cm * 0.393701 * 10) / 10) // total inches
+        : String(profile.height_cm);
+      setHeightInput(val);
+    }
+    if (profile.starting_weight_kg != null) {
+      const val = isImperial
+        ? String(Math.round(profile.starting_weight_kg * 2.20462 * 10) / 10)
+        : String(profile.starting_weight_kg);
+      setStartingWeightInput(val);
+    }
+    if (profile.body_fat_pct != null) setBodyFatPctInput(String(profile.body_fat_pct));
 
-      const { data: profile, error: pErr } = await supabase
-        .from("profiles")
-        .select(
-          [
-            "unit_system",
-            "check_in_day",
-            "lifestyle_activity",
-            "nutrition_view_mode",
-            "show_meal_macros",
-            "show_day_macros",
-            "split_mode"
-          ].join(",")
-        )
-        .eq("user_id", user.id)
-        .maybeSingle();
+    // Goal
+    if (profile.goal_type) setGoalType(profile.goal_type);
+    if (profile.weekly_weight_change_target_kg != null) {
+      const isImperialNow = (profile.unit_system || "metric") === "imperial";
+      const val = isImperialNow
+        ? String(Math.round(profile.weekly_weight_change_target_kg * 2.20462 * 100) / 100)
+        : String(profile.weekly_weight_change_target_kg);
+      setWeeklyRateInput(val);
+    }
 
-      if (pErr && pErr.code !== "PGRST116") {
-        setError(pErr.message);
-        setLoading(false);
-        return;
-      }
+    // Activity
+    if (profile.activity_level) setActivityLevel(profile.activity_level);
 
-      if (profile?.unit_system) setUnitSystem(profile.unit_system);
-      if (profile?.check_in_day) setCheckInDay(profile.check_in_day);
+    // Dietary
+    if (profile.dietary_preference) setDietaryPreference(profile.dietary_preference);
+    if (profile.dietary_additional != null) setDietaryAdditional(profile.dietary_additional);
+    if (profile.dislikes != null) setDislikes(profile.dislikes);
 
-      if (profile?.lifestyle_activity) setLifestyleActivity(profile.lifestyle_activity);
+    // Allergies
+    if (profile.food_allergies != null) setFoodAllergies(profile.food_allergies);
 
-      if (profile?.nutrition_view_mode) setNutritionViewMode(profile.nutrition_view_mode);
-      if (typeof profile?.show_meal_macros === "boolean") setShowMealMacros(profile.show_meal_macros);
-      if (typeof profile?.show_day_macros === "boolean") setShowDayMacros(profile.show_day_macros);
+    // Nutrition display
+    if (profile.nutrition_view_mode) setNutritionViewMode(profile.nutrition_view_mode);
+    if (typeof profile.show_meal_macros === "boolean") setShowMealMacros(profile.show_meal_macros);
+    if (typeof profile.show_day_macros === "boolean") setShowDayMacros(profile.show_day_macros);
 
-      if (profile?.split_mode) setSplitMode(profile.split_mode);
+    // Training
+    if (profile.split_mode) setSplitMode(profile.split_mode);
+  }, [profile]);
 
-      setLoading(false);
-    };
-
-    load();
-  }, []);
-
+  // ── Load UI prefs from localStorage ──────────────────────────────────────
   useEffect(() => {
     const storedMotion = localStorage.getItem("pp_ui_motion") || "medium";
     const storedContrast = localStorage.getItem("pp_ui_contrast") || "normal";
@@ -424,86 +131,207 @@ function Settings() {
     setUiContrast(storedContrast);
   }, []);
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const triggerNutritionRecalc = async () => {
+    if (!profile?.user_id) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    fetch(`${API_URL}/api/nutrition/init`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ user_id: profile.user_id }),
+    }).catch(() => {
+      // silent — recalc is best-effort
+    });
+  };
+
   const saveUiPrefs = (next = {}) => {
-    const motion = next.motion || uiMotion;
-    const contrast = next.contrast || uiContrast;
+    const motion = next.motion !== undefined ? next.motion : uiMotion;
+    const contrast = next.contrast !== undefined ? next.contrast : uiContrast;
     localStorage.setItem("pp_ui_motion", motion);
     localStorage.setItem("pp_ui_contrast", contrast);
     document.documentElement.dataset.motion = motion;
     document.documentElement.dataset.contrast = contrast;
   };
 
-  const saveProfilePatch = async (patch) => {
-    if (!userId) return;
+  const saveProfilePatch = async (patch, { recalc = false } = {}) => {
     setError("");
     setSaving(true);
-
-    const { error: e } = await supabase
-      .from("profiles")
-      .update(patch)
-      .eq("user_id", userId);
-
+    const { error: e } = await updateProfile(patch);
     setSaving(false);
-
-    if (e) setError(e.message);
+    if (e) {
+      setError(typeof e === "string" ? e : String(e));
+    } else if (recalc) {
+      triggerNutritionRecalc();
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="settings-page">
-        <style>{CSS}</style>
-        <div className="settings-loading">
-          <span>Loading configuration...</span>
-        </div>
-      </div>
-    );
-  }
+  const isImperial = unitSystem === "imperial";
+
+  const statusText = useMemo(() => {
+    if (saving) return "Saving...";
+    return "Saved";
+  }, [saving]);
+
+  // ── Save body metrics ─────────────────────────────────────────────────────
+  const saveBodyMetrics = async () => {
+    const heightNum = parseFloat(heightInput);
+    const weightNum = parseFloat(startingWeightInput);
+    const bfNum = parseFloat(bodyFatPctInput);
+
+    const patch = {};
+
+    if (!isNaN(heightNum) && heightNum > 0) {
+      patch.height_cm = isImperial
+        ? Math.round((heightNum / 0.393701) * 10) / 10
+        : heightNum;
+    }
+    if (!isNaN(weightNum) && weightNum > 0) {
+      patch.starting_weight_kg = isImperial
+        ? Math.round((weightNum / 2.20462) * 100) / 100
+        : weightNum;
+    }
+    if (!isNaN(bfNum) && bfNum >= 0) {
+      patch.body_fat_pct = bfNum;
+    }
+
+    if (Object.keys(patch).length === 0) return;
+    await saveProfilePatch(patch, { recalc: true });
+  };
+
+  // ── Save goal ─────────────────────────────────────────────────────────────
+  const saveGoal = async () => {
+    const patch = { goal_type: goalType };
+
+    if (goalType !== "maintain") {
+      const rateNum = parseFloat(weeklyRateInput);
+      if (!isNaN(rateNum) && rateNum > 0) {
+        patch.weekly_weight_change_target_kg = isImperial
+          ? Math.round((rateNum / 2.20462) * 1000) / 1000
+          : rateNum;
+      }
+    } else {
+      patch.weekly_weight_change_target_kg = 0;
+    }
+
+    await saveProfilePatch(patch, { recalc: true });
+  };
+
+  // ── Styles ────────────────────────────────────────────────────────────────
+  if (loading) return <div style={{ color: "#aaa", padding: "2rem" }}>Loading...</div>;
+
+  const card = {
+    background: "#050507",
+    border: "1px solid #2a1118",
+    padding: "1rem",
+  };
+
+  const label = { color: "#aaa", fontSize: "0.9rem" };
+
+  const selectStyle = {
+    width: "100%",
+    padding: "0.6rem",
+    background: "#111",
+    color: "#fff",
+    border: "1px solid #2a1118",
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "0.6rem",
+    background: "#111",
+    color: "#fff",
+    border: "1px solid #2a1118",
+    boxSizing: "border-box",
+  };
+
+  const toggleRow = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "1rem",
+    border: "1px solid #2a1118",
+    background: "#111",
+    padding: "0.75rem",
+    marginTop: "0.6rem",
+  };
+
+  const pillBtn = (active) => ({
+    padding: "0.5rem 0.75rem",
+    border: "1px solid #2a1118",
+    background: active ? "#0b0b10" : "transparent",
+    color: active ? "#fff" : "#aaa",
+    cursor: "pointer",
+  });
+
+  const saveBtn = {
+    marginTop: "0.75rem",
+    padding: "0.5rem 1.25rem",
+    background: "#1a0a10",
+    border: "1px solid #2a1118",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+  };
+
+  const responsiveStyle = `
+    @media (max-width: 980px) {
+      .pp-settings-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .pp-toggle-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .pp-toggle-row input[type="checkbox"] {
+        margin-left: auto;
+      }
+    }
+    @media (max-width: 520px) {
+      .pp-settings-page h1 {
+        font-size: 1.9rem;
+      }
+    }
+  `;
+
+  const heightUnit = isImperial ? "in (total)" : "cm";
+  const weightUnit = isImperial ? "lbs" : "kg";
+  const rateUnit = isImperial ? "lbs/wk" : "kg/wk";
 
   return (
-    <div className="settings-page">
-      <style>{CSS}</style>
+    <div className="pp-settings-page" style={{ width: "100%", maxWidth: "1400px", margin: "0 auto" }}>
+      <style>{responsiveStyle}</style>
 
-      {/* Page header */}
-      <div className="settings-page-header">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
-          <div className="settings-page-label-row">
-            <div className="settings-page-accent-line" aria-hidden="true" />
-            <span className="settings-page-label">System Configuration</span>
-          </div>
-          <h1 className="settings-page-title">Settings</h1>
-          <p className="settings-page-desc">
+          <h1 style={{ margin: 0 }}>Settings</h1>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
             Preferences for tracking, targets, and what you see in the app.
-          </p>
+          </div>
         </div>
-        <div className={`settings-save-status${saving ? " saving" : ""}`}>
-          {statusText}
-        </div>
+        <div style={{ color: "#666" }}>{statusText}</div>
       </div>
 
-      {error && (
-        <div className="settings-error" role="alert">
-          <span>⚠</span>
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-      {/* Row 1: General + Baseline lifestyle */}
-      <div className="settings-grid">
-
+      {/* Row 1: General + Body metrics */}
+      <div
+        className="pp-settings-grid"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}
+      >
         {/* General */}
-        <div className="settings-card">
-          <div className="settings-card-topbar">
-            <span className="settings-card-code">UNITS</span>
-            <div className="settings-card-sep" aria-hidden="true" />
-            <span className="settings-card-title">General</span>
-          </div>
-          <div className="settings-card-body">
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>General</div>
 
-            <div className="settings-section-label">Unit system</div>
-            <div className="settings-pill-group">
+          <div style={{ marginTop: "0.9rem" }}>
+            <div style={label}>Unit system</div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
               <button
                 type="button"
-                className={`settings-pill${unitSystem === "metric" ? " active" : ""}`}
+                style={pillBtn(unitSystem === "metric")}
                 onClick={() => {
                   setUnitSystem("metric");
                   saveProfilePatch({ unit_system: "metric" });
@@ -513,7 +341,7 @@ function Settings() {
               </button>
               <button
                 type="button"
-                className={`settings-pill${unitSystem === "imperial" ? " active" : ""}`}
+                style={pillBtn(unitSystem === "imperial")}
                 onClick={() => {
                   setUnitSystem("imperial");
                   saveProfilePatch({ unit_system: "imperial" });
@@ -523,51 +351,155 @@ function Settings() {
               </button>
             </div>
 
-            <div className="settings-section-label">Weekly check-in day</div>
-            <select
-              className="settings-select"
-              value={checkInDay}
-              onChange={(e) => {
-                setCheckInDay(e.target.value);
-                saveProfilePatch({ check_in_day: e.target.value });
-              }}
-            >
-              <option>Monday</option>
-              <option>Tuesday</option>
-              <option>Wednesday</option>
-              <option>Thursday</option>
-              <option>Friday</option>
-              <option>Saturday</option>
-              <option>Sunday</option>
-            </select>
-            <div className="settings-hint">
-              Sets which day your "weekly check-in" week starts on.
+            <div style={{ marginTop: "1rem" }}>
+              <div style={label}>Weekly check-in day</div>
+              <select
+                value={checkInDay}
+                onChange={(e) => {
+                  setCheckInDay(e.target.value);
+                  saveProfilePatch({ check_in_day: e.target.value });
+                }}
+                style={{ ...selectStyle, marginTop: "0.5rem" }}
+              >
+                {DAYS.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+              <div style={{ color: "#666", marginTop: "0.5rem", fontSize: "0.9rem" }}>
+                This sets which day your "weekly check-in" week starts on.
+              </div>
             </div>
-
           </div>
         </div>
 
-        {/* Baseline lifestyle */}
-        <div className="settings-card">
-          <div className="settings-card-topbar">
-            <span className="settings-card-code">SCHED</span>
-            <div className="settings-card-sep" aria-hidden="true" />
-            <span className="settings-card-title">Baseline Lifestyle</span>
+        {/* Body metrics */}
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Body metrics</div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Used to calculate your calorie and macro targets.
           </div>
-          <div className="settings-card-body">
 
-            <p className="settings-card-desc">
-              Non-weight-training activity. Used later for steps/cardio targets and overall plan difficulty.
-            </p>
+          <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
+            <div>
+              <div style={label}>Height ({heightUnit})</div>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={heightInput}
+                onChange={(e) => setHeightInput(e.target.value)}
+                style={{ ...inputStyle, marginTop: "0.4rem" }}
+                placeholder={isImperial ? "e.g. 70" : "e.g. 178"}
+              />
+            </div>
 
-            <div className="settings-section-label">Activity level</div>
+            <div>
+              <div style={label}>Starting weight ({weightUnit})</div>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={startingWeightInput}
+                onChange={(e) => setStartingWeightInput(e.target.value)}
+                style={{ ...inputStyle, marginTop: "0.4rem" }}
+                placeholder={isImperial ? "e.g. 185" : "e.g. 84"}
+              />
+            </div>
+
+            <div>
+              <div style={label}>Body fat % (optional)</div>
+              <input
+                type="number"
+                min="0"
+                max="70"
+                step="0.1"
+                value={bodyFatPctInput}
+                onChange={(e) => setBodyFatPctInput(e.target.value)}
+                style={{ ...inputStyle, marginTop: "0.4rem" }}
+                placeholder="e.g. 18"
+              />
+            </div>
+          </div>
+
+          <button type="button" style={saveBtn} onClick={saveBodyMetrics}>
+            Save body metrics
+          </button>
+        </div>
+      </div>
+
+      {/* Row 2: Goal + Activity level */}
+      <div
+        className="pp-settings-grid"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}
+      >
+        {/* Goal */}
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Goal</div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Drives your calorie target and macro split.
+          </div>
+
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Goal type</div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+              {[
+                { value: "lose", label: "Lose fat" },
+                { value: "maintain", label: "Maintain" },
+                { value: "gain", label: "Gain muscle" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  style={pillBtn(goalType === opt.value)}
+                  onClick={() => setGoalType(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {goalType !== "maintain" && (
+              <div style={{ marginTop: "1rem" }}>
+                <div style={label}>Weekly rate ({rateUnit})</div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.05"
+                  value={weeklyRateInput}
+                  onChange={(e) => setWeeklyRateInput(e.target.value)}
+                  style={{ ...inputStyle, marginTop: "0.4rem" }}
+                  placeholder={isImperial ? "e.g. 0.5" : "e.g. 0.25"}
+                />
+                <div style={{ color: "#666", marginTop: "0.4rem", fontSize: "0.85rem" }}>
+                  {goalType === "lose"
+                    ? "Rate of fat loss per week"
+                    : "Rate of weight gain per week"}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button type="button" style={saveBtn} onClick={saveGoal}>
+            Save goal
+          </button>
+        </div>
+
+        {/* Activity level */}
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Activity level</div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Your baseline daily movement outside of planned workouts.
+          </div>
+
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Activity level</div>
             <select
-              className="settings-select"
-              value={lifestyleActivity}
+              value={activityLevel}
               onChange={(e) => {
-                setLifestyleActivity(e.target.value);
-                saveProfilePatch({ lifestyle_activity: e.target.value });
+                setActivityLevel(e.target.value);
+                saveProfilePatch({ activity_level: e.target.value }, { recalc: true });
               }}
+              style={{ ...selectStyle, marginTop: "0.5rem" }}
             >
               {activityOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -576,36 +508,128 @@ function Settings() {
               ))}
             </select>
 
-            <div className="settings-hint">
-              {activityOptions.find((x) => x.value === lifestyleActivity)?.desc}
+            <div style={{ color: "#666", marginTop: "0.6rem", fontSize: "0.9rem" }}>
+              {activityOptions.find((x) => x.value === activityLevel)?.desc}
             </div>
+          </div>
+        </div>
+      </div>
 
+      {/* Row 3: Dietary preferences + Allergies */}
+      <div
+        className="pp-settings-grid"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}
+      >
+        {/* Dietary preferences */}
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Dietary preferences</div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Used when generating meal plans and food suggestions.
+          </div>
+
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Diet type</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.5rem" }}>
+              {dietaryOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  style={pillBtn(dietaryPreference === opt.value)}
+                  onClick={() => {
+                    setDietaryPreference(opt.value);
+                    saveProfilePatch({ dietary_preference: opt.value });
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Additional notes (optional)</div>
+            <input
+              type="text"
+              value={dietaryAdditional}
+              onChange={(e) => setDietaryAdditional(e.target.value)}
+              onBlur={() => {
+                if (dietaryAdditional !== (profile?.dietary_additional ?? "")) {
+                  saveProfilePatch({ dietary_additional: dietaryAdditional });
+                }
+              }}
+              style={{ ...inputStyle, marginTop: "0.4rem" }}
+              placeholder="e.g. no red meat, halal, kosher"
+            />
+          </div>
+
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Dislikes (optional)</div>
+            <input
+              type="text"
+              value={dislikes}
+              onChange={(e) => setDislikes(e.target.value)}
+              onBlur={() => {
+                if (dislikes !== (profile?.dislikes ?? "")) {
+                  saveProfilePatch({ dislikes });
+                }
+              }}
+              style={{ ...inputStyle, marginTop: "0.4rem" }}
+              placeholder="e.g. mushrooms, cilantro, olives"
+            />
           </div>
         </div>
 
+        {/* Allergies */}
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Allergies</div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Food allergies or intolerances the AI will avoid in suggestions.
+          </div>
+
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Food allergies / intolerances</div>
+            <textarea
+              value={foodAllergies}
+              onChange={(e) => setFoodAllergies(e.target.value)}
+              onBlur={() => {
+                if (foodAllergies !== (profile?.food_allergies ?? "")) {
+                  saveProfilePatch({ food_allergies: foodAllergies });
+                }
+              }}
+              rows={5}
+              style={{
+                ...inputStyle,
+                marginTop: "0.4rem",
+                resize: "vertical",
+                fontFamily: "inherit",
+              }}
+              placeholder="e.g. peanuts, tree nuts, shellfish, gluten, dairy"
+            />
+            <div style={{ color: "#666", marginTop: "0.4rem", fontSize: "0.85rem" }}>
+              Separate items with commas. Saved automatically when you click away.
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Row 2: Nutrition display + Training preferences */}
-      <div className="settings-grid">
-
+      {/* Row 4: Nutrition display + Training preferences */}
+      <div
+        className="pp-settings-grid"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}
+      >
         {/* Nutrition display */}
-        <div className="settings-card">
-          <div className="settings-card-topbar">
-            <span className="settings-card-code">NUTR</span>
-            <div className="settings-card-sep" aria-hidden="true" />
-            <span className="settings-card-title">Nutrition Display</span>
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Nutrition display</div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            This only changes what the UI shows — AI-based meal plans come later.
           </div>
-          <div className="settings-card-body">
 
-            <p className="settings-card-desc">
-              Changes what the UI shows — AI-based meal plans come later.
-            </p>
-
-            <div className="settings-section-label">Default view</div>
-            <div className="settings-pill-group">
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Default view</div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
               <button
                 type="button"
-                className={`settings-pill${nutritionViewMode === "macros" ? " active" : ""}`}
+                style={pillBtn(nutritionViewMode === "macros")}
                 onClick={() => {
                   setNutritionViewMode("macros");
                   saveProfilePatch({ nutrition_view_mode: "macros" });
@@ -615,7 +639,7 @@ function Settings() {
               </button>
               <button
                 type="button"
-                className={`settings-pill${nutritionViewMode === "meal_plan" ? " active" : ""}`}
+                style={pillBtn(nutritionViewMode === "meal_plan")}
                 onClick={() => {
                   setNutritionViewMode("meal_plan");
                   saveProfilePatch({ nutrition_view_mode: "meal_plan" });
@@ -625,16 +649,15 @@ function Settings() {
               </button>
             </div>
 
-            <div className="settings-toggle-row">
+            <div className="pp-toggle-row" style={toggleRow}>
               <div>
-                <div className="settings-toggle-label">Show meal macros</div>
-                <div className="settings-toggle-desc">
+                <div style={{ fontWeight: 600 }}>Show meal macros</div>
+                <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.2rem" }}>
                   When meal plans exist, show macros per meal.
                 </div>
               </div>
               <input
                 type="checkbox"
-                className="settings-checkbox"
                 checked={showMealMacros}
                 onChange={(e) => {
                   setShowMealMacros(e.target.checked);
@@ -643,16 +666,15 @@ function Settings() {
               />
             </div>
 
-            <div className="settings-toggle-row">
+            <div className="pp-toggle-row" style={toggleRow}>
               <div>
-                <div className="settings-toggle-label">Show full-day macros</div>
-                <div className="settings-toggle-desc">
+                <div style={{ fontWeight: 600 }}>Show full-day macros</div>
+                <div style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.2rem" }}>
                   Show totals for the day even in meal plan mode.
                 </div>
               </div>
               <input
                 type="checkbox"
-                className="settings-checkbox"
                 checked={showDayMacros}
                 onChange={(e) => {
                   setShowDayMacros(e.target.checked);
@@ -660,135 +682,110 @@ function Settings() {
                 }}
               />
             </div>
-
           </div>
         </div>
 
         {/* Training preferences */}
-        <div className="settings-card">
-          <div className="settings-card-topbar">
-            <span className="settings-card-code">TRNG</span>
-            <div className="settings-card-sep" aria-hidden="true" />
-            <span className="settings-card-title">Training Preferences</span>
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Training preferences</div>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            These affect the calendar logic (fixed vs rolling). Training block editing lives in Training.
           </div>
-          <div className="settings-card-body">
 
-            <p className="settings-card-desc">
-              Affects calendar logic (fixed vs rolling). Training block editing lives in Training.
-            </p>
-
-            <div className="settings-section-label">Split mode</div>
+          <div style={{ marginTop: "1rem" }}>
+            <div style={label}>Split mode</div>
             <select
-              className="settings-select"
               value={splitMode}
               onChange={(e) => {
                 setSplitMode(e.target.value);
                 saveProfilePatch({ split_mode: e.target.value });
               }}
+              style={{ ...selectStyle, marginTop: "0.5rem" }}
             >
               <option value="fixed">Weekly (fixed days)</option>
               <option value="rolling">Rolling (cycle repeats)</option>
             </select>
 
-            <div className="settings-hint">
+            <div style={{ color: "#666", marginTop: "0.6rem", fontSize: "0.9rem" }}>
               You can still override "today = rest day" inside Training (and it should also switch nutrition day type).
             </div>
-
           </div>
         </div>
-
       </div>
 
       {/* Accessibility & motion */}
-      <div className="settings-card settings-card-full">
-        <div className="settings-card-topbar">
-          <span className="settings-card-code">DISPLAY</span>
-          <div className="settings-card-sep" aria-hidden="true" />
-          <span className="settings-card-title">Accessibility &amp; Motion</span>
+      <div style={{ marginTop: "1rem", ...card }}>
+        <div style={{ fontWeight: 700 }}>Accessibility & motion</div>
+        <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+          Visual comfort controls for animation and contrast.
         </div>
-        <div className="settings-card-body">
 
-          <p className="settings-card-desc">
-            Visual comfort controls for animation and contrast.
-          </p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-            <div>
-              <div className="settings-section-label">Motion</div>
-              <div className="settings-pill-group">
-                <button
-                  type="button"
-                  className={`settings-pill${uiMotion === "low" ? " active" : ""}`}
-                  onClick={() => {
-                    setUiMotion("low");
-                    saveUiPrefs({ motion: "low" });
-                  }}
-                >
-                  Reduced
-                </button>
-                <button
-                  type="button"
-                  className={`settings-pill${uiMotion === "medium" ? " active" : ""}`}
-                  onClick={() => {
-                    setUiMotion("medium");
-                    saveUiPrefs({ motion: "medium" });
-                  }}
-                >
-                  Medium
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <div className="settings-section-label">Contrast</div>
-              <div className="settings-pill-group">
-                <button
-                  type="button"
-                  className={`settings-pill${uiContrast === "normal" ? " active" : ""}`}
-                  onClick={() => {
-                    setUiContrast("normal");
-                    saveUiPrefs({ contrast: "normal" });
-                  }}
-                >
-                  Normal
-                </button>
-                <button
-                  type="button"
-                  className={`settings-pill${uiContrast === "high" ? " active" : ""}`}
-                  onClick={() => {
-                    setUiContrast("high");
-                    saveUiPrefs({ contrast: "high" });
-                  }}
-                >
-                  High
-                </button>
-              </div>
+        <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
+          <div>
+            <div style={label}>Motion</div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                style={pillBtn(uiMotion === "low")}
+                onClick={() => {
+                  setUiMotion("low");
+                  saveUiPrefs({ motion: "low" });
+                }}
+              >
+                Reduced
+              </button>
+              <button
+                type="button"
+                style={pillBtn(uiMotion === "medium")}
+                onClick={() => {
+                  setUiMotion("medium");
+                  saveUiPrefs({ motion: "medium" });
+                }}
+              >
+                Medium
+              </button>
             </div>
           </div>
 
+          <div>
+            <div style={label}>Contrast</div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                style={pillBtn(uiContrast === "normal")}
+                onClick={() => {
+                  setUiContrast("normal");
+                  saveUiPrefs({ contrast: "normal" });
+                }}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                style={pillBtn(uiContrast === "high")}
+                onClick={() => {
+                  setUiContrast("high");
+                  saveUiPrefs({ contrast: "high" });
+                }}
+              >
+                High
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Account */}
-      <div className="settings-card settings-card-full">
-        <div className="settings-card-topbar">
-          <span className="settings-card-code">ACCT</span>
-          <div className="settings-card-sep" aria-hidden="true" />
-          <span className="settings-card-title">Account</span>
+      <div style={{ marginTop: "1rem", ...card }}>
+        <div style={{ fontWeight: 700 }}>Account</div>
+        <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+          More account controls (billing, plan, deletions) later.
         </div>
-        <div className="settings-card-body">
 
-          <p className="settings-card-desc">
-            More account controls (billing, plan, deletions) coming later.
-          </p>
-
-          <div className="settings-account-placeholder">
-            For now: logout is in the sidebar.
-          </div>
-
+        <div style={{ marginTop: "1rem", color: "#666", fontSize: "0.9rem" }}>
+          For now: logout is in the sidebar.
         </div>
       </div>
-
     </div>
   );
 }
