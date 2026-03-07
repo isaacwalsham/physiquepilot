@@ -483,8 +483,7 @@ WHERE g.name = 'shoulders';
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Barbell Curl',                   'Long Head',       'barbell',  'false', 'beginner',     'false'),
   ('Dumbbell Curl',                  'Long Head',       'dumbbell', 'false', 'beginner',     'false'),
   ('Incline Dumbbell Curl',          'Long Head',       'dumbbell', 'false', 'intermediate', 'false'),
@@ -497,14 +496,14 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Cross-Body Hammer Curl',         'Brachialis',      'dumbbell', 'false', 'intermediate', 'false'),
   ('Cable Rope Hammer Curl',         'Brachioradialis', 'cable',    'false', 'intermediate', 'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'biceps';
 
 -- TRICEPS
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Skull Crushers (EZ Bar)',            'Long Head',    'barbell',    'false', 'intermediate', 'false'),
   ('Overhead Cable Tricep Extension',    'Long Head',    'cable',      'false', 'intermediate', 'false'),
   ('Overhead Dumbbell Extension',        'Long Head',    'dumbbell',   'false', 'beginner',     'false'),
@@ -515,14 +514,14 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Dips (Tricep-Focused)',             'Medial Head',  'bodyweight', 'true',  'intermediate', 'false'),
   ('Diamond Push-Up',                   'Medial Head',  'bodyweight', 'false', 'beginner',     'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'triceps';
 
 -- QUADRICEPS
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Barbell Back Squat',       'Rectus Femoris',    'barbell',      'true',  'intermediate', 'false'),
   ('Barbell Front Squat',      'Rectus Femoris',    'barbell',      'true',  'advanced',     'false'),
   ('Smith Machine Squat',      'Rectus Femoris',    'smith_machine','true',  'beginner',     'false'),
@@ -535,14 +534,14 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Sissy Squat',              'Vastus Medialis',   'bodyweight',   'false', 'advanced',     'false'),
   ('Step-Up (Dumbbell)',       'Vastus Intermedius','dumbbell',     'true',  'beginner',     'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'quadriceps';
 
 -- HAMSTRINGS
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Lying Leg Curl Machine',          'Biceps Femoris', 'machine',    'false', 'beginner',     'true'),
   ('Seated Leg Curl Machine',         'Biceps Femoris', 'machine',    'false', 'beginner',     'true'),
   ('Romanian Deadlift (RDL)',         'Semitendinosus', 'barbell',    'true',  'intermediate', 'false'),
@@ -551,14 +550,14 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Cable Pull-Through',              'Semimembranosus','cable',      'false', 'beginner',     'false'),
   ('Glute Ham Raise (GHR)',           'Biceps Femoris', 'bodyweight', 'false', 'advanced',     'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'hamstrings';
 
 -- GLUTES
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Hip Thrust (Barbell)',      'Gluteus Maximus', 'barbell',    'true',  'intermediate', 'false'),
   ('Hip Thrust Machine',       'Gluteus Maximus', 'machine',    'true',  'beginner',     'true'),
   ('Cable Kickback',           'Gluteus Maximus', 'cable',      'false', 'beginner',     'false'),
@@ -567,14 +566,14 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Lateral Band Walk',        'Gluteus Medius',  'band',       'false', 'beginner',     'false'),
   ('Clamshell',                'Gluteus Minimus', 'band',       'false', 'beginner',     'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'glutes';
 
 -- CALVES
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Standing Calf Raise (Machine)',  'Gastrocnemius', 'machine',    'false', 'beginner',     'true'),
   ('Standing Calf Raise (Barbell)',  'Gastrocnemius', 'barbell',    'false', 'intermediate', 'false'),
   ('Donkey Calf Raise',             'Gastrocnemius', 'machine',    'false', 'intermediate', 'true'),
@@ -582,14 +581,14 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Seated Calf Raise',             'Soleus',        'machine',    'false', 'beginner',     'true'),
   ('Tibialis Raise',                'Soleus',        'bodyweight', 'false', 'beginner',     'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'calves';
 
 -- TRAPS
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Barbell Shrug',       'Upper Traps', 'barbell',  'false', 'beginner',     'false'),
   ('Dumbbell Shrug',      'Upper Traps', 'dumbbell', 'false', 'beginner',     'false'),
   ('Cable Shrug',         'Upper Traps', 'cable',    'false', 'beginner',     'false'),
@@ -597,14 +596,14 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Rack Pull',           'Upper Traps', 'barbell',  'true',  'intermediate', 'false'),
   ('Prone Y-Raise',       'Lower Traps', 'dumbbell', 'false', 'beginner',     'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'traps';
 
 -- CORE
 INSERT INTO exercises (name, primary_group_id, primary_region_id, equipment, is_compound, difficulty, prompt_machine_brand)
 SELECT v.name, g.id, r.id, v.eq, v.cmp::boolean, v.diff, v.brand::boolean
 FROM exercise_muscle_groups g
-JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
-(VALUES
+CROSS JOIN (VALUES
   ('Cable Crunch',              'Rectus Abdominis',    'cable',      'false', 'beginner',     'false'),
   ('Hanging Leg Raise',         'Rectus Abdominis',    'bodyweight', 'false', 'intermediate', 'false'),
   ('Ab Crunch Machine',         'Rectus Abdominis',    'machine',    'false', 'beginner',     'true'),
@@ -615,4 +614,5 @@ JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region,
   ('Russian Twist',             'Obliques',            'bodyweight', 'false', 'beginner',     'false'),
   ('Side Plank',                'Obliques',            'bodyweight', 'false', 'beginner',     'false')
 ) AS v(name, region, eq, cmp, diff, brand)
+JOIN exercise_muscle_regions r ON r.group_id = g.id AND r.name = v.region
 WHERE g.name = 'core';
