@@ -56,12 +56,13 @@ const CSS = `
     gap: 0.5rem;
   }
 
-  /* ── Grid: 3 equal columns, grows to fill ── */
+  /* ── Grid: 3 equal columns — takes ~75% of remaining height ── */
   .db-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 0.75rem;
-    flex: 1;
+    flex: 3;
+    min-height: 0;
   }
   @media (max-width: 900px) { .db-grid { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 580px) { .db-grid { grid-template-columns: 1fr; } }
@@ -185,8 +186,14 @@ const CSS = `
   }
   .db-macro-dim { color: var(--text-3); }
 
-  /* Nutrition full-width panel */
-  .db-nutrition { flex-shrink: 0; }
+  /* Nutrition full-width panel — takes ~25% of remaining height */
+  .db-nutrition { flex: 1; min-height: 0; }
+
+  /* Bigger macro bars to fill the extra nutrition panel space */
+  .db-macro { gap: 0.65rem; margin-bottom: 0.25rem; }
+  .db-macro-track { height: 8px; }
+  .db-macro-label { font-size: 0.65rem; }
+  .db-macro-val { font-size: 0.8rem; }
 `;
 
 // ─── Radial Gauge ─────────────────────────────────────────────────────────────
@@ -643,9 +650,10 @@ export default function Dashboard() {
           {todayTargets ? (
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-              gap: "0.7rem",
-              marginTop: "1.1rem",
+              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+              gap: "0.9rem",
+              marginTop: "1rem",
+              flex: 1,
             }}>
               <MacroBar label="CALORIES" unit=" kcal" color="var(--accent-3)"
                 value={calLogged} max={todayTargets.calories} />
