@@ -32,31 +32,23 @@ const DAY_LABEL = { training: "TRAINING DAY", rest: "REST DAY", high: "HIGH DAY"
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const CSS = `
-  /* ── Page wrapper — fills viewport below header ── */
+  /* ── Page wrapper ── */
   .db-wrap {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.75rem;
     min-height: calc(100vh - 80px);
     padding-bottom: 1.5rem;
     box-sizing: border-box;
   }
 
-  /* ── Scanlines ── */
-  .db-scanline {
-    position: fixed; inset: 0; z-index: 9998; pointer-events: none;
-    background: repeating-linear-gradient(
-      0deg, transparent, transparent 3px,
-      rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px
-    );
-  }
-
   /* ── Mission header ── */
   .db-header {
-    background: #0e0006;
-    border: 1px solid #5a0a1e;
-    border-left: 4px solid #dc143c;
-    padding: 0.85rem 1.4rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    border-left: 3px solid var(--accent-3);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.4rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -68,7 +60,7 @@ const CSS = `
   .db-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 0.6rem;
+    gap: 0.75rem;
     flex: 1;
   }
   @media (max-width: 900px) { .db-grid { grid-template-columns: 1fr 1fr; } }
@@ -76,8 +68,9 @@ const CSS = `
 
   /* ── Panel base ── */
   .db-panel {
-    background: #0c0004;
-    border: 1px solid #5a0a1e;
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius-md);
     padding: 1.4rem;
     position: relative;
     overflow: hidden;
@@ -85,95 +78,88 @@ const CSS = `
     display: flex;
     flex-direction: column;
     outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: border-color 160ms ease, box-shadow 260ms ease, transform 160ms ease;
   }
   .db-panel:hover, .db-panel:focus-visible {
-    border-color: #dc143c;
-    box-shadow: 0 0 28px rgba(220,20,60,0.28), inset 0 0 24px rgba(180,0,30,0.08);
+    border-color: var(--line-2);
+    box-shadow: 0 0 0 1px rgba(222,41,82,0.18), 0 0 20px rgba(222,41,82,0.14), 0 14px 30px rgba(0,0,0,0.45);
+    transform: translateY(-1px);
   }
-  .db-panel:focus-visible { outline: 1px solid #aa0020; }
+  .db-panel:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; }
 
   /* Corner accent */
   .db-panel::before {
     content: '';
     position: absolute;
     top: 0; left: 0;
-    width: 24px; height: 24px;
-    border-top: 2px solid #dc143c;
-    border-left: 2px solid #dc143c;
-    opacity: 0.5;
-    transition: opacity 0.2s;
+    width: 20px; height: 20px;
+    border-top: 2px solid var(--accent-2);
+    border-left: 2px solid var(--accent-2);
+    border-radius: var(--radius-md) 0 0 0;
+    opacity: 0.4;
+    transition: opacity 160ms;
   }
-  .db-panel:hover::before { opacity: 1; }
-
-  /* Glow pulse */
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes db-pulse {
-      0%,100% { box-shadow: 0 0 6px rgba(180,0,30,0.15); }
-      50%      { box-shadow: 0 0 18px rgba(220,20,60,0.30); }
-    }
-    .db-panel { animation: db-pulse 5s ease-in-out infinite; }
-    .db-panel:hover { animation: none; }
-  }
+  .db-panel:hover::before { opacity: 0.9; }
 
   /* Nav hint */
   .db-nav-hint {
     position: absolute; bottom: 0.75rem; right: 1rem;
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-display);
     font-size: 0.58rem; letter-spacing: 0.12em;
     color: transparent;
-    transition: color 0.2s;
+    transition: color 160ms;
     text-transform: uppercase;
   }
   .db-panel:hover .db-nav-hint,
-  .db-panel:focus-visible .db-nav-hint { color: #882233; }
+  .db-panel:focus-visible .db-nav-hint { color: var(--text-3); }
 
-  /* MFD label */
+  /* MFD section label */
   .db-mfd {
-    font-family: 'Courier New', monospace;
-    font-size: 0.65rem; letter-spacing: 0.16em; text-transform: uppercase;
-    color: #aa2233;
+    font-family: var(--font-display);
+    font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent-3);
     display: flex; align-items: center; gap: 0.5rem;
     margin-bottom: 1.1rem;
   }
   .db-mfd::after {
     content: ''; flex: 1; height: 1px;
-    background: linear-gradient(to right, #880020, transparent);
+    background: linear-gradient(to right, var(--accent-1), transparent);
   }
 
-  /* Big readout */
+  /* Big readout number */
   .db-bignum {
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-display);
     font-size: 2.4rem; font-weight: 700; line-height: 1;
-    color: #ff2244;
+    color: var(--text-1);
   }
 
   /* Divider */
-  .db-hr { border: none; border-top: 1px solid #2e0010; margin: 1rem 0; }
+  .db-hr { border: none; border-top: 1px solid var(--line-1); margin: 1rem 0; }
 
   /* Badges */
   .db-badge {
     display: inline-flex; align-items: center; gap: 0.3rem;
-    font-family: 'Courier New', monospace;
-    font-size: 0.7rem; letter-spacing: 0.07em;
-    padding: 0.22rem 0.6rem; border: 1px solid;
+    font-family: var(--font-display);
+    font-size: 0.68rem; letter-spacing: 0.07em;
+    padding: 0.24rem 0.65rem; border: 1px solid;
+    border-radius: 6px;
     text-transform: uppercase;
   }
-  .db-badge-training { color: #ff3355; border-color: #880020; background: #1a0008; }
-  .db-badge-rest     { color: #4499dd; border-color: #1a3355; background: #060d16; }
-  .db-badge-high     { color: #ffaa00; border-color: #553300; background: #140d00; }
-  .db-badge-ok       { color: #00dd66; border-color: #006633; background: #001a0d; }
-  .db-badge-warn     { color: #ff8800; border-color: #664400; background: #180e00; }
+  .db-badge-training { color: var(--accent-3); border-color: var(--accent-1); background: rgba(138,15,46,0.18); }
+  .db-badge-rest     { color: #60a5fa;          border-color: #1e3a5f;         background: rgba(30,58,95,0.25); }
+  .db-badge-high     { color: #fbbf24;          border-color: #78450f;         background: rgba(120,69,15,0.2); }
+  .db-badge-ok       { color: var(--ok);        border-color: #1a4a36;         background: rgba(26,74,54,0.25); }
+  .db-badge-warn     { color: var(--warn);      border-color: #5a3a00;         background: rgba(90,58,0,0.2); }
 
-  /* Stat row */
-  .db-stat { display: flex; flex-direction: column; gap: 0.15rem; }
+  /* Stat pair */
+  .db-stat { display: flex; flex-direction: column; gap: 0.18rem; }
   .db-stat-label {
-    font-family: 'Courier New', monospace;
-    font-size: 0.6rem; letter-spacing: 0.12em; color: #882233; text-transform: uppercase;
+    font-family: var(--font-display);
+    font-size: 0.58rem; letter-spacing: 0.14em; color: var(--text-3); text-transform: uppercase;
   }
   .db-stat-val {
-    font-family: 'Courier New', monospace;
-    font-size: 1.15rem; color: #ff4466;
+    font-family: var(--font-display);
+    font-size: 1.15rem; color: var(--text-1);
   }
 
   /* Macro bar */
@@ -182,22 +168,22 @@ const CSS = `
     gap: 0.5rem; align-items: center;
   }
   .db-macro-label {
-    font-family: 'Courier New', monospace;
-    font-size: 0.63rem; letter-spacing: 0.1em; color: #993344;
+    font-family: var(--font-display);
+    font-size: 0.6rem; letter-spacing: 0.1em; color: var(--text-3);
     text-transform: uppercase;
   }
   .db-macro-track {
-    height: 6px; background: #1e0008; border-radius: 3px; overflow: hidden;
+    height: 5px; background: var(--line-1); border-radius: 3px; overflow: hidden;
   }
   .db-macro-fill {
     height: 100%; border-radius: 3px;
     transition: width 0.9s cubic-bezier(0.4,0,0.2,1);
   }
   .db-macro-val {
-    font-family: 'Courier New', monospace;
-    font-size: 0.73rem; color: #ff4466; text-align: right; white-space: nowrap;
+    font-family: var(--font-display);
+    font-size: 0.72rem; color: var(--text-2); text-align: right; white-space: nowrap;
   }
-  .db-macro-dim { color: #442233; }
+  .db-macro-dim { color: var(--text-3); }
 
   /* Nutrition full-width panel */
   .db-nutrition { flex-shrink: 0; }
@@ -212,29 +198,29 @@ function RadialGauge({ value, max, size = 130 }) {
   const cx       = size / 2;
   const cy       = size / 2;
   const complete = pct >= 1;
-  const color    = complete ? "#00dd66" : "#dc143c";
+  const color    = complete ? "var(--ok)" : "var(--accent-3)";
 
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)", display: "block" }}>
         {/* Track */}
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#280010" strokeWidth={sw} />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--line-1)" strokeWidth={sw} />
         {/* Fill */}
         <circle
           cx={cx} cy={cy} r={r} fill="none"
           stroke={color} strokeWidth={sw}
           strokeDasharray={`${pct * circ} ${circ}`}
           strokeLinecap="round"
-          style={{ transition: "stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1), stroke 0.4s" }}
+          style={{ filter: "drop-shadow(0 0 6px var(--accent-2))", transition: "stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1), stroke 0.4s" }}
         />
-        {/* Subtle tick marks */}
+        {/* Tick marks */}
         {[0, 0.25, 0.5, 0.75].map((p) => {
           const angle = p * 2 * Math.PI - Math.PI / 2;
           const x1 = cx + (r - sw / 2 - 2) * Math.cos(angle);
           const y1 = cy + (r - sw / 2 - 2) * Math.sin(angle);
           const x2 = cx + (r + sw / 2 + 2) * Math.cos(angle);
           const y2 = cy + (r + sw / 2 + 2) * Math.sin(angle);
-          return <line key={p} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#440018" strokeWidth={1} />;
+          return <line key={p} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--line-2)" strokeWidth={1.5} />;
         })}
       </svg>
       <div style={{
@@ -243,13 +229,13 @@ function RadialGauge({ value, max, size = 130 }) {
         gap: "0.1rem",
       }}>
         <span style={{
-          fontFamily: "'Courier New', monospace",
+          fontFamily: "var(--font-display)",
           fontSize: size * 0.22, fontWeight: 700, lineHeight: 1,
-          color: complete ? "#00dd66" : "#ff2244",
+          color: complete ? "var(--ok)" : "var(--text-1)",
         }}>
           {Math.round(pct * 100)}%
         </span>
-        <span style={{ fontFamily: "monospace", fontSize: size * 0.1, color: "#882233" }}>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: size * 0.1, color: "var(--text-3)" }}>
           STEPS
         </span>
       </div>
@@ -285,10 +271,10 @@ function CockpitLoader() {
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", height: "60vh", gap: "0.6rem",
     }}>
-      <div style={{ fontFamily: "monospace", fontSize: "0.8rem", color: "#882233", letterSpacing: "0.2em" }}>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: "0.8rem", color: "var(--accent-3)", letterSpacing: "0.2em" }}>
         INITIALISING SYSTEMS
       </div>
-      <div style={{ fontFamily: "monospace", fontSize: "0.6rem", color: "#4a1520", letterSpacing: "0.15em" }}>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: "0.6rem", color: "var(--text-3)", letterSpacing: "0.15em" }}>
         LOADING PILOT DATA...
       </div>
     </div>
@@ -438,19 +424,19 @@ export default function Dashboard() {
         <div className="db-header">
           <div>
             <div style={{
-              fontFamily: "'Courier New', monospace",
-              fontSize: "0.58rem", letterSpacing: "0.2em", color: "#882233", marginBottom: "0.3rem",
+              fontFamily: "var(--font-display)",
+              fontSize: "0.58rem", letterSpacing: "0.2em", color: "var(--text-3)", marginBottom: "0.3rem",
             }}>
               PHYSIQUE PILOT // COMMAND INTERFACE
             </div>
-            <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "#f5e0e4" }}>
-              {greeting}, <span style={{ color: "#ff2244" }}>{firstName}.</span>
-              {" "}<span style={{ color: "#ff2244" }}>{dtIcon} {dtLabel}</span>
+            <div style={{ fontSize: "1.15rem", fontWeight: 600, color: "var(--text-1)", fontFamily: "var(--font-display)" }}>
+              {greeting}, <span style={{ color: "var(--accent-3)" }}>{firstName}.</span>
+              {" "}<span style={{ color: "var(--accent-3)" }}>{dtIcon} {dtLabel}</span>
             </div>
           </div>
           <div style={{
-            fontFamily: "'Courier New', monospace", fontSize: "0.8rem",
-            color: "#6a2030", letterSpacing: "0.1em",
+            fontFamily: "var(--font-display)", fontSize: "0.78rem",
+            color: "var(--text-3)", letterSpacing: "0.12em",
           }}>
             {fmtDisplayDate()}
           </div>
@@ -471,13 +457,13 @@ export default function Dashboard() {
                 <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   {trend !== null && (
                     <span style={{
-                      fontFamily: "monospace", fontSize: "0.9rem",
-                      color: trend > 0.05 ? "#ff4444" : trend < -0.05 ? "#44aadd" : "#44cc88",
+                      fontFamily: "var(--font-display)", fontSize: "0.9rem",
+                      color: trend > 0.05 ? "var(--bad)" : trend < -0.05 ? "#60a5fa" : "var(--ok)",
                     }}>
                       {trend > 0.05 ? "↑" : trend < -0.05 ? "↓" : "→"} {dispW(Math.abs(trend))}
                     </span>
                   )}
-                  <span style={{ fontSize: "0.7rem", color: "#662233" }}>vs 7-day avg</span>
+                  <span style={{ fontSize: "0.7rem", color: "var(--text-3)", fontFamily: "var(--font-display)" }}>vs 7-day avg</span>
                 </div>
 
                 <div style={{ marginTop: "0.6rem" }}>
@@ -488,8 +474,8 @@ export default function Dashboard() {
               </>
             ) : (
               <>
-                <div className="db-bignum" style={{ color: "#3d1020" }}>—</div>
-                <div style={{ fontSize: "0.82rem", color: "#6a2030", marginTop: "0.5rem" }}>
+                <div className="db-bignum" style={{ color: "var(--text-3)" }}>—</div>
+                <div style={{ fontSize: "0.82rem", color: "var(--text-3)", marginTop: "0.5rem", fontFamily: "var(--font-display)" }}>
                   No data yet. Tap to log first weight.
                 </div>
               </>
@@ -512,7 +498,7 @@ export default function Dashboard() {
                   <span className="db-stat-label">DISTANCE TO GOAL</span>
                   <span className="db-stat-val">
                     {dispW(Math.abs(Number(latest.weight_kg) - Number(profile.goal_weight_kg)))}
-                    <span style={{ fontFamily: "monospace", fontSize: "0.65rem", color: "#662233", marginLeft: "0.4rem" }}>
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: "var(--text-3)", marginLeft: "0.4rem" }}>
                       {Number(latest.weight_kg) > Number(profile.goal_weight_kg) ? "to lose" : "to gain"}
                     </span>
                   </span>
@@ -573,7 +559,7 @@ export default function Dashboard() {
                 )}
               </div>
             ) : (
-              <span style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#551a28" }}>
+              <span style={{ fontFamily: "var(--font-display)", fontSize: "0.75rem", color: "var(--text-3)" }}>
                 NO CARDIO LOGGED TODAY
               </span>
             )}
@@ -595,7 +581,7 @@ export default function Dashboard() {
               <div style={{ marginTop: "0.3rem" }}>
                 {trainSession
                   ? <span className="db-badge db-badge-ok">✓ SESSION LOGGED</span>
-                  : <span style={{ fontFamily: "monospace", fontSize: "0.78rem", color: "#882233" }}>
+                  : <span style={{ fontFamily: "var(--font-display)", fontSize: "0.78rem", color: todayDayType === "training" ? "var(--warn)" : "var(--text-3)" }}>
                       {todayDayType === "training" ? "SESSION PENDING" : "NO SESSION REQUIRED"}
                     </span>
                 }
@@ -638,13 +624,13 @@ export default function Dashboard() {
           }}>
             <div className="db-mfd" style={{ margin: 0, flex: 1, minWidth: 160 }}>◈ NUTRITION SYSTEMS</div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontFamily: "monospace", fontSize: "0.65rem", color: "#882233", letterSpacing: "0.1em" }}>
+              <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: "var(--text-3)", letterSpacing: "0.1em" }}>
                 {dtLabel} TARGETS
               </span>
               {calRemaining !== null && (
                 <span style={{
-                  fontFamily: "monospace", fontSize: "0.65rem", letterSpacing: "0.08em",
-                  color: calRemaining >= 0 ? "#ff8844" : "#ff4444",
+                  fontFamily: "var(--font-display)", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.08em",
+                  color: calRemaining >= 0 ? "var(--text-2)" : "var(--bad)",
                 }}>
                   {calRemaining >= 0
                     ? `${calRemaining} KCAL REMAINING`
@@ -661,17 +647,17 @@ export default function Dashboard() {
               gap: "0.7rem",
               marginTop: "1.1rem",
             }}>
-              <MacroBar label="CALORIES" unit=" kcal" color="#dc143c"
+              <MacroBar label="CALORIES" unit=" kcal" color="var(--accent-3)"
                 value={calLogged} max={todayTargets.calories} />
-              <MacroBar label="PROTEIN"  unit="g"    color="#c01040"
+              <MacroBar label="PROTEIN"  unit="g"    color="var(--accent-2)"
                 value={Math.round(nutLogged.protein_g)} max={todayTargets.protein_g} />
-              <MacroBar label="CARBS"    unit="g"    color="#a00f30"
+              <MacroBar label="CARBS"    unit="g"    color="#4d8eff"
                 value={Math.round(nutLogged.carbs_g)}   max={todayTargets.carbs_g} />
-              <MacroBar label="FATS"     unit="g"    color="#880d28"
+              <MacroBar label="FATS"     unit="g"    color="#f59e0b"
                 value={Math.round(nutLogged.fats_g)}    max={todayTargets.fats_g} />
             </div>
           ) : (
-            <div style={{ fontFamily: "monospace", fontSize: "0.85rem", color: "#662233", marginTop: "0.75rem" }}>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: "0.85rem", color: "var(--text-3)", marginTop: "0.75rem" }}>
               NUTRITION DATA UNAVAILABLE — TAP TO CONFIGURE
             </div>
           )}
