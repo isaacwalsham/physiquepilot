@@ -105,14 +105,22 @@ $$;
 -- The steps are: drop indexes → drop extension → recreate in extensions
 -- schema → recreate indexes.
 
+-- Drop ALL indexes that depend on gin_trgm_ops (foods + user_foods)
 DROP INDEX IF EXISTS public.idx_foods_name_trgm;
 DROP INDEX IF EXISTS public.idx_foods_brand_trgm;
+DROP INDEX IF EXISTS public.foods_name_trgm_idx;
+DROP INDEX IF EXISTS public.foods_brand_trgm_idx;
+DROP INDEX IF EXISTS public.user_foods_name_trgm_idx;
+DROP INDEX IF EXISTS public.user_foods_brand_trgm_idx;
 
-DROP EXTENSION IF EXISTS pg_trgm;
+DROP EXTENSION IF EXISTS pg_trgm CASCADE;
 CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA extensions;
 
-CREATE INDEX IF NOT EXISTS idx_foods_name_trgm  ON public.foods USING gin (name  gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_foods_brand_trgm ON public.foods USING gin (brand gin_trgm_ops);
+-- Recreate all GIN indexes
+CREATE INDEX IF NOT EXISTS idx_foods_name_trgm       ON public.foods      USING gin (name  gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_foods_brand_trgm      ON public.foods      USING gin (brand gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS user_foods_name_trgm_idx  ON public.user_foods USING gin (name  gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS user_foods_brand_trgm_idx ON public.user_foods USING gin (brand gin_trgm_ops);
 
 
 -- ── WARN 3: LEAKED PASSWORD PROTECTION DISABLED ───────────────────────────
