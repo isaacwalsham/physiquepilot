@@ -3934,6 +3934,201 @@ app.post("/api/nutrition/init", authenticate, async (req, res) => {
   });
 });
 
+// ─── Meal Plan: helper functions ─────────────────────────────────────────────
+
+function getWeekDates(weekStart) {
+  const dates = [];
+  const start = new Date(weekStart + "T00:00:00Z");
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+  return dates;
+}
+
+function computeDayTypeForPlan(profile, dateStr) {
+  const date = new Date(dateStr + "T00:00:00Z");
+
+  // High day schedule check
+  const hds = profile?.high_day_schedule;
+  if (hds && hds !== "none") {
+    if (hds === "fixed_days" && Array.isArray(profile.high_day_weekdays)) {
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      if (profile.high_day_weekdays.includes(dayNames[date.getUTCDay()])) return "high";
+    } else if (hds === "interval" && profile.high_day_interval && profile.high_day_start_date) {
+      const start = new Date(profile.high_day_start_date + "T00:00:00Z");
+      const diffDays = Math.floor((date - start) / 86400000);
+      if (diffDays >= 0 && diffDays % Number(profile.high_day_interval) === 0) return "high";
+    }
+  }
+
+  // Training day check
+  if (profile?.split_mode === "fixed") {
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayName = dayNames[date.getUTCDay()];
+    const trainingDays = Array.isArray(profile.training_days) ? profile.training_days : [];
+    return trainingDays.includes(dayName) ? "training" : "rest";
+  }
+
+  if (profile?.split_mode === "rolling" && profile.rolling_start_date && profile.training_days_per_week) {
+    const start = new Date(profile.rolling_start_date + "T00:00:00Z");
+    const diffDays = Math.floor((date - start) / 86400000);
+    const posInCycle = ((diffDays % 7) + 7) % 7;
+    return posInCycle < Number(profile.training_days_per_week) ? "training" : "rest";
+  }
+
+  return "rest";
+}
+
+// ─── Meal Plan: GET saved plan for a week ────────────────────────────────────
+app.get("/api/nutrition/meal-plan", authenticate, async (req, res) => {
+  const user_id = req.userId;
+  const { week_start } = req.query;
+  if (!week_start) return res.status(400).json({ ok: false, error: "week_start required" });
+
+  const { data, error } = await supabase
+    .from("nutrition_meal_plans")
+    .select("plan_json, created_at, updated_at")
+    .eq("user_id", user_id)
+    .eq("week_start", week_start)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  res.json({ ok: true, plan: data?.plan_json || null, updated_at: data?.updated_at || null });
+});
+
+// ─── Meal Plan: Generate 7-day AI plan ───────────────────────────────────────
+app.post("/api/nutrition/meal-plan/generate", authenticate, nutritionLimiter, async (req, res) => {
+  const user_id = req.userId;
+  const { week_start } = req.body;
+  if (!week_start) return res.status(400).json({ ok: false, error: "week_start required (YYYY-MM-DD, Monday)" });
+
+  try {
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select(
+        "goal_type, dietary_preference, food_allergies, dislikes, dietary_additional, " +
+        "meals_per_day, training_time_hour, split_mode, training_days, training_days_per_week, " +
+        "rolling_start_date, high_day_schedule, high_day_weekdays, high_day_interval, high_day_start_date, " +
+        "experience_level, sex, current_weight_kg"
+      )
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    if (profileErr || !profile) return res.status(400).json({ ok: false, error: profileErr?.message || "Profile not found" });
+
+    const { data: targets } = await supabase
+      .from("nutrition_day_targets")
+      .select("day_type, calories, protein_g, carbs_g, fats_g")
+      .eq("user_id", user_id);
+
+    const targetsByType = {};
+    for (const t of targets || []) targetsByType[t.day_type] = t;
+
+    const weekDates = getWeekDates(week_start);
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const fullDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+    const scheduleLines = weekDates.map((dateStr) => {
+      const dt = computeDayTypeForPlan(profile, dateStr);
+      const d = new Date(dateStr + "T00:00:00Z");
+      const dayName = fullDayNames[d.getUTCDay()];
+      const t = targetsByType[dt];
+      const tStr = t ? ` — ${t.calories} kcal | P${t.protein_g}g C${t.carbs_g}g F${t.fats_g}g` : "";
+      return `  ${dayName} ${dateStr} (${dt} day)${tStr}`;
+    }).join("\n");
+
+    const trainingHour = Number(profile.training_time_hour ?? 17);
+    const trainingTimeStr = `${String(trainingHour).padStart(2, "0")}:00`;
+    const mealsPerDay = Number(profile.meals_per_day ?? 4);
+    const goalLabel = profile.goal_type === "lose" ? "fat loss" : profile.goal_type === "gain" ? "muscle gain (bulking)" : "maintenance";
+    const dietLabel = profile.dietary_preference || "omnivore";
+    const allergies = String(profile.food_allergies || "").trim() || "none";
+    const dislikes = String(profile.dislikes || "").trim() || "none";
+    const additionalNotes = String(profile.dietary_additional || "").trim();
+
+    const systemPrompt = `You are an elite sports nutritionist specialising in competitive bodybuilding. Generate practical, realistic meal plans with real foods and accurate macros. Always output valid JSON only — no markdown, no extra text.`;
+
+    const userPrompt = `Generate a complete 7-day meal plan for an athlete with these details:
+
+Goal: ${goalLabel}
+Dietary preference: ${dietLabel}
+Food allergies (hard exclude): ${allergies}
+Dislikes (avoid): ${dislikes}
+${additionalNotes ? `Additional notes: ${additionalNotes}` : ""}
+Meals per day: ${mealsPerDay}
+Typical training time: ${trainingTimeStr}
+
+Weekly schedule with macro targets:
+${scheduleLines}
+
+CARB TIMING RULES (follow strictly for training days):
+1. Pre-workout meal (2-3 hrs before training): HIGH carbs (35-55g), moderate protein (25-35g), LOW fat (<10g). Label timing_label: "pre_workout"
+2. Post-workout meal (within 60 min after training): HIGH protein (40-55g), HIGH carbs (50-70g), VERY low fat (<8g). Label timing_label: "post_workout"
+3. Meals far from training window: Can be higher in fat. Keep protein spread evenly.
+4. Protein: Distribute evenly across all ${mealsPerDay} meals (aim for equal portions).
+5. Rest days: Replace workout-specific meals with regular meals — higher fat, moderate carbs.
+6. High days: Prioritise complex carbs throughout. Keep all meals carb-focused.
+7. Use realistic UK and international foods. Include specific brands where helpful (e.g. "Quaker Oats", "Tesco Greek Yoghurt").
+8. Hit the macro targets for each day within ±5% tolerance.
+
+Output format (JSON only):
+{
+  "days": [
+    {
+      "date": "YYYY-MM-DD",
+      "day_type": "training|rest|high",
+      "meals": [
+        {
+          "name": "Breakfast",
+          "timing_label": null,
+          "approximate_time": "08:00",
+          "foods": [
+            {"name": "Rolled Oats", "amount": "80g"},
+            {"name": "Whole milk", "amount": "200ml"},
+            {"name": "Whey protein powder", "amount": "30g"}
+          ],
+          "estimated": {"calories": 520, "protein_g": 38, "carbs_g": 62, "fat_g": 11}
+        }
+      ],
+      "totals": {"calories": 2100, "protein_g": 172, "carbs_g": 198, "fat_g": 58}
+    }
+  ]
+}`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.6,
+      max_tokens: 4000,
+      response_format: { type: "json_object" }
+    });
+
+    const rawContent = completion.choices[0]?.message?.content || "{}";
+    const planJson = JSON.parse(rawContent);
+
+    if (!Array.isArray(planJson?.days) || planJson.days.length === 0) {
+      return res.status(500).json({ ok: false, error: "AI returned an invalid plan structure. Please try again." });
+    }
+
+    await supabase
+      .from("nutrition_meal_plans")
+      .upsert(
+        { user_id, week_start, plan_json: planJson, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,week_start" }
+      );
+
+    return res.json({ ok: true, plan: planJson });
+  } catch (e) {
+    console.error("meal-plan/generate error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
