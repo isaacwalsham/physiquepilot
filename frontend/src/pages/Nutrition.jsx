@@ -740,10 +740,16 @@ export default function Nutrition() {
     return base;
   };
 
+  const getAuthHeaders = async () => {
+    const { data: s } = await supabase.auth.getSession();
+    const t = s?.session?.access_token;
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  };
+
   const loadDaySummary = async (uid, dateIso) => {
     setDayNutrientsLoading(true);
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`);
+      const r = await fetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`, { headers: await getAuthHeaders() });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load day summary.");
 
@@ -799,7 +805,7 @@ export default function Nutrition() {
   };
 
   const loadMicroTargets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`);
+    const r = await fetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`, { headers: await getAuthHeaders() });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load micronutrient targets.");
 
@@ -814,7 +820,7 @@ export default function Nutrition() {
   };
 
   const loadMealPresets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/meal-presets?user_id=${encodeURIComponent(uid)}`);
+    const r = await fetch(`${API_URL}/api/nutrition/meal-presets?user_id=${encodeURIComponent(uid)}`, { headers: await getAuthHeaders() });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load meal presets.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -838,7 +844,7 @@ export default function Nutrition() {
   };
 
   const loadSavedMeals = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/saved-meals?user_id=${encodeURIComponent(uid)}`);
+    const r = await fetch(`${API_URL}/api/nutrition/saved-meals?user_id=${encodeURIComponent(uid)}`, { headers: await getAuthHeaders() });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load saved meals.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -897,7 +903,7 @@ export default function Nutrition() {
         .filter((s) => s.label);
       const r = await fetch(`${API_URL}/api/nutrition/meal-presets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({
           user_id: userId,
           preset_id: createNew ? null : activePresetId || null,
@@ -939,7 +945,8 @@ export default function Nutrition() {
     setError("");
     try {
       const r = await fetch(`${API_URL}/api/nutrition/meal-presets/${encodeURIComponent(activePresetId)}?user_id=${encodeURIComponent(userId)}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: await getAuthHeaders()
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to delete meal preset.");
@@ -977,7 +984,7 @@ export default function Nutrition() {
       const mealName = String(savedMealName || "").trim() || defaultName;
       const r = await fetch(`${API_URL}/api/nutrition/saved-meals`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({
           user_id: userId,
           name: mealName,
@@ -1081,7 +1088,8 @@ export default function Nutrition() {
     setError("");
     try {
       const r = await fetch(`${API_URL}/api/nutrition/saved-meals/${encodeURIComponent(savedMealSelection)}?user_id=${encodeURIComponent(userId)}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: await getAuthHeaders()
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to delete saved meal.");
@@ -1763,7 +1771,7 @@ export default function Nutrition() {
       const dateIso = todayIso();
       const r = await fetch(`${API_URL}/api/nutrition/log`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({
           user_id: userId,
           log_date: dateIso,
@@ -1804,7 +1812,7 @@ export default function Nutrition() {
     try {
       const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({
           user_id: userId,
           mode: nextMode,
@@ -1836,7 +1844,7 @@ export default function Nutrition() {
 
       const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({
           user_id: userId,
           mode: "custom",
@@ -1879,10 +1887,8 @@ export default function Nutrition() {
     setMealPlanLoading(true);
     setMealPlanError("");
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
       const r = await fetch(`${API_URL}/api/nutrition/meal-plan?week_start=${encodeURIComponent(weekStart)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: await getAuthHeaders()
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.error || "Failed to load meal plan.");
@@ -1899,14 +1905,9 @@ export default function Nutrition() {
     setMealPlanGenerating(true);
     setMealPlanError("");
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
       const r = await fetch(`${API_URL}/api/nutrition/meal-plan/generate`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({ week_start: currentWeekStart })
       });
       const j = await r.json().catch(() => ({}));
@@ -2056,7 +2057,7 @@ export default function Nutrition() {
     .nt-target-ro-label { font-size:0.78rem; color:var(--text-3); }
     .nt-target-ro-val { font-family:var(--font-display); font-size:0.82rem; color:var(--text-1); letter-spacing:0.03em; }
     .nt-target-ro-unit { font-size:0.65rem; color:var(--text-3); margin-left:0.18rem; }
-    .nt-log-layout { display:grid; grid-template-columns:1fr 300px; gap:0.7rem; align-items:start; }
+    .nt-log-layout { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; align-items:start; }
     .nt-log-main { display:grid; gap:0.6rem; }
     .nt-sidebar { display:grid; gap:0.6rem; position:sticky; top:1rem; }
     @media (max-width:900px) { .nt-log-layout { grid-template-columns:1fr; } .nt-sidebar { position:static; } .nt-targets-grid { grid-template-columns:1fr; } }
