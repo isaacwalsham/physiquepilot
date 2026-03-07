@@ -209,7 +209,8 @@ function RadialGauge({ value, max, size = 130 }) {
   const sw       = 10;
   const r        = (size - sw * 2) / 2;
   const circ     = 2 * Math.PI * r;
-  const cx = cy  = size / 2;
+  const cx       = size / 2;
+  const cy       = size / 2;
   const complete = pct >= 1;
   const color    = complete ? "#00dd66" : "#dc143c";
 
@@ -347,8 +348,8 @@ export default function Dashboard() {
 
       // Training session
       const { data: tSess } = await supabase
-        .from("training_sessions").select("log_date, is_rest_day")
-        .eq("user_id", user.id).eq("log_date", today).limit(1);
+        .from("training_sessions").select("id, session_date, is_rest_day")
+        .eq("user_id", user.id).eq("session_date", today).limit(1);
       setTrainSession(tSess?.length ? tSess[0] : null);
 
       // Nutrition targets
