@@ -150,6 +150,60 @@ export const SPLIT_TEMPLATES = {
   ],
 };
 
+// ─── Universal ordered split list (shown to all users regardless of level) ──
+export const ORDERED_SPLITS = [
+  {
+    id: 'fullbody_3', name: 'Full Body 3×/Week', type: 'fullbody',
+    days_per_week: 3, recommended: true,
+    description: 'Train every muscle group 3 times per week with a full rest day between each session. Perfect for learning movement patterns and building base strength.',
+    who: 'The most effective starting point for anyone — beginners build confidence, advanced lifters maintain frequency.',
+    days: [
+      { name:'Full Body A', muscle_focus:['chest','back','shoulders','quadriceps','hamstrings','core'], color:'#dc143c' },
+      { name:'Full Body B', muscle_focus:['chest','back','shoulders','quadriceps','hamstrings','core'], color:'#b5153c' },
+      { name:'Full Body C', muscle_focus:['chest','back','shoulders','quadriceps','hamstrings','core'], color:'#8a0f2e' },
+    ],
+  },
+  {
+    id: 'upper_lower_4', name: 'Upper / Lower (4 Day)', type: 'upper_lower',
+    days_per_week: 4, recommended: false,
+    description: 'Upper and lower body trained twice each per week. Excellent frequency with manageable session length.',
+    who: 'Great balance of frequency and volume. Works well at any experience level.',
+    days: [
+      { name:'Upper A', muscle_focus:['chest','back','shoulders','biceps','triceps'], color:'#dc143c' },
+      { name:'Lower A', muscle_focus:['quadriceps','hamstrings','glutes','calves'],   color:'#4d8eff' },
+      { name:'Upper B', muscle_focus:['chest','back','shoulders','biceps','triceps'], color:'#b5153c' },
+      { name:'Lower B', muscle_focus:['quadriceps','hamstrings','glutes','calves'],   color:'#2255bb' },
+    ],
+  },
+  {
+    id: 'ppl_6', name: 'Push / Pull / Legs (6 Day)', type: 'ppl',
+    days_per_week: 6, recommended: false,
+    description: 'Run the PPL cycle twice per week — each muscle group gets trained 2× weekly. High frequency, high volume.',
+    who: 'Best for those who want maximum muscle stimulus and can commit to 6 days per week.',
+    days: [
+      { name:'Push A', muscle_focus:['chest','shoulders','triceps'],              color:'#ff6633' },
+      { name:'Pull A', muscle_focus:['back','biceps','traps'],                    color:'#4d8eff' },
+      { name:'Legs A', muscle_focus:['quadriceps','hamstrings','glutes','calves'],color:'#22cc88' },
+      { name:'Push B', muscle_focus:['chest','shoulders','triceps'],              color:'#cc4422' },
+      { name:'Pull B', muscle_focus:['back','biceps','traps'],                    color:'#2255bb' },
+      { name:'Legs B', muscle_focus:['quadriceps','hamstrings','glutes','calves'],color:'#11aa66' },
+    ],
+  },
+  {
+    id: 'bro_5', name: 'Classic Bro Split (5 Day)', type: 'bro',
+    days_per_week: 5, recommended: false,
+    description: 'Each major muscle group gets its own dedicated session per week. Maximum volume per session.',
+    who: 'For those who have dialled in recovery, sleep and nutrition and want maximal per-session volume.',
+    days: [
+      { name:'Chest',     muscle_focus:['chest'],                                    color:'#dc143c' },
+      { name:'Back',      muscle_focus:['back','traps'],                             color:'#4d8eff' },
+      { name:'Shoulders', muscle_focus:['shoulders'],                               color:'#f59e0b' },
+      { name:'Arms',      muscle_focus:['biceps','triceps','forearms'],              color:'#22cc88' },
+      { name:'Legs',      muscle_focus:['quadriceps','hamstrings','glutes','calves'],color:'#bb33ff' },
+    ],
+  },
+];
+
 // ─── Build a 14-day schedule from an active program ─────────────────────────
 export function buildSchedule(program, programDays, numDays = 14) {
   if (!program || !programDays?.length) return [];

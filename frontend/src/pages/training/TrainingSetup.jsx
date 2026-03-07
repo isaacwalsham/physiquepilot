@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../../supabaseClient";
 import {
-  SPLIT_TEMPLATES, DAY_KEYS, DAY_SHORT,
+  ORDERED_SPLITS, DAY_KEYS, DAY_SHORT,
   suggestTrainingDays, autoAssignExercises,
   MUSCLE_COLORS, MUSCLE_DISPLAY, formatLocalDate,
 } from "./trainingUtils";
@@ -350,7 +350,7 @@ export default function TrainingSetup({ profile, onComplete }) {
   );
 
   // Step 1
-  const templates = SPLIT_TEMPLATES[experience] || [];
+  const templates = ORDERED_SPLITS;
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
 
   // Step 2
@@ -362,9 +362,8 @@ export default function TrainingSetup({ profile, onComplete }) {
   const [error, setError] = useState(null);
 
   // Resolve the actual selected template object
-  const activeTemplates = SPLIT_TEMPLATES[experience] || [];
   const selectedTemplate =
-    activeTemplates.find((t) => t.id === selectedTemplateId) || null;
+    ORDERED_SPLITS.find((t) => t.id === selectedTemplateId) || null;
 
   // ── navigation helpers ───────────────────────────────────────────────────
 
@@ -552,7 +551,7 @@ export default function TrainingSetup({ profile, onComplete }) {
   // ── Step 1 ───────────────────────────────────────────────────────────────
 
   function renderStep1() {
-    const tmpl = SPLIT_TEMPLATES[experience] || [];
+    const tmpl = ORDERED_SPLITS;
     return (
       <div className="ts-step">
         <h2 className="ts-title">Choose your training split</h2>
