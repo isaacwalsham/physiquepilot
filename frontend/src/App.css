@@ -216,9 +216,15 @@ a:focus-visible {
 .pp-sidebar-brand {
   font-family: var(--font-display);
   font-weight: 700;
+  font-size: 0.85rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
 
 .pp-logout-btn {

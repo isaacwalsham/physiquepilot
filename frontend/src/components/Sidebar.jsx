@@ -1,17 +1,57 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 
+// Single glyph used for every nav item (weight hexagon)
+const GLYPH = "⬡";
+
 const NAV_ITEMS = [
-  { to: "/app/dashboard",   label: "DASHBOARD",  glyph: "◈" },
-  { to: "/app/weight",      label: "WEIGHT",     glyph: "⬡" },
-  { to: "/app/nutrition",   label: "NUTRITION",  glyph: "◉" },
-  { to: "/app/training",    label: "TRAINING",   glyph: "⬟" },
-  { to: "/app/cardio-steps",label: "ACTIVITY",   glyph: "▲" },
-  { to: "/app/check-ins",   label: "CHECK-INS",  glyph: "◇" },
-  { to: "/app/coach",       label: "AI COACH",   glyph: "⬡" },
+  { to: "/app/dashboard",    label: "DASHBOARD"  },
+  { to: "/app/weight",       label: "WEIGHT"     },
+  { to: "/app/nutrition",    label: "NUTRITION"  },
+  { to: "/app/training",     label: "TRAINING"   },
+  { to: "/app/cardio-steps", label: "ACTIVITY"   },
+  { to: "/app/check-ins",    label: "CHECK-INS"  },
+  { to: "/app/coach",        label: "AI COACH"   },
 ];
 
-const SETTINGS_ITEM = { to: "/app/settings", label: "SETTINGS", glyph: "◈" };
+const SETTINGS_ITEM = { to: "/app/settings", label: "SETTINGS" };
+
+// Active tab → green pulsing dot. Inactive → dim hexagon glyph.
+function NavIndicator({ isActive }) {
+  if (isActive) {
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-block",
+          width: "7px",
+          height: "7px",
+          borderRadius: "50%",
+          background: "var(--ok)",
+          boxShadow: "0 0 8px var(--ok)",
+          flexShrink: 0,
+          animation: "pp-blink 1.4s step-start infinite",
+          marginRight: "0.7rem",
+          verticalAlign: "middle",
+        }}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        fontFamily: "var(--font-display)",
+        fontSize: "0.78rem",
+        opacity: 0.4,
+        marginRight: "0.65rem",
+        letterSpacing: 0,
+      }}
+    >
+      {GLYPH}
+    </span>
+  );
+}
 
 function Sidebar() {
   const navigate = useNavigate();
@@ -57,25 +97,18 @@ function Sidebar() {
 
       {/* ── Primary nav ── */}
       <nav className="pp-sidebar-nav" aria-label="Primary navigation">
-        {NAV_ITEMS.map(({ to, label, glyph }) => (
+        {NAV_ITEMS.map(({ to, label }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}
           >
-            <span
-              aria-hidden="true"
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: "0.8rem",
-                opacity: 0.7,
-                marginRight: "0.6rem",
-                letterSpacing: 0,
-              }}
-            >
-              {glyph}
-            </span>
-            {label}
+            {({ isActive }) => (
+              <>
+                <NavIndicator isActive={isActive} />
+                {label}
+              </>
+            )}
           </NavLink>
         ))}
 
@@ -112,59 +145,14 @@ function Sidebar() {
           to={SETTINGS_ITEM.to}
           className={({ isActive }) => `pp-nav-link${isActive ? " is-active" : ""}`}
         >
-          <span
-            aria-hidden="true"
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "0.8rem",
-              opacity: 0.7,
-              marginRight: "0.6rem",
-              letterSpacing: 0,
-            }}
-          >
-            {SETTINGS_ITEM.glyph}
-          </span>
-          {SETTINGS_ITEM.label}
+          {({ isActive }) => (
+            <>
+              <NavIndicator isActive={isActive} />
+              {SETTINGS_ITEM.label}
+            </>
+          )}
         </NavLink>
       </nav>
-
-      {/* ── System status readout ── */}
-      <div
-        aria-label="System status: online"
-        style={{
-          marginTop: "auto",
-          padding: "0.9rem 1.15rem",
-          borderTop: "1px solid var(--line-1)",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.55rem",
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            display: "inline-block",
-            width: "7px",
-            height: "7px",
-            borderRadius: "50%",
-            background: "var(--ok)",
-            boxShadow: "0 0 7px var(--ok)",
-            flexShrink: 0,
-            animation: "pp-blink 1.1s step-start infinite",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "0.65rem",
-            letterSpacing: "0.2em",
-            color: "var(--ok)",
-            textTransform: "uppercase",
-          }}
-        >
-          
-        </span>
-      </div>
 
       {/* ── Keyframe for blink ── */}
       <style>{`
