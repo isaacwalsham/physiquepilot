@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { parseHeightToCm, parseWeightToKg, parseWeeklyRateToKg, cmToDisplayInput, kgToDisplay } from "../../lib/units";
+import { useProfile } from "../../context/ProfileContext";
 
 const API_URL = (
   import.meta.env.VITE_API_URL ||
@@ -73,6 +74,7 @@ const defaultForm = {
 
 export function useOnboardingForm() {
   const navigate = useNavigate();
+  const { patchProfileLocal, silentRefreshProfile } = useProfile();
   const [profile, setProfile] = useState(null);
   const [form, setFormState] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,7 @@ export function useOnboardingForm() {
       setProfile(p);
 
       if (p.onboarding_complete) {
-        navigate("/app", { replace: true });
+        navigate("/app/dashboard", { replace: true });
         return;
       }
 
@@ -334,9 +336,15 @@ export function useOnboardingForm() {
     }
 
     setSaving(false);
-    navigate("/app", { replace: true });
+    // 1. Immediately patch context so RequireOnboardingComplete sees onboarding_complete: true
+    //    the instant we navigate — prevents the replaceState redirect loop.
+    patchProfileLocal({ onboarding_complete: true });
+    // 2. Silently re-fetch full profile data (no loading flash) so the dashboard
+    //    has up-to-date training schedule, macros, etc. from the DB.
+    await silentRefreshProfile();
+    navigate("/app/dashboard", { replace: true });
     return { error: null };
-  }, [profile, form, navigate]);
+  }, [profile, form, navigate, refreshProfile]);
 
   return {
     form,
