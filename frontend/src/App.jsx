@@ -6,6 +6,7 @@ import { ProfileProvider, useProfile } from "./context/ProfileContext";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Verified from "./pages/Verified";
 import Onboarding from "./pages/onboarding/index";
 import Dashboard from "./pages/Dashboard";
 import AppLayout from "./layouts/AppLayout";
@@ -71,6 +72,7 @@ function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/verified" element={<Verified />} />
 
       {/* Onboarding: must be logged in, does NOT require onboarding completion */}
       <Route

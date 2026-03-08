@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useOnboardingForm } from "./useOnboardingForm";
 import { validateStep } from "./validation";
 import { buildCaloriePreview } from "../../lib/tdee";
@@ -50,6 +51,7 @@ function getDisplayProgress(step, skipped) {
 }
 
 export default function Onboarding() {
+  const navigate = useNavigate();
   const {
     form,
     setField,
@@ -191,14 +193,23 @@ export default function Onboarding() {
 
       {/* ── Step counter ─────────────────────────────────────────── */}
       <div style={styles.stepMeta}>
-        <button
-          onClick={goBack}
-          disabled={step === 1}
-          style={styles.backBtn}
-          aria-label="Go back"
-        >
-          ← Back
-        </button>
+        {step === 1 ? (
+          <button
+            onClick={() => navigate("/")}
+            style={styles.backBtn}
+            aria-label="Exit to home"
+          >
+            ← Exit
+          </button>
+        ) : (
+          <button
+            onClick={goBack}
+            style={styles.backBtn}
+            aria-label="Go back"
+          >
+            ← Back
+          </button>
+        )}
         <span style={styles.stepLabel}>
           {counted} / {total}
         </span>

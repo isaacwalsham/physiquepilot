@@ -252,6 +252,114 @@ const CSS = `
     line-height: 1.45;
   }
 
+  /* ── Email confirm overlay ── */
+  .email-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.78);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 1rem;
+    animation: ecFadeIn 0.22s ease;
+  }
+
+  @keyframes ecFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .email-confirm-modal {
+    width: 100%;
+    max-width: 420px;
+    background: rgba(8,3,5,0.97);
+    border: 1px solid var(--accent-2);
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 0 0 1px rgba(181,21,60,0.1),
+      0 0 80px rgba(181,21,60,0.2),
+      0 32px 80px rgba(0,0,0,0.75);
+    padding: 2.25rem 2rem;
+    text-align: center;
+    animation: ecSlideUp 0.25s ease;
+  }
+
+  @keyframes ecSlideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+
+  .email-confirm-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 1.1rem;
+    filter: drop-shadow(0 0 12px rgba(181,21,60,0.5));
+  }
+
+  .email-confirm-title {
+    font-family: var(--font-display);
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: var(--text-1);
+    margin: 0 0 0.75rem;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  .email-confirm-body {
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--text-2);
+    line-height: 1.65;
+    margin: 0 0 1.6rem;
+  }
+
+  .email-confirm-email {
+    color: var(--accent-3);
+    font-weight: 600;
+    word-break: break-all;
+  }
+
+  .email-confirm-divider {
+    width: 2.5rem;
+    height: 1px;
+    background: var(--accent-2);
+    margin: 0 auto 1.5rem;
+    opacity: 0.4;
+  }
+
+  .email-confirm-btn {
+    width: 100%;
+    padding: 0.85rem 1.5rem;
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+    border: 1px solid var(--accent-2);
+    border-radius: var(--radius-sm);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(181,21,60,0.3);
+    transition: box-shadow 0.18s, opacity 0.18s;
+  }
+
+  .email-confirm-btn:hover {
+    box-shadow: 0 0 36px rgba(181,21,60,0.55);
+  }
+
+  .email-confirm-note {
+    font-family: var(--font-body);
+    font-size: 0.73rem;
+    color: var(--text-3);
+    margin-top: 1rem;
+    line-height: 1.5;
+  }
+
   /* ── Footer ── */
   .register-footer {
     display: flex;
@@ -290,8 +398,7 @@ function Register() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const [showEmailConfirm, setShowEmailConfirm] = useState(false);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -303,7 +410,8 @@ function Register() {
 
     const { data, error } = await supabase.auth.signUp({
       email: emailClean,
-      password
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/verified` }
     });
 
     if (error) {
@@ -332,47 +440,50 @@ function Register() {
       }
     }
 
-    // Supabase can sometimes return no session right after signUp (depending on auth settings).
-    // Even with email confirmation disabled, there can be a short delay before sign-in works.
-    let session = data?.session || null;
-
-    if (!session) {
-      // Try a few times before falling back to manual login.
-      for (let i = 0; i < 6; i++) {
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: emailClean,
-          password
-        });
-
-        if (!signInErr && signInData?.session) {
-          session = signInData.session;
-          break;
-        }
-
-        // small backoff
-        await sleep(350);
-      }
-    }
-
-    if (session) {
+    // If Supabase returned a session immediately (email confirmation disabled),
+    // navigate straight into the app.
+    if (data?.session) {
       setLoading(false);
-      setSuccessMsg("Account created. Redirecting...");
-
-      // Route into the app shell. AppLayout decides whether the user should see onboarding or dashboard.
+      setSuccessMsg("Account created. Redirecting…");
       navigate("/app", { replace: true });
       return;
     }
 
-    // If we still couldn't establish a session, send them to login.
+    // No session means Supabase requires email confirmation before sign-in.
+    // Show the confirmation modal instead of trying to sign in.
     setLoading(false);
-    setSuccessMsg("Account created. Please log in.");
-    navigate("/login", { replace: true });
-    return;
+    setShowEmailConfirm(true);
   };
 
   return (
     <div className="public-page register-page">
       <style>{CSS}</style>
+
+      {/* ── Email confirmation modal ── */}
+      {showEmailConfirm && (
+        <div className="email-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="ec-title">
+          <div className="email-confirm-modal">
+            <span className="email-confirm-icon" aria-hidden="true">✉</span>
+            <h2 className="email-confirm-title" id="ec-title">Check your inbox</h2>
+            <div className="email-confirm-divider" aria-hidden="true" />
+            <p className="email-confirm-body">
+              We sent a confirmation link to<br />
+              <span className="email-confirm-email">{email}</span>.<br /><br />
+              Click that link to activate your account,
+              then come back here to sign in.
+            </p>
+            <button
+              className="email-confirm-btn"
+              onClick={() => navigate("/login")}
+            >
+              Go to Login →
+            </button>
+            <p className="email-confirm-note">
+              Can't find it? Check your spam folder.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Corner reticle bottom-right */}
       <div className="register-corner-br" aria-hidden="true" />
