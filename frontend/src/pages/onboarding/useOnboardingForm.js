@@ -344,7 +344,7 @@ export function useOnboardingForm() {
     await silentRefreshProfile();
     navigate("/app/dashboard", { replace: true });
     return { error: null };
-  }, [profile, form, navigate, refreshProfile]);
+  }, [profile, form, navigate, patchProfileLocal, silentRefreshProfile]);
 
   return {
     form,
