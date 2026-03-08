@@ -313,41 +313,58 @@ export function useOnboardingForm() {
       return { error: updateErr.message };
     }
 
-    // Trigger nutrition init (backend calculates day targets with new TDEE formula).
-    // This is best-effort — if the backend is cold-starting or unavailable the
-    // profile is already saved with onboarding_complete: true, so we navigate
-    // anyway. The dashboard will re-trigger init if targets are missing.
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      const r = await fetch(`${API_URL}/api/nutrition/init`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ user_id: profile.user_id }),
-        signal: AbortSignal.timeout(25000), // 25 s — enough for a cold Render start
-      });
-
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        console.warn("Nutrition init non-fatal error:", j?.error || r.status);
-      }
-    } catch (initErr) {
-      // Network error or timeout — log and continue; targets can be recalculated
-      console.warn("Nutrition init skipped (will retry on dashboard):", initErr?.message);
-    }
-
+    // DB write succeeded — patch context and navigate immediately.
+    // Do NOT await the nutrition init or profile refresh here; slow / restricted
+    // networks (e.g. managed Chromebooks) would otherwise stall navigation forever.
     setSaving(false);
-    // 1. Immediately patch context so RequireOnboardingComplete sees onboarding_complete: true
-    //    the instant we navigate — prevents the replaceState redirect loop.
+    // Patch context so RequireOnboardingComplete sees onboarding_complete: true
+    // the instant we navigate — prevents the replaceState redirect loop.
     patchProfileLocal({ onboarding_complete: true });
-    // 2. Silently re-fetch full profile data (no loading flash) so the dashboard
-    //    has up-to-date training schedule, macros, etc. from the DB.
-    await silentRefreshProfile();
     navigate("/app/dashboard", { replace: true });
+
+    // ── Fire-and-forget background tasks ───────────────────────────────────
+    // Nutrition init + silent context refresh run after navigation so they
+    // can never block the user reaching the dashboard.
+    // Uses AbortController + setTimeout instead of AbortSignal.timeout()
+    // for compatibility with older Chrome / ChromeOS builds.
+    (async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        try {
+          const r = await fetch(`${API_URL}/api/nutrition/init`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ user_id: profile.user_id }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            console.warn("Nutrition init non-fatal error:", j?.error || r.status);
+          }
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          console.warn("Nutrition init skipped (will retry on dashboard):", fetchErr?.message);
+        }
+      } catch (sessionErr) {
+        console.warn("Background session fetch failed:", sessionErr?.message);
+      }
+
+      // Refresh profile context so dashboard has fresh data (macros, schedule, etc.)
+      await silentRefreshProfile().catch((e) =>
+        console.warn("Silent profile refresh failed:", e?.message)
+      );
+    })();
+
     return { error: null };
   }, [profile, form, navigate, patchProfileLocal, silentRefreshProfile]);
 
