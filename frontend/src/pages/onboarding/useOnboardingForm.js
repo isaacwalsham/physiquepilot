@@ -313,26 +313,31 @@ export function useOnboardingForm() {
       return { error: updateErr.message };
     }
 
-    // Trigger nutrition init (backend calculates day targets with new TDEE formula)
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
+    // Trigger nutrition init (backend calculates day targets with new TDEE formula).
+    // This is best-effort — if the backend is cold-starting or unavailable the
+    // profile is already saved with onboarding_complete: true, so we navigate
+    // anyway. The dashboard will re-trigger init if targets are missing.
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
 
-    const initRes = await fetch(`${API_URL}/api/nutrition/init`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ user_id: profile.user_id }),
-    }).then(async (r) => {
-      const j = await r.json();
-      return r.ok ? { error: null } : { error: j?.error || "Nutrition init failed" };
-    });
+      const r = await fetch(`${API_URL}/api/nutrition/init`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ user_id: profile.user_id }),
+        signal: AbortSignal.timeout(25000), // 25 s — enough for a cold Render start
+      });
 
-    if (initRes.error) {
-      setSaving(false);
-      setError(String(initRes.error));
-      return { error: initRes.error };
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        console.warn("Nutrition init non-fatal error:", j?.error || r.status);
+      }
+    } catch (initErr) {
+      // Network error or timeout — log and continue; targets can be recalculated
+      console.warn("Nutrition init skipped (will retry on dashboard):", initErr?.message);
     }
 
     setSaving(false);

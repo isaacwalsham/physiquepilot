@@ -182,11 +182,18 @@ export default function Onboarding() {
     if (nextStep > TOTAL_STEPS) {
       // Final step — show loading overlay, then submit
       setSubmitting(true);
-      const result = await handleSubmit();
-      if (result?.error) {
-        setSubmitting(false); // Hide overlay so the error message is visible
+      try {
+        const result = await handleSubmit();
+        if (result?.error) {
+          setSubmitting(false); // Hide overlay so the error message is visible
+        }
+        // On success: handleSubmit navigates away and this component unmounts
+      } catch (err) {
+        // Catch any unexpected throw so the overlay never hangs silently
+        console.error("Onboarding submit error:", err);
+        setSubmitting(false);
+        setValidationError({ field: null, message: "Something went wrong — please try again." });
       }
-      // On success: handleSubmit navigates away and this component unmounts
       return;
     }
 
