@@ -360,6 +360,55 @@ const CSS = `
     line-height: 1.5;
   }
 
+  /* ── Password strength ── */
+  .pw-strength-bar-wrap {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 0.55rem;
+  }
+
+  .pw-strength-segment {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--line-1);
+    transition: background 0.25s ease;
+  }
+
+  .pw-strength-label {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-top: 0.35rem;
+    margin-bottom: 0.55rem;
+    transition: color 0.2s;
+  }
+
+  .pw-criteria {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.22rem 0.5rem;
+    margin-top: 0.1rem;
+  }
+
+  .pw-criterion {
+    display: flex;
+    align-items: center;
+    gap: 0.38rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    transition: color 0.2s;
+  }
+
+  .pw-criterion-icon {
+    font-size: 0.65rem;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    transition: color 0.2s;
+  }
+
   /* ── Footer ── */
   .register-footer {
     display: flex;
@@ -399,6 +448,27 @@ function Register() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [showEmailConfirm, setShowEmailConfirm] = useState(false);
+
+  // ── Password strength ──────────────────────────────────────────────────────
+  const pwCriteria = [
+    { key: "len",   label: "8+ characters",      test: (p) => p.length >= 8 },
+    { key: "lower", label: "Lowercase (a–z)",     test: (p) => /[a-z]/.test(p) },
+    { key: "upper", label: "Uppercase (A–Z)",     test: (p) => /[A-Z]/.test(p) },
+    { key: "num",   label: "Number (0–9)",        test: (p) => /[0-9]/.test(p) },
+    { key: "sym",   label: "Symbol (!@#…)",       test: (p) => /[^a-zA-Z0-9]/.test(p) },
+  ];
+
+  const pwPassed  = pwCriteria.filter((c) => c.test(password)).length;
+  const pwStrong  = pwPassed === pwCriteria.length;
+  const pwScore   = password.length === 0 ? 0 : Math.min(4, Math.ceil((pwPassed / pwCriteria.length) * 4));
+
+  const strengthMeta = [
+    { label: "",       color: "var(--line-1)"  },
+    { label: "Weak",   color: "var(--bad)"     },
+    { label: "Fair",   color: "var(--warn)"    },
+    { label: "Good",   color: "#4a9eff"        },
+    { label: "Strong", color: "var(--ok)"      },
+  ][pwScore];
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -527,18 +597,54 @@ function Register() {
                 className="register-input"
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
                 autoComplete="new-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+
+              {/* Strength bar */}
+              {password.length > 0 && (
+                <>
+                  <div className="pw-strength-bar-wrap" aria-hidden="true">
+                    {[1, 2, 3, 4].map((seg) => (
+                      <div
+                        key={seg}
+                        className="pw-strength-segment"
+                        style={{ background: pwScore >= seg ? strengthMeta.color : undefined }}
+                      />
+                    ))}
+                  </div>
+                  <div className="pw-strength-label" style={{ color: strengthMeta.color }}>
+                    {strengthMeta.label}
+                  </div>
+                  <div className="pw-criteria" role="list" aria-label="Password requirements">
+                    {pwCriteria.map((c) => {
+                      const ok = c.test(password);
+                      return (
+                        <div
+                          key={c.key}
+                          className="pw-criterion"
+                          role="listitem"
+                          style={{ color: ok ? "var(--text-2)" : "var(--text-3)" }}
+                        >
+                          <span className="pw-criterion-icon" style={{ color: ok ? "var(--ok)" : "var(--line-2)" }}>
+                            {ok ? "✓" : "○"}
+                          </span>
+                          {c.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
             <button
               type="submit"
               className="register-btn-primary"
-              disabled={loading}
+              disabled={loading || !pwStrong}
             >
               {loading ? "Enlisting..." : "Enlist Now"}
             </button>
