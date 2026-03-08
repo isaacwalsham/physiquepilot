@@ -339,10 +339,11 @@ export default function Dashboard() {
         .order("created_at", { ascending: false }).limit(1);
       setCardioToday(cRows?.length ? cRows[0] : null);
 
-      // Training session
+      // Training session (completed workout today)
       const { data: tSess } = await supabase
-        .from("training_sessions").select("id, session_date, is_rest_day")
-        .eq("user_id", user.id).eq("session_date", today).limit(1);
+        .from("workout_sessions").select("id, session_date")
+        .eq("user_id", user.id).eq("session_date", today)
+        .not("completed_at", "is", null).limit(1);
       setTrainSession(tSess?.length ? tSess[0] : null);
 
       // Nutrition targets

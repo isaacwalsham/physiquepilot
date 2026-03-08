@@ -356,9 +356,9 @@ function splitLabel(program) {
   return `${type} · ${days} day${days !== 1 ? 's' : ''}/week`;
 }
 
-function formatDuration(seconds) {
-  if (!seconds) return null;
-  const m = Math.round(seconds / 60);
+function formatDuration(minutes) {
+  if (!minutes) return null;
+  const m = Math.round(minutes);
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   const rm = m % 60;
@@ -380,7 +380,7 @@ export default function TrainingCalendar({ program, programDays, onStartSession,
 
     const { data, error } = await supabase
       .from('workout_sessions')
-      .select('session_date, id, program_day_id, duration_seconds')
+      .select('session_date, id, program_day_id, duration_minutes')
       .eq('program_id', program.id)
       .not('completed_at', 'is', null)
       .order('session_date', { ascending: false });
@@ -574,9 +574,9 @@ export default function TrainingCalendar({ program, programDays, onStartSession,
                   <div className="tc-recent-dot" />
                   <span className="tc-recent-date">{prettyDate(session.session_date)}</span>
                   <span className="tc-recent-name">{findDayName(session)}</span>
-                  {session.duration_seconds != null && (
+                  {session.duration_minutes != null && (
                     <span className="tc-recent-dur">
-                      {formatDuration(session.duration_seconds)}
+                      {formatDuration(session.duration_minutes)}
                     </span>
                   )}
                 </div>

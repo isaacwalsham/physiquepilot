@@ -1178,12 +1178,12 @@ function CheckIns() {
 
   const computeTrainingCompleted = async (uid, ws, we) => {
     const { data, error: e } = await supabase
-      .from("training_sessions")
+      .from("workout_sessions")
       .select("id")
       .eq("user_id", uid)
       .gte("session_date", ws)
       .lte("session_date", we)
-      .eq("completed", true);
+      .not("completed_at", "is", null);
 
     if (e) return { completed: 0 };
     return { completed: (data || []).length };

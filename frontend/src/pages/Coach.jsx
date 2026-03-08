@@ -560,16 +560,22 @@ function Coach() {
 
   const loadToday = async (uid) => {
 
-    const { data: t, error: tErr } = await supabase
-      .from("training_sessions")
-      .select("name, is_rest_day")
+    const { data: rawT, error: tErr } = await supabase
+      .from("workout_sessions")
+      .select("id, training_program_days(day_name, is_rest)")
       .eq("user_id", uid)
       .eq("session_date", todayIso)
+      .not("completed_at", "is", null)
       .maybeSingle();
 
     if (tErr && tErr.code !== "PGRST116") {
       setError(tErr.message);
     }
+
+    const t = rawT ? {
+      name: rawT.training_program_days?.day_name || null,
+      is_rest_day: rawT.training_program_days?.is_rest ?? false,
+    } : null;
 
     const n = null;
 
@@ -632,11 +638,12 @@ function Coach() {
         .gte("log_date", startIso)
         .lt("log_date", endExclusive),
       supabase
-        .from("training_sessions")
-        .select("session_date, is_rest_day")
+        .from("workout_sessions")
+        .select("session_date")
         .eq("user_id", uid)
         .gte("session_date", startIso)
         .lt("session_date", endExclusive)
+        .not("completed_at", "is", null)
     ]);
 
     if (wErr || tErr) {
@@ -644,7 +651,7 @@ function Coach() {
       return;
     }
 
-    const planned = (t || []).filter((x) => x.is_rest_day === false).length;
+    const planned = (t || []).length;
 
     setWeekStats({
       weightLoggedDays: new Set((w || []).map((x) => x.log_date)).size,
