@@ -29,7 +29,7 @@ const dietaryOptions = [
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function Settings() {
-  const { profile, loading, updateProfile } = useProfile();
+  const { profile, loading, updateProfile, restartTour } = useProfile();
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -785,6 +785,30 @@ function Settings() {
         <div style={{ marginTop: "1rem", color: "#666", fontSize: "0.9rem" }}>
           For now: logout is in the sidebar.
         </div>
+      </div>
+
+      {/* App tour */}
+      <div style={{ marginTop: "1rem", ...card }}>
+        <div style={{ fontWeight: 700 }}>App tour</div>
+        <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+          Run the guided walkthrough again to revisit what each section does.
+        </div>
+        <button
+          type="button"
+          style={{ ...saveBtn, marginTop: "1rem" }}
+          onClick={async () => {
+            // Reset tour_completed so useTour picks it up
+            if (profile?.user_id) {
+              await supabase
+                .from("profiles")
+                .update({ tour_completed: false })
+                .eq("user_id", profile.user_id);
+            }
+            restartTour();
+          }}
+        >
+          Replay tour
+        </button>
       </div>
     </div>
   );

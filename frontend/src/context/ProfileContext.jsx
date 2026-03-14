@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { getDayType } from "../lib/dayType";
 
@@ -94,6 +94,13 @@ export function ProfileProvider({ children }) {
 
   const refreshProfile = useCallback(() => loadProfile(), [loadProfile]);
 
+  // ── Tour helpers ───────────────────────────────────────────────────────────
+  // restartTourFn is set by AppLayout via registerRestartTour so Settings can
+  // call it without needing to know about the tour internals.
+  const restartTourRef = useRef(null);
+  const registerRestartTour = useCallback((fn) => { restartTourRef.current = fn; }, []);
+  const restartTour = useCallback(() => restartTourRef.current?.(), []);
+
   // Derived: today's day type — manual override (stored in profile) takes priority;
   // otherwise computed from the training schedule via getDayType()
   const todayDayType = (() => {
@@ -112,6 +119,8 @@ export function ProfileProvider({ children }) {
     todayDayType,
     updateProfile,
     refreshProfile,
+    registerRestartTour,
+    restartTour,
   };
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

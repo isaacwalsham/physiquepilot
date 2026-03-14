@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Sidebar from "../components/Sidebar";
+import { useProfile } from "../context/ProfileContext";
+import { useTour } from "../components/Tour/useTour";
+import { TourOverlay } from "../components/Tour/TourOverlay";
 
 /* ─── Cockpit boot loader ─────────────────────────────────────────────────── */
 function CockpitLoader() {
@@ -130,6 +133,13 @@ function CockpitLoader() {
 function AppLayout() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const { profile, registerRestartTour } = useProfile();
+  const tour = useTour(profile);
+
+  // Register restart fn so Settings can trigger it via context
+  useEffect(() => {
+    registerRestartTour(tour.restart);
+  }, [tour.restart, registerRestartTour]);
   const aliveRef = useRef(true);
   const hasCheckedRef = useRef(false);
   const isGuardRunningRef = useRef(false);
@@ -242,6 +252,8 @@ function AppLayout() {
           <Outlet />
         </div>
       </main>
+
+      <TourOverlay {...tour} />
     </div>
   );
 }
