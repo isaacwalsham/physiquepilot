@@ -50,10 +50,17 @@ function RequireAuth({ children }) {
       setReady(true);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      setHasSession(!!session);
-      setReady(true);
+      if (event === 'SIGNED_OUT') {
+        setHasSession(false);
+        setReady(true);
+      } else if (session) {
+        setHasSession(true);
+        setReady(true);
+      }
+      // Ignore transient null-session events (e.g. during Supabase-js
+      // internal token validation) to avoid redirect loops.
     });
 
     return () => {
