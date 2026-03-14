@@ -98,11 +98,17 @@ export function useOnboardingForm() {
         .maybeSingle();
 
       if (!p) {
-        // Create bare profile if missing
+        // Create bare profile if missing, then fetch it back so handleSubmit has a valid profile.user_id
         await supabase.from("profiles").upsert(
           { user_id: user.id, email: user.email, subscription_status: "inactive", is_suspended: false, onboarding_complete: false },
           { onConflict: "user_id" }
         );
+        const { data: created } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (created) setProfile(created);
         setLoading(false);
         return;
       }
@@ -262,7 +268,11 @@ export function useOnboardingForm() {
   // ─── Final submit ─────────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(async () => {
-    if (!profile?.user_id) return { error: "No profile." };
+    if (!profile?.user_id) {
+      setSaving(false);
+      setError("Profile not loaded — please refresh and try again.");
+      return { error: "No profile." };
+    }
     setSaving(true);
     setError("");
 
