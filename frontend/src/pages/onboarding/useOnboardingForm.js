@@ -85,8 +85,8 @@ export function useOnboardingForm() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: userRes } = await supabase.auth.getUser();
-      const user = userRes?.user;
+      const { data: sessionRes } = await supabase.auth.getSession();
+      const user = sessionRes?.session?.user;
       if (!user) { setLoading(false); return; }
 
       const { data: p } = await supabase
