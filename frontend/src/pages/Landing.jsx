@@ -1070,10 +1070,6 @@ function Landing() {
                 </button>
               </div>
 
-              <p className="ld-hero-fine">
-                <span className="ld-blink-dot" style={{ width: 5, height: 5 }} />
-                No credit card required · Full access for 30 days · Cancel anytime
-              </p>
             </div>
 
             {/* Right — animated dashboard demo */}
@@ -1274,7 +1270,7 @@ function Landing() {
                   "Full access to every feature",
                   "AI coach from day one",
                   "All tracking tools included",
-                  "No credit card needed to start"
+                  "Cancel anytime"
                 ].map(f => (
                   <li key={f}><span className="ld-price-check">✓</span>{f}</li>
                 ))}
