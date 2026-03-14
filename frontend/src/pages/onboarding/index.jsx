@@ -96,7 +96,10 @@ export default function Onboarding() {
 
     if (nextStep > TOTAL_STEPS) {
       // Final step — submit
-      await handleSubmit();
+      const result = await handleSubmit();
+      if (result?.error) {
+        return;
+      }
       return;
     }
 
