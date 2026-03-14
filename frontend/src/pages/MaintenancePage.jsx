@@ -89,7 +89,6 @@ export default function MaintenancePage() {
       <div style={s.offerPill}>
         <span style={s.offerIcon}>⚡</span>
         First 500 members get <strong style={s.offerStrong}>90 days free</strong>
-        &nbsp;— no credit card required
       </div>
 
       {/* ── Spot counter ─────────────────────────── */}
