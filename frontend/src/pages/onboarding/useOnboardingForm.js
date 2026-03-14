@@ -96,11 +96,10 @@ export function useOnboardingForm() {
         .maybeSingle();
 
       if (!p) {
-        // Create bare profile if missing
-        await supabase.from("profiles").upsert(
-          { user_id: user.id, email: user.email, subscription_status: "inactive", is_suspended: false, onboarding_complete: false },
-          { onConflict: "user_id" }
-        );
+        // Create bare profile if missing and hydrate state so handleSubmit can run
+        const minimalProfile = { user_id: user.id, email: user.email, subscription_status: "inactive", is_suspended: false, onboarding_complete: false };
+        await supabase.from("profiles").upsert(minimalProfile, { onConflict: "user_id" });
+        setProfile(minimalProfile);
         setLoading(false);
         return;
       }
@@ -260,7 +259,10 @@ export function useOnboardingForm() {
   // ─── Final submit ─────────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(async () => {
-    if (!profile?.user_id) return { error: "No profile." };
+    if (!profile?.user_id) {
+      setError("Session expired — please refresh the page.");
+      return { error: "No profile." };
+    }
     setSaving(true);
     setError("");
 
