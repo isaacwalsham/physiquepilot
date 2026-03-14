@@ -403,7 +403,7 @@ export default function TrainingSetup({ profile, onComplete }) {
 
     try {
       // 1. Get current user
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      const { data: sessionR } = await supabase.auth.getSession(); const user = sessionR?.session?.user; const authErr = null;
       if (authErr || !user) throw new Error("Not authenticated");
 
       // 2. Update experience on profile

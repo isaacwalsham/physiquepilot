@@ -440,7 +440,7 @@ export default function ActiveSession({ programDay, sessionDate, program, onExit
 
     async function init() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: sessionR } = await supabase.auth.getSession(); const user = sessionR?.session?.user;
         if (!user || cancelled) return;
 
         // 1. Fetch program_day_exercises with exercise join

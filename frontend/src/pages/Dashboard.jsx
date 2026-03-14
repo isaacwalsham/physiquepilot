@@ -307,7 +307,7 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: ud } = await supabase.auth.getUser();
+      const { data: { session: _s } } = await supabase.auth.getSession(); const ud = { user: _s?.user };
       const user = ud?.user;
       if (!user) { navigate("/", { replace: true }); return; }
 

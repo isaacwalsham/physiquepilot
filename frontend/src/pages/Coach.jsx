@@ -531,7 +531,7 @@ function Coach() {
       setLoading(true);
       setError("");
 
-      const { data } = await supabase.auth.getUser();
+      const { data: sessionR } = await supabase.auth.getSession(); const data = { user: sessionR?.session?.user };
       if (!data?.user) {
         setError("Not logged in");
         setLoading(false);

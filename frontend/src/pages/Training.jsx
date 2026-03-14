@@ -456,7 +456,7 @@ export default function Training() {
       setLoading(true);
       setError("");
 
-      const { data, error: e } = await supabase.auth.getUser();
+      const { data: sessionR2 } = await supabase.auth.getSession(); const data = { user: sessionR2?.session?.user }; const e = null;
       if (e || !data?.user) {
         setError("Not logged in.");
         setLoading(false);
