@@ -273,7 +273,7 @@ export function useOnboardingForm() {
       unit_system: form.unitSystem,
       first_name: form.firstName.trim(),
       last_name: form.lastName.trim(),
-      date_of_birth: form.dateOfBirth,
+      date_of_birth: form.dateOfBirth || null,
       sex: form.sex,
       height_cm: form._heightCm,
       starting_weight_kg: form._startingWeightKg,
