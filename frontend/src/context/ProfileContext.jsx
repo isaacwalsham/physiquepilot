@@ -94,28 +94,6 @@ export function ProfileProvider({ children }) {
 
   const refreshProfile = useCallback(() => loadProfile(), [loadProfile]);
 
-  /**
-   * Re-fetch profile from DB and update context WITHOUT setting loading: true.
-   * Use this after write operations that already updated the DB, where you want
-   * fresh context data but don't want to flash a loading state.
-   */
-  const silentRefreshProfile = useCallback(async () => {
-    const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
-    if (!user) return;
-    const data = await fetchProfile(user.id);
-    if (data) setProfile(data);
-  }, [fetchProfile]);
-
-  /**
-   * Immediately patch the local profile in context without a DB call.
-   * Useful to pre-confirm fields like onboarding_complete before navigation
-   * so route guards don't briefly see stale data and cause redirect loops.
-   */
-  const patchProfileLocal = useCallback((patch) => {
-    setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
-  }, []);
-
   // Derived: today's day type — manual override (stored in profile) takes priority;
   // otherwise computed from the training schedule via getDayType()
   const todayDayType = (() => {
@@ -134,8 +112,6 @@ export function ProfileProvider({ children }) {
     todayDayType,
     updateProfile,
     refreshProfile,
-    silentRefreshProfile,
-    patchProfileLocal,
   };
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

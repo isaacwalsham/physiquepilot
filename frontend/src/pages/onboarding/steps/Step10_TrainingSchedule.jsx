@@ -1,5 +1,3 @@
-import { suggestTrainingDays } from "../../training/trainingUtils";
-
 const titleStyle = {
   fontFamily: "var(--font-display)",
   fontSize: "clamp(1.6rem, 4vw, 2.4rem)",
@@ -162,46 +160,6 @@ export default function Step10_TrainingSchedule({ form, setField, error }) {
             })}
           </div>
           {daysError && <p style={errorStyle}>{error.message}</p>}
-          <div style={{ marginTop: "0.9rem" }}>
-            <button
-              type="button"
-              onClick={() => {
-                const n = selectedDays.length || 3;
-                setField("trainingDaysSelected", suggestTrainingDays(n));
-              }}
-              style={{
-                padding: "0.55rem 1.1rem",
-                border: "1.5px solid var(--accent-2)",
-                borderRadius: "var(--radius-sm)",
-                background: "transparent",
-                color: "var(--accent-3)",
-                fontFamily: "var(--font-display)",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                cursor: "pointer",
-                transition: "background var(--motion-fast) ease, color var(--motion-fast) ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(181,21,60,0.1)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              ✦ Choose for me
-            </button>
-            {selectedDays.length > 0 && (
-              <span style={{
-                marginLeft: "0.75rem",
-                fontSize: "0.78rem",
-                color: "var(--text-3)",
-                fontFamily: "var(--font-body)",
-              }}>
-                {selectedDays.length} day{selectedDays.length !== 1 ? "s" : ""} selected
-              </span>
-            )}
-          </div>
         </div>
       )}
 

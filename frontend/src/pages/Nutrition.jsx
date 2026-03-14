@@ -307,6 +307,7 @@ export default function Nutrition() {
 
   const [todayType, setTodayType] = useState("rest");
   const [targets, setTargets] = useState({ training: null, rest: null, high: null });
+  const [editTargets, setEditTargets] = useState({ training: null, rest: null, high: null });
 
   const [entries, setEntries] = useState([]);
   const [entryFood, setEntryFood] = useState("");
@@ -379,23 +380,6 @@ export default function Nutrition() {
   });
   const foodSearchSeqRef = useRef(0);
   const mealFoodSearchSeqRef = useRef(0);
-
-  // ── Food modal (replaces inline dropdown) ──────────────────────────────────
-  const [foodModalOpen, setFoodModalOpen] = useState(false);
-
-  // ── Meal plan state ────────────────────────────────────────────────────────
-  const [mealPlanData, setMealPlanData] = useState(null);
-  const [mealPlanLoading, setMealPlanLoading] = useState(false);
-  const [mealPlanGenerating, setMealPlanGenerating] = useState(false);
-  const [mealPlanError, setMealPlanError] = useState("");
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    const d = new Date();
-    const day = d.getDay(); // 0 = Sun
-    const diff = day === 0 ? -6 : 1 - day; // offset to Monday
-    const mon = new Date(d);
-    mon.setDate(d.getDate() + diff);
-    return mon.toISOString().split("T")[0];
-  });
 
   const todaysTargets = useMemo(() => targets?.[todayType] || null, [targets, todayType]);
   const isCollapsed = (key) => Boolean(collapsedSections?.[key]);
@@ -740,16 +724,10 @@ export default function Nutrition() {
     return base;
   };
 
-  const getAuthHeaders = async () => {
-    const { data: s } = await supabase.auth.getSession();
-    const t = s?.session?.access_token;
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  };
-
   const loadDaySummary = async (uid, dateIso) => {
     setDayNutrientsLoading(true);
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`, { headers: await getAuthHeaders() });
+      const r = await fetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`);
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load day summary.");
 
@@ -805,7 +783,7 @@ export default function Nutrition() {
   };
 
   const loadMicroTargets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`, { headers: await getAuthHeaders() });
+    const r = await fetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load micronutrient targets.");
 
@@ -820,7 +798,7 @@ export default function Nutrition() {
   };
 
   const loadMealPresets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/meal-presets?user_id=${encodeURIComponent(uid)}`, { headers: await getAuthHeaders() });
+    const r = await fetch(`${API_URL}/api/nutrition/meal-presets?user_id=${encodeURIComponent(uid)}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load meal presets.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -844,7 +822,7 @@ export default function Nutrition() {
   };
 
   const loadSavedMeals = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/saved-meals?user_id=${encodeURIComponent(uid)}`, { headers: await getAuthHeaders() });
+    const r = await fetch(`${API_URL}/api/nutrition/saved-meals?user_id=${encodeURIComponent(uid)}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load saved meals.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -903,7 +881,7 @@ export default function Nutrition() {
         .filter((s) => s.label);
       const r = await fetch(`${API_URL}/api/nutrition/meal-presets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
           preset_id: createNew ? null : activePresetId || null,
@@ -945,8 +923,7 @@ export default function Nutrition() {
     setError("");
     try {
       const r = await fetch(`${API_URL}/api/nutrition/meal-presets/${encodeURIComponent(activePresetId)}?user_id=${encodeURIComponent(userId)}`, {
-        method: "DELETE",
-        headers: await getAuthHeaders()
+        method: "DELETE"
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to delete meal preset.");
@@ -984,7 +961,7 @@ export default function Nutrition() {
       const mealName = String(savedMealName || "").trim() || defaultName;
       const r = await fetch(`${API_URL}/api/nutrition/saved-meals`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
           name: mealName,
@@ -1088,8 +1065,7 @@ export default function Nutrition() {
     setError("");
     try {
       const r = await fetch(`${API_URL}/api/nutrition/saved-meals/${encodeURIComponent(savedMealSelection)}?user_id=${encodeURIComponent(userId)}`, {
-        method: "DELETE",
-        headers: await getAuthHeaders()
+        method: "DELETE"
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to delete saved meal.");
@@ -1121,6 +1097,8 @@ export default function Nutrition() {
         const targetRows = await loadTargets(user.id);
         const mapped = mapTargets(targetRows);
         setTargets(mapped);
+        setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
+
         await loadDaySummary(user.id, dateIso);
         await loadMicroTargets(user.id);
         try {
@@ -1771,7 +1749,7 @@ export default function Nutrition() {
       const dateIso = todayIso();
       const r = await fetch(`${API_URL}/api/nutrition/log`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
           log_date: dateIso,
@@ -1804,6 +1782,54 @@ export default function Nutrition() {
     }
   };
 
+  const updateEditField = (dayType, field, value) => {
+    const maxCalories = 6000;
+    const minCalories = 800;
+
+    setEditTargets((prev) => {
+      const cur = prev?.[dayType];
+      if (!cur) return prev;
+      const next = { ...cur };
+
+      if (field === "calories") next.calories = clampInt(value, minCalories, maxCalories);
+      if (field === "protein_g") next.protein_g = clampInt(value, 0, 400);
+      if (field === "carbs_g") next.carbs_g = clampInt(value, 0, 800);
+      if (field === "fats_g") next.fats_g = clampInt(value, 0, 250);
+      if (field === "protein_g" || field === "carbs_g" || field === "fats_g") {
+        next.calories = clampInt(calcCalories(next.protein_g, next.carbs_g, next.fats_g), minCalories, maxCalories);
+      }
+
+      return { ...prev, [dayType]: next };
+    });
+  };
+
+  const saveTargets = async () => {
+    if (!userId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const rows = ["training", "rest", "high"].map((dayType) => ({
+        user_id: userId,
+        day_type: dayType,
+        protein_g: Number(editTargets?.[dayType]?.protein_g || 0),
+        carbs_g: Number(editTargets?.[dayType]?.carbs_g || 0),
+        fats_g: Number(editTargets?.[dayType]?.fats_g || 0)
+      })).map((row) => ({
+        ...row,
+        calories: calcCalories(row.protein_g, row.carbs_g, row.fats_g)
+      }));
+      const { error: e } = await supabase.from("nutrition_day_targets").upsert(rows, { onConflict: "user_id,day_type" });
+      if (e) throw e;
+
+      const mapped = mapTargets(rows);
+      setTargets(mapped);
+      setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const saveMicroMode = async (nextMode) => {
     if (!userId) return;
@@ -1812,7 +1838,7 @@ export default function Nutrition() {
     try {
       const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
           mode: nextMode,
@@ -1844,7 +1870,7 @@ export default function Nutrition() {
 
       const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
           mode: "custom",
@@ -1863,912 +1889,923 @@ export default function Nutrition() {
     }
   };
 
-  // ── Meal plan helpers ──────────────────────────────────────────────────────
-  const formatWeekRange = (weekStart) => {
-    const start = new Date(weekStart + "T00:00:00Z");
-    const end = new Date(start);
-    end.setUTCDate(start.getUTCDate() + 6);
-    const fmt = (d) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
-    return `${fmt(start)} – ${fmt(end)}`;
+  const card = {
+    background: "#050507",
+    border: "1px solid #2a1118",
+    padding: "1rem",
+    borderRadius: "10px"
   };
 
-  const shiftWeek = (dir) => {
-    setCurrentWeekStart((prev) => {
-      const d = new Date(prev + "T00:00:00Z");
-      d.setUTCDate(d.getUTCDate() + dir * 7);
-      return d.toISOString().split("T")[0];
-    });
-    setMealPlanData(null);
-    setMealPlanError("");
+  const field = {
+    width: "100%",
+    padding: "0.65rem",
+    background: "#040406",
+    color: "#fff",
+    border: "1px solid #2a1118",
+    borderRadius: "10px"
   };
 
-  const loadMealPlan = async (weekStart) => {
-    if (!userId) return;
-    setMealPlanLoading(true);
-    setMealPlanError("");
-    try {
-      const r = await fetch(`${API_URL}/api/nutrition/meal-plan?week_start=${encodeURIComponent(weekStart)}`, {
-        headers: await getAuthHeaders()
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j?.error || "Failed to load meal plan.");
-      setMealPlanData(j.plan || null);
-    } catch (e) {
-      setMealPlanError(String(e?.message || e));
-    } finally {
-      setMealPlanLoading(false);
-    }
+  const tabBtn = (active) => ({
+    padding: "0.6rem 0.9rem",
+    border: "1px solid #2a1118",
+    background: active ? "#07080a" : "transparent",
+    color: active ? "#fff" : "#aaa",
+    cursor: "pointer",
+    borderRadius: "10px"
+  });
+
+  const pill = (active) => ({
+    padding: "0.4rem 0.65rem",
+    borderRadius: "999px",
+    border: "1px solid #2a1118",
+    background: active ? "#111217" : "transparent",
+    color: active ? "#fff" : "#aaa",
+    cursor: "pointer",
+    fontSize: "0.9rem"
+  });
+
+  const primaryBtn = (disabled) => ({
+    padding: "0.65rem 1rem",
+    background: disabled ? "transparent" : "#121318",
+    color: disabled ? "#666" : "#fff",
+    border: "1px solid #2a1118",
+    borderRadius: "10px",
+    cursor: disabled ? "default" : "pointer"
+  });
+
+  const subtleBtn = {
+    padding: "0.55rem 0.8rem",
+    background: "transparent",
+    color: "#aaa",
+    border: "1px solid #2a1118",
+    borderRadius: "10px",
+    cursor: "pointer"
   };
 
-  const generateMealPlan = async () => {
-    if (!userId) return;
-    setMealPlanGenerating(true);
-    setMealPlanError("");
-    try {
-      const r = await fetch(`${API_URL}/api/nutrition/meal-plan/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
-        body: JSON.stringify({ week_start: currentWeekStart })
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to generate meal plan.");
-      setMealPlanData(j.plan);
-      pushToast("Meal plan generated.");
-    } catch (e) {
-      setMealPlanError(String(e?.message || e));
-    } finally {
-      setMealPlanGenerating(false);
-    }
+  const collapseBtn = {
+    padding: "0.35rem 0.6rem",
+    background: "transparent",
+    color: "#aaa",
+    border: "1px solid #2a1118",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "0.8rem"
   };
 
-  // Load meal plan when tab or week changes
-  useEffect(() => {
-    if (tab === "meal_plan" && userId) loadMealPlan(currentWeekStart);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, currentWeekStart, userId]);
-
-  // ── CSS ────────────────────────────────────────────────────────────────────
-  const CSS = `
-    .nt-wrap { display:flex; flex-direction:column; gap:0.7rem; min-height:calc(100vh - 80px); padding-bottom:2rem; box-sizing:border-box; }
-    .nt-header { background:var(--surface-2); border:1px solid var(--line-1); border-left:3px solid var(--accent-3); border-radius:var(--radius-md); padding:0.85rem 1.2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; }
-    .nt-title { font-family:var(--font-display); font-size:0.72rem; color:var(--accent-3); letter-spacing:0.2em; text-transform:uppercase; }
-    .nt-tabs { display:flex; gap:0.35rem; align-items:center; }
-    .nt-tab { padding:0.42rem 0.85rem; border:1px solid var(--line-1); background:transparent; color:var(--text-3); border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; transition:all var(--motion-fast) ease; }
-    .nt-tab:hover { border-color:var(--line-2); color:var(--text-2); }
-    .nt-tab--active { background:var(--accent-1); border-color:var(--accent-2); color:var(--text-1); }
-    .nt-save-status { font-size:0.72rem; color:var(--text-3); font-family:var(--font-display); letter-spacing:0.05em; min-width:80px; text-align:right; }
-    .nt-panel { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); padding:1.1rem 1.3rem; }
-    .nt-section-label { font-family:var(--font-display); font-size:0.62rem; color:var(--accent-3); letter-spacing:0.2em; text-transform:uppercase; margin-bottom:0.85rem; }
-    .nt-day-bar { display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; }
-    .nt-day-date { font-family:var(--font-display); font-size:0.95rem; color:var(--text-1); letter-spacing:0.05em; margin-bottom:0.35rem; }
-    .nt-day-type-badge { font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em; padding:0.18rem 0.55rem; border-radius:999px; text-transform:uppercase; display:inline-block; }
-    .nt-day-type-badge--training { background:rgba(222,41,82,0.1); border:1px solid var(--accent-1); color:var(--accent-3); }
-    .nt-day-type-badge--rest { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
-    .nt-day-type-badge--high { background:rgba(229,161,0,0.1); border:1px solid rgba(229,161,0,0.3); color:var(--warn); }
-    .nt-macro-summary { display:flex; flex-direction:column; gap:0.65rem; }
-    .nt-calorie-row { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; }
-    .nt-calorie-num { font-family:var(--font-display); font-size:1.45rem; color:var(--text-1); letter-spacing:-0.02em; }
-    .nt-calorie-target { font-family:var(--font-display); font-size:0.82rem; color:var(--text-3); }
-    .nt-calorie-track { height:5px; border-radius:999px; background:var(--surface-1); overflow:hidden; margin-bottom:0.4rem; }
-    .nt-calorie-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent-1),var(--accent-3)); transition:width 400ms ease; }
-    .nt-macro-bars { display:grid; gap:0.45rem; }
-    .nt-macro-bar-row { display:grid; grid-template-columns:54px 1fr 76px; align-items:center; gap:0.55rem; }
-    .nt-macro-label { font-size:0.76rem; color:var(--text-3); text-align:right; font-family:var(--font-display); letter-spacing:0.05em; }
-    .nt-macro-track { height:7px; border-radius:999px; background:var(--surface-1); overflow:hidden; }
-    .nt-macro-fill { height:100%; border-radius:999px; transition:width 400ms ease; }
-    .nt-macro-val { font-size:0.75rem; color:var(--text-2); text-align:right; white-space:nowrap; }
-    .nt-macro-over { color:var(--warn); }
-    .nt-segment-pills { display:flex; gap:0.3rem; flex-wrap:wrap; margin-bottom:0.75rem; }
-    .nt-seg-pill { padding:0.28rem 0.65rem; border-radius:999px; border:1px solid var(--line-1); background:transparent; color:var(--text-3); cursor:pointer; font-size:0.75rem; font-family:var(--font-display); letter-spacing:0.05em; transition:all var(--motion-fast) ease; }
-    .nt-seg-pill--active { background:var(--surface-3); border-color:var(--line-2); color:var(--text-1); }
-    .nt-pie-wrap { height:155px; border:1px solid var(--line-1); border-radius:var(--radius-sm); background:var(--surface-1); padding:0.2rem; margin-top:0.7rem; }
-    .nt-meals-grid { display:grid; gap:0.6rem; }
-    .nt-meal-card { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); overflow:hidden; }
-    .nt-meal-header { display:flex; justify-content:space-between; align-items:center; padding:0.7rem 1rem; cursor:pointer; transition:background var(--motion-fast) ease; gap:0.75rem; }
-    .nt-meal-header:hover { background:var(--surface-3); }
-    .nt-meal-header-left { display:flex; align-items:center; gap:0.6rem; min-width:0; }
-    .nt-meal-name { font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-1); }
-    .nt-meal-kcal { font-size:0.75rem; color:var(--text-3); }
-    .nt-meal-chevron { font-size:0.72rem; color:var(--text-3); flex-shrink:0; transition:transform var(--motion-fast) ease; }
-    .nt-meal-chevron--open { transform:rotate(180deg); }
-    .nt-meal-body { border-top:1px solid var(--line-1); padding:0.7rem 1rem; display:grid; gap:0.45rem; }
-    .nt-food-row { display:flex; justify-content:space-between; align-items:center; gap:0.65rem; padding:0.4rem 0.55rem; background:var(--surface-3); border-radius:var(--radius-sm); }
-    .nt-food-name { font-size:0.87rem; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .nt-food-meta { font-size:0.74rem; color:var(--text-3); margin-top:0.08rem; }
-    .nt-food-del { background:transparent; border:none; color:var(--text-3); cursor:pointer; padding:0.15rem 0.3rem; border-radius:4px; font-size:0.78rem; flex-shrink:0; transition:color var(--motion-fast) ease; }
-    .nt-food-del:hover { color:var(--bad); }
-    .nt-meal-group-hdr { display:flex; justify-content:space-between; align-items:center; padding:0.32rem 0.55rem; background:var(--surface-1); border-radius:var(--radius-sm); cursor:pointer; transition:background var(--motion-fast) ease; }
-    .nt-meal-group-hdr:hover { background:var(--surface-3); }
-    .nt-add-food-btn { display:flex; align-items:center; gap:0.4rem; padding:0.45rem 0.75rem; background:transparent; border:1px dashed var(--line-2); border-radius:var(--radius-sm); color:var(--text-3); cursor:pointer; font-size:0.8rem; width:100%; justify-content:center; transition:all var(--motion-fast) ease; margin-top:0.35rem; box-sizing:border-box; }
-    .nt-add-food-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.05); }
-    .nt-hydration-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; }
-    .nt-hydration-label { font-size:0.76rem; color:var(--text-3); margin-bottom:0.3rem; font-family:var(--font-display); letter-spacing:0.05em; }
-    .nt-micro-toggle { display:flex; justify-content:space-between; align-items:center; padding:0.8rem 1.3rem; background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); cursor:pointer; transition:background var(--motion-fast) ease; }
-    .nt-micro-toggle:hover { background:var(--surface-3); }
-    .nt-micro-toggle-label { font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-2); }
-    .nt-micro-item { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.48rem 0.65rem; }
-    .nt-micro-item-top { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; margin-bottom:0.22rem; }
-    .nt-micro-name { font-size:0.82rem; color:var(--text-1); }
-    .nt-micro-group { font-size:0.71rem; color:var(--text-3); }
-    .nt-micro-amount { font-size:0.82rem; color:var(--text-2); white-space:nowrap; }
-    .nt-micro-track { height:4px; border-radius:999px; background:var(--surface-1); overflow:hidden; }
-    .nt-micro-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent-1),var(--accent-3)); transition:width 300ms ease; }
-    .nt-modal-overlay { position:fixed; inset:0; background:rgba(9,5,6,0.88); z-index:200; display:flex; align-items:flex-start; justify-content:center; padding:5vh 1rem; backdrop-filter:blur(4px); }
-    .nt-modal { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-lg); width:100%; max-width:540px; max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-soft); }
-    .nt-modal-header { padding:0.9rem 1.2rem; border-bottom:1px solid var(--line-1); display:flex; justify-content:space-between; align-items:center; }
-    .nt-modal-title { font-family:var(--font-display); font-size:0.67rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-2); }
-    .nt-modal-close { background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:1.05rem; padding:0.2rem 0.4rem; border-radius:4px; transition:color var(--motion-fast) ease; }
-    .nt-modal-close:hover { color:var(--text-1); }
-    .nt-modal-search { padding:0.7rem 1rem; border-bottom:1px solid var(--line-1); }
-    .nt-modal-results { flex:1; overflow-y:auto; padding:0.4rem 0; }
-    .nt-modal-result { display:flex; align-items:flex-start; gap:0.7rem; padding:0.6rem 1rem; cursor:pointer; border:none; background:transparent; width:100%; text-align:left; transition:background var(--motion-fast) ease; }
-    .nt-modal-result:hover { background:var(--surface-3); }
-    .nt-modal-result-info { flex:1; min-width:0; }
-    .nt-modal-result-name { font-size:0.88rem; color:var(--text-1); margin-bottom:0.08rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .nt-modal-result-brand { font-size:0.76rem; color:var(--text-3); }
-    .nt-modal-result-macros { font-size:0.74rem; color:var(--text-2); margin-top:0.12rem; }
-    .nt-source-badge { font-size:0.58rem; font-family:var(--font-display); letter-spacing:0.1em; text-transform:uppercase; padding:0.14rem 0.42rem; border-radius:999px; flex-shrink:0; margin-top:0.2rem; }
-    .nt-source-usda { background:rgba(74,158,255,0.1); border:1px solid rgba(74,158,255,0.3); color:#4a9eff; }
-    .nt-source-off { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
-    .nt-source-mine { background:rgba(222,41,82,0.1); border:1px solid var(--accent-1); color:var(--accent-3); }
-    .nt-allergen-badge { font-size:0.58rem; font-family:var(--font-display); letter-spacing:0.05em; text-transform:uppercase; padding:0.14rem 0.38rem; border-radius:999px; background:rgba(255,184,107,0.1); border:1px solid rgba(255,184,107,0.3); color:#ffb86b; flex-shrink:0; }
-    .nt-modal-footer { padding:0.85rem 1.1rem; border-top:1px solid var(--line-1); display:grid; gap:0.5rem; }
-    .nt-modal-add-row { display:grid; grid-template-columns:1fr 110px 130px auto; gap:0.5rem; align-items:center; }
-    .nt-btn { padding:0.55rem 0.9rem; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font-display); font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase; transition:all var(--motion-fast) ease; border:1px solid var(--line-1); background:transparent; color:var(--text-2); }
-    .nt-btn:hover:not(:disabled) { border-color:var(--line-2); color:var(--text-1); }
-    .nt-btn:disabled { opacity:0.4; cursor:default; }
-    .nt-btn--primary { background:var(--accent-1); border-color:var(--accent-2); color:var(--text-1); }
-    .nt-btn--primary:hover:not(:disabled) { background:var(--accent-2); border-color:var(--accent-3); }
-    .nt-btn--sm { padding:0.32rem 0.6rem; font-size:0.62rem; }
-    .nt-toast { position:fixed; top:1rem; right:1rem; z-index:300; padding:0.65rem 0.95rem; border-radius:var(--radius-sm); border:1px solid var(--line-2); background:var(--surface-2); color:var(--text-1); font-size:0.86rem; max-width:360px; box-shadow:var(--shadow-soft); }
-    .nt-toast--warning { border-color:rgba(229,161,0,0.4); }
-    .nt-week-nav { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
-    .nt-week-label { font-family:var(--font-display); font-size:0.78rem; color:var(--text-2); letter-spacing:0.08em; }
-    .nt-plan-days { display:grid; gap:0.6rem; }
-    .nt-plan-day { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); overflow:hidden; }
-    .nt-plan-day--training { border-left:3px solid var(--accent-1); }
-    .nt-plan-day--rest { border-left:3px solid rgba(40,183,141,0.35); }
-    .nt-plan-day--high { border-left:3px solid rgba(229,161,0,0.4); }
-    .nt-plan-day-header { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 1rem; cursor:pointer; gap:0.65rem; }
-    .nt-plan-day-header:hover { background:var(--surface-3); }
-    .nt-plan-day-left { display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap; }
-    .nt-plan-day-name { font-family:var(--font-display); font-size:0.75rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-1); }
-    .nt-plan-day-totals { font-size:0.75rem; color:var(--text-3); white-space:nowrap; }
-    .nt-plan-day-body { border-top:1px solid var(--line-1); padding:0.7rem 1rem; display:grid; gap:0.5rem; }
-    .nt-plan-meal { background:var(--surface-3); border-radius:var(--radius-sm); padding:0.6rem 0.75rem; }
-    .nt-plan-meal--pre { border-left:3px solid var(--accent-2); }
-    .nt-plan-meal--post { border-left:3px solid var(--ok); }
-    .nt-plan-meal-header { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; margin-bottom:0.3rem; }
-    .nt-plan-meal-name { font-family:var(--font-display); font-size:0.65rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-2); }
-    .nt-plan-timing-chip { font-size:0.58rem; font-family:var(--font-display); letter-spacing:0.08em; text-transform:uppercase; padding:0.1rem 0.38rem; border-radius:999px; margin-left:0.35rem; }
-    .nt-plan-timing-chip--pre { background:rgba(181,21,60,0.12); border:1px solid var(--accent-1); color:var(--accent-3); }
-    .nt-plan-timing-chip--post { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
-    .nt-plan-food { font-size:0.8rem; color:var(--text-2); }
-    .nt-plan-meal-macros { font-size:0.71rem; color:var(--text-3); margin-top:0.28rem; }
-    .nt-plan-empty { text-align:center; padding:2.5rem 1rem; }
-    .nt-plan-empty-icon { font-size:2rem; opacity:0.35; margin-bottom:0.6rem; }
-    .nt-plan-empty-title { font-family:var(--font-display); font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-2); margin-bottom:0.4rem; }
-    .nt-plan-empty-sub { font-size:0.85rem; color:var(--text-3); margin-bottom:1.2rem; max-width:360px; margin-left:auto; margin-right:auto; line-height:1.5; }
-    .nt-settings-grid { display:grid; gap:0.65rem; }
-    .nt-targets-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0.65rem; }
-    .nt-target-day { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.8rem; }
-    .nt-target-day-name { font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--accent-3); margin-bottom:0.65rem; padding-bottom:0.45rem; border-bottom:1px solid var(--line-1); }
-    .nt-target-ro-row { display:flex; justify-content:space-between; align-items:baseline; gap:0.4rem; padding:0.22rem 0; }
-    .nt-target-ro-label { font-size:0.78rem; color:var(--text-3); }
-    .nt-target-ro-val { font-family:var(--font-display); font-size:0.82rem; color:var(--text-1); letter-spacing:0.03em; }
-    .nt-target-ro-unit { font-size:0.65rem; color:var(--text-3); margin-left:0.18rem; }
-    .nt-log-layout { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; align-items:start; }
-    .nt-log-main { display:grid; gap:0.6rem; }
-    .nt-sidebar { display:grid; gap:0.6rem; position:sticky; top:1rem; }
-    @media (max-width:900px) { .nt-log-layout { grid-template-columns:1fr; } .nt-sidebar { position:static; } .nt-targets-grid { grid-template-columns:1fr; } }
-    @media (max-width:540px) { .nt-modal-add-row { grid-template-columns:1fr 1fr; } }
-  `;
-
-  // ── Shared input style (used for inline inputs) ────────────────────────────
-  const inp = { width: "100%", padding: "0.6rem 0.75rem", background: "var(--surface-1)", color: "var(--text-1)", border: "1px solid var(--line-1)", borderRadius: "var(--radius-sm)", fontFamily: "var(--font-body)", fontSize: "0.9rem", boxSizing: "border-box", outline: "none" };
-  const sel = { ...inp, cursor: "pointer" };
-
-
-  if (loading) return (
-    <div style={{ padding: "1.5rem", color: "var(--text-3)", fontFamily: "var(--font-display)", fontSize: "0.75rem", letterSpacing: "0.15em" }}>
-      LOADING...
-    </div>
-  );
+  if (loading) return <div style={{ padding: "1rem" }}>Loading...</div>;
 
   return (
-    <div className="nt-wrap">
-      <style>{CSS}</style>
-
-      {/* Toast */}
-      {toast?.message && (
-        <div className={`nt-toast${toast.type === "warning" ? " nt-toast--warning" : ""}`}>
-          {toast.message}
+    <div className="nutrition-page" style={{ width: "100%" }}>
+      <div className="nutrition-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Nutrition</h1>
         </div>
-      )}
 
-      {/* ── Food search modal ──────────────────────────────────────────────── */}
-      {foodModalOpen && (
-        <div className="nt-modal-overlay" onClick={() => setFoodModalOpen(false)}>
-          <div className="nt-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="nt-modal-header">
-              <span className="nt-modal-title">
-                ◈ ADD FOOD — {(activeSegments.find((s) => s.key === entrySegment)?.label || entrySegment).toUpperCase()}
-              </span>
-              <button className="nt-modal-close" onClick={() => setFoodModalOpen(false)}>✕</button>
-            </div>
-
-            <div className="nt-modal-search">
-              <input
-                value={entryFood}
-                onChange={(e) => {
-                  setEntryFood(e.target.value);
-                  setEntryFoodLocked(false);
-                  setEntryFoodId(null);
-                  setEntryUserFoodId(null);
-                }}
-                placeholder="Search foods… e.g. chicken breast, oats, whey protein"
-                autoFocus
-                style={{ ...inp, fontSize: "0.92rem" }}
-              />
-            </div>
-
-            <div className="nt-modal-results">
-              {foodSearching ? (
-                <div style={{ padding: "1.2rem", color: "var(--text-3)", textAlign: "center", fontSize: "0.82rem" }}>Searching...</div>
-              ) : foodResults.length > 0 ? (
-                foodResults.map((r) => {
-                  const nameLower = String(r.name || "").toLowerCase();
-                  const hasAllergen = foodAllergies.length > 0 && foodAllergies.some((a) => nameLower.includes(a));
-                  const src = r.source || "unknown";
-                  const srcClass = src === "usda" ? "nt-source-usda" : src === "openfoodfacts" ? "nt-source-off" : "nt-source-mine";
-                  const srcLabel = src === "usda" ? "USDA" : src === "openfoodfacts" ? "Open Food Facts" : "My Foods";
-                  const p = r.nutrients_per_100g;
-                  return (
-                    <button
-                      key={`${src}:${r.id}`}
-                      className="nt-modal-result"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        selectFoodResult(r);
-                        setFoodDropdownOpen(false);
-                      }}
-                    >
-                      <div className="nt-modal-result-info">
-                        <div className="nt-modal-result-name">{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
-                        {p && (
-                          <div className="nt-modal-result-macros">
-                            Per 100g: {Math.round(p.energy_kcal || 0)} kcal · P{Math.round(p.protein_g || 0)}g · C{Math.round(p.carbs_g || 0)}g · F{Math.round(p.fat_g || 0)}g
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.28rem", alignItems: "flex-end", flexShrink: 0 }}>
-                        <span className={`nt-source-badge ${srcClass}`}>{srcLabel}</span>
-                        {hasAllergen && <span className="nt-allergen-badge">⚠ Allergen</span>}
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div style={{ padding: "1.2rem", color: "var(--text-3)", textAlign: "center", fontSize: "0.82rem" }}>
-                  {entryFood.length > 1
-                    ? (foodNoMatches ? "No matches. Try a simpler search term." : "Searching…")
-                    : "Type to search USDA, Open Food Facts, and your saved foods."}
-                </div>
-              )}
-            </div>
-
-            <div className="nt-modal-footer">
-              <div className="nt-modal-add-row">
-                <input
-                  value={entryQty}
-                  onChange={(e) => setEntryQty(e.target.value)}
-                  placeholder="Quantity"
-                  inputMode="decimal"
-                  style={inp}
-                />
-                <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={sel}>
-                  {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-                <select value={entrySegment} onChange={(e) => setEntrySegment(e.target.value)} style={sel}>
-                  {activeSegments.map((seg) => <option key={seg.key} value={seg.key}>{seg.label}</option>)}
-                </select>
-                <button
-                  className="nt-btn nt-btn--primary"
-                  disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || entryResolving}
-                  onClick={async () => {
-                    await addEntry();
-                    setFoodModalOpen(false);
-                    setEntryFood("");
-                    setEntryQty("");
-                    setFoodResults([]);
-                  }}
-                >
-                  {entryResolving ? "…" : "Add"}
-                </button>
-              </div>
-              {logWarnings.length > 0 && (
-                <div style={{ fontSize: "0.78rem", color: "var(--warn)" }}>{logWarnings[0]}</div>
-              )}
-            </div>
+        <div className="nutrition-tabs" style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button type="button" onClick={() => setTab("log")} style={tabBtn(tab === "log")}>Log</button>
+          <button type="button" onClick={() => setTab("goals")} style={tabBtn(tab === "goals")}>Goals</button>
+          <button type="button" onClick={() => setTab("meal_plan")} style={tabBtn(tab === "meal_plan")}>Meal Plan</button>
+          <button type="button" onClick={() => setTab("settings")} style={tabBtn(tab === "settings")}>Settings</button>
+          <div style={{ color: "#666", minWidth: "120px", textAlign: "right", fontSize: "0.86rem" }}>
+            {saving ? "Saving..." : lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
           </div>
         </div>
-      )}
-
-      {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="nt-header">
-        <span className="nt-title">◈ NUTRITION</span>
-        <div className="nt-tabs">
-          {[["log", "LOG TODAY"], ["meal_plan", "MEAL PLAN"], ["settings", "SETTINGS"]].map(([key, label]) => (
-            <button key={key} className={`nt-tab${tab === key ? " nt-tab--active" : ""}`} onClick={() => setTab(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="nt-save-status">
-          {saving ? "SAVING…" : lastSavedAt ? `SAVED ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
-        </span>
       </div>
 
-      {error && (
-        <div style={{ fontSize: "0.84rem", color: "var(--bad)", padding: "0.6rem 1rem", background: "rgba(255,79,115,0.07)", border: "1px solid rgba(255,79,115,0.2)", borderRadius: "var(--radius-sm)" }}>
-          {error}
+      {toast?.message ? (
+        <div
+          style={{
+            position: "fixed",
+            top: "18px",
+            right: "18px",
+            zIndex: 1200,
+            padding: "0.7rem 0.85rem",
+            borderRadius: "10px",
+            border: "1px solid #3d1a23",
+            background: toast.type === "warning" ? "#2d1217" : "#121318",
+            color: "#fff",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            maxWidth: "360px"
+          }}
+        >
+          {toast.message}
         </div>
-      )}
+      ) : null}
 
-      {/* ══════════════════ LOG TODAY ══════════════════════════════════════ */}
-      {tab === "log" && (
-        <>
-          {/* Day bar */}
-          <div className="nt-panel">
-            <div className="nt-day-bar">
-              <div>
-                <div className="nt-day-date">
-                  {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
+      {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
+
+      <div className="nutrition-shell nutrition-log-grid" style={{ width: "100%", display: "grid", gap: "1rem", marginTop: "1rem" }}>
+        <div className="nutrition-main" style={{ minWidth: 0 }}>
+          {tab === "log" && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <div className="nutrition-log-top" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1rem", alignItems: "start" }}>
+              <div style={card}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>Food log</div>
+                    <div style={{ color: "#aaa", marginTop: "0.35rem" }}>Log your food throughout the day</div>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <button type="button" onClick={() => toggleSection("foodLog")} style={collapseBtn}>
+                      {isCollapsed("foodLog") ? "Expand" : "Collapse"}
+                    </button>
+                    <button type="button" onClick={saveLog} disabled={saving} style={primaryBtn(saving)}>Save log</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEntries([]);
+                        setEntryFood("");
+                        setEntryQty("");
+                        setEntryUnit("g");
+                        setEntryState("raw");
+                        setEntryFoodId(null);
+                        setEntryUserFoodId(null);
+                        setEntryFoodLocked(false);
+                        setFoodResults([]);
+                        setFoodDropdownOpen(false);
+                        setExpandedSavedMealRows({});
+                      }}
+                      style={subtleBtn}
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
-                <span className={`nt-day-type-badge nt-day-type-badge--${todayType}`}>
-                  {dayLabel[todayType] || "Today"}
-                </span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", flexWrap: "wrap" }}>
-                <select
-                  value={todayType}
-                  onChange={(e) => saveTodayType(e.target.value)}
-                  style={{ ...sel, width: "auto", fontSize: "0.75rem", fontFamily: "var(--font-display)", letterSpacing: "0.06em", padding: "0.45rem 0.7rem" }}
-                >
-                  <option value="training">Training Day</option>
-                  <option value="rest">Rest Day</option>
-                  <option value="high">High Day</option>
-                </select>
-                <button className="nt-btn nt-btn--sm nt-btn--primary" onClick={saveLog} disabled={saving}>Save</button>
-                <button className="nt-btn nt-btn--sm" onClick={() => { setEntries([]); setEntryFood(""); setEntryQty(""); setFoodResults([]); }}>Clear</button>
-              </div>
-            </div>
-          </div>
 
-          {/* Two-column layout: meal log + sidebar */}
-          <div className="nt-log-layout">
+                {!isCollapsed("foodLog") ? (
+                  <>
+                <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.6rem" }}>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      value={entryFood}
+                      onChange={(e) => {
+                        setEntryFood(e.target.value);
+                        setEntryFoodLocked(false);
+                        setEntryFoodId(null);
+                        setEntryUserFoodId(null);
+                      }}
+                      onFocus={() => {
+                        if (!entryFoodLocked && foodResults.length > 0) setFoodDropdownOpen(true);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setFoodDropdownOpen(false), 140);
+                      }}
+                      placeholder="e.g. rice, chicken breast"
+                      style={field}
+                    />
 
-            {/* Left: meal cards */}
-            <div className="nt-log-main">
-              {displaySegments.map((seg) => {
-                const rows = groupedRowsBySegment.get(seg.key) || [];
-                const segTotals = segmentTotalsByKey?.[seg.key];
-                const expanded = !isCollapsed(`seg_${seg.key}`);
-                return (
-                  <div className="nt-meal-card" key={seg.key}>
-                    <div className="nt-meal-header" onClick={() => toggleSection(`seg_${seg.key}`)}>
-                      <div className="nt-meal-header-left">
-                        <span className="nt-meal-name">{seg.label}</span>
-                        {segTotals && segTotals.calories > 0 && (
-                          <span className="nt-meal-kcal">{Math.round(segTotals.calories)} kcal</span>
+                    {foodDropdownOpen && (foodSearching || foodResults.length > 0 || foodNoMatches) && (
+                      <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "#050507", border: "1px solid #2a1118", borderRadius: "10px", zIndex: 20, overflow: "hidden" }}>
+                        {foodSearching ? (
+                          <div style={{ padding: "0.65rem", color: "#888" }}>
+                            Searching foods...
+                          </div>
+                        ) : (
+                          foodResults.length > 0 ? (
+                            foodResults.map((r) => {
+                              const nameLower = String(r.name || "").toLowerCase();
+                              const hasAllergen = foodAllergies.length > 0 && foodAllergies.some((a) => nameLower.includes(a));
+                              return (
+                                <button
+                                  key={`${r.source}:${r.id}`}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => selectFoodResult(r)}
+                                  style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                                    <span style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</span>
+                                    {hasAllergen && (
+                                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "4px", background: "rgba(255,184,107,0.15)", color: "#ffb86b", border: "1px solid rgba(255,184,107,0.3)", whiteSpace: "nowrap" }}>
+                                        ⚠ Allergen
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div style={{ padding: "0.65rem", color: "#888" }}>
+                              {foodNoMatches
+                                ? "No matches found yet. Keep typing, or press Add to auto-resolve."
+                                : "No suggestions yet."}
+                            </div>
+                          )
                         )}
                       </div>
-                      <span className={`nt-meal-chevron${expanded ? " nt-meal-chevron--open" : ""}`}>▼</span>
-                    </div>
+                    )}
+                  </div>
 
-                    {expanded && (
-                      <div className="nt-meal-body">
-                        {rows.length === 0 && (
-                          <div style={{ fontSize: "0.82rem", color: "var(--text-3)", textAlign: "center", padding: "0.2rem 0" }}>
-                            Nothing logged yet
+                  <div className="nutrition-entry-row" style={{ display: "grid", gridTemplateColumns: "140px 130px 170px 120px", gap: "0.6rem", alignItems: "center" }}>
+                    <input value={entryQty} onChange={(e) => setEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
+
+                    <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={field}>
+                      {UNIT_OPTIONS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+
+                    <select value={entrySegment} onChange={(e) => setEntrySegment(e.target.value)} style={field}>
+                      {activeSegments.map((seg) => (
+                        <option key={seg.key} value={seg.key}>{seg.label}</option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || entryResolving}
+                      onClick={addEntry}
+                      style={primaryBtn(!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || entryResolving)}
+                    >
+                      {entryResolving ? "Resolving..." : "Add"}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
+                  <div style={{ order: 2, border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.65rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                      <div style={{ fontWeight: 700 }}>Saved Meals</div>
+                      <button type="button" onClick={() => toggleSection("savedMeals")} style={collapseBtn}>
+                        {isCollapsed("savedMeals") ? "Expand" : "Collapse"}
+                      </button>
+                    </div>
+                    {!isCollapsed("savedMeals") ? (
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 120px", gap: "0.5rem" }}>
+                          <select value={savedMealSelection} onChange={(e) => setSavedMealSelection(e.target.value)} style={field}>
+                            <option value="">Select saved meal</option>
+                            {savedMeals.map((m) => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                          <button type="button" onClick={addSavedMealToLog} style={subtleBtn}>Add to log</button>
+                          <button type="button" disabled={savingSavedMeal || !savedMealSelection} onClick={deleteSavedMeal} style={subtleBtn}>Delete</button>
+                        </div>
+                        <div style={{ display: "grid", gap: "0.5rem", border: "1px solid #2a1118", borderRadius: "10px", padding: "0.6rem", background: "#050507" }}>
+                          <div style={{ color: "#aaa", fontSize: "0.9rem", fontWeight: 700 }}>Build Custom Meal</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 170px", gap: "0.5rem" }}>
+                            <input value={savedMealName} onChange={(e) => setSavedMealName(e.target.value)} placeholder="Meal name (e.g. Protein Oats)" style={field} />
+                            <select value={savedMealSegment} onChange={(e) => setSavedMealSegment(e.target.value)} style={field}>
+                              {activeSegments.map((seg) => (
+                                <option key={seg.key} value={seg.key}>{seg.label}</option>
+                              ))}
+                            </select>
                           </div>
-                        )}
-                        {rows.map((row, rowIdx) => {
-                          if (row.kind === "item") {
-                            const it = row.item;
-                            return (
-                              <div className="nt-food-row" key={it.id || rowIdx}>
-                                <div style={{ minWidth: 0 }}>
-                                  <div className="nt-food-name">{it.food}</div>
-                                  <div className="nt-food-meta">{it.qty}{it.unit} · {it.state}</div>
+                          <div style={{ position: "relative" }}>
+                            <input
+                              value={mealEntryFood}
+                              onChange={(e) => {
+                                setMealEntryFood(e.target.value);
+                                setMealEntryFoodLocked(false);
+                                setMealEntryFoodId(null);
+                                setMealEntryUserFoodId(null);
+                              }}
+                              onFocus={() => {
+                                if (!mealEntryFoodLocked && mealFoodResults.length > 0) setMealFoodDropdownOpen(true);
+                              }}
+                              onBlur={() => setTimeout(() => setMealFoodDropdownOpen(false), 140)}
+                              placeholder="Add food to custom meal..."
+                              style={field}
+                            />
+                            {mealFoodDropdownOpen && (mealFoodSearching || mealFoodResults.length > 0 || mealFoodNoMatches) ? (
+                              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "#050507", border: "1px solid #2a1118", borderRadius: "10px", zIndex: 20, overflow: "hidden" }}>
+                                {mealFoodSearching ? (
+                                  <div style={{ padding: "0.65rem", color: "#888" }}>Searching foods...</div>
+                                ) : mealFoodResults.length > 0 ? (
+                                  mealFoodResults.map((r) => (
+                                    <button
+                                      key={`${r.source}:${r.id}`}
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => selectMealFoodResult(r)}
+                                      style={{ width: "100%", textAlign: "left", padding: "0.65rem", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
+                                    >
+                                      <div style={{ fontWeight: 700 }}>{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div style={{ padding: "0.65rem", color: "#888" }}>
+                                    {mealFoodNoMatches ? "No matches found yet." : "No suggestions yet."}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "120px 120px 1fr", gap: "0.5rem", alignItems: "center" }}>
+                            <input value={mealEntryQty} onChange={(e) => setMealEntryQty(e.target.value)} placeholder="Qty" inputMode="decimal" style={field} />
+                            <select value={mealEntryUnit} onChange={(e) => setMealEntryUnit(e.target.value)} style={field}>
+                              {UNIT_OPTIONS.map((u) => (
+                                <option key={u} value={u}>{u}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              disabled={!String(mealEntryFood || "").trim() || !isPositiveNumber(mealEntryQty) || mealEntryResolving}
+                              onClick={addMealDraftEntry}
+                              style={primaryBtn(!String(mealEntryFood || "").trim() || !isPositiveNumber(mealEntryQty) || mealEntryResolving)}
+                            >
+                              {mealEntryResolving ? "Adding..." : "Add"}
+                            </button>
+                          </div>
+                          {mealDraftEntries.length === 0 ? (
+                            <div style={{ color: "#666", fontSize: "0.9rem" }}>No foods in custom meal yet.</div>
+                          ) : (
+                            <div style={{ display: "grid", gap: "0.35rem", maxHeight: "170px", overflowY: "auto", paddingRight: "0.2rem" }}>
+                              {mealDraftEntries.map((it) => (
+                                <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem", border: "1px solid #2a1118", borderRadius: "8px", padding: "0.45rem 0.55rem", background: "#040406" }}>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ color: "#fff", fontSize: "0.9rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.food}</div>
+                                    <div style={{ color: "#888", fontSize: "0.82rem" }}>{it.qty}{it.unit}</div>
+                                  </div>
+                                  <button type="button" onClick={() => setMealDraftEntries((prev) => prev.filter((x) => x.id !== it.id))} style={subtleBtn}>Remove</button>
                                 </div>
-                                <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMealDraftEntries([]);
+                                setMealEntryFood("");
+                                setMealEntryQty("");
+                                setMealEntryUnit("g");
+                                setMealEntryFoodId(null);
+                                setMealEntryUserFoodId(null);
+                                setMealEntryFoodLocked(false);
+                                setMealFoodResults([]);
+                                setMealFoodDropdownOpen(false);
+                              }}
+                              style={subtleBtn}
+                            >
+                              Clear Meal
+                            </button>
+                            <button
+                              type="button"
+                              disabled={savingSavedMeal || mealDraftEntries.length === 0 || !String(savedMealName || "").trim()}
+                              onClick={saveMealDraftAsMeal}
+                              style={primaryBtn(savingSavedMeal || mealDraftEntries.length === 0 || !String(savedMealName || "").trim())}
+                            >
+                              Save Custom Meal
+                            </button>
+                          </div>
+                        </div>
+                        {selectedSavedMeal?.items?.length > 0 ? (
+                          <div style={{ border: "1px solid #2a1118", borderRadius: "10px", padding: "0.55rem", background: "#050507", display: "grid", gap: "0.35rem", maxHeight: "160px", overflowY: "auto" }}>
+                            {selectedSavedMeal.items.map((it, idx) => (
+                              <div key={`${selectedSavedMeal.id}-${idx}`} style={{ color: "#aaa", fontSize: "0.87rem" }}>
+                                <span style={{ color: "#fff" }}>{it.food}</span> • {it.qty}{it.unit}
                               </div>
-                            );
-                          }
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
+
+                  <div style={{ order: 1, border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.6rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                      <div style={{ fontWeight: 700 }}>Logged Items</div>
+                      <button type="button" onClick={() => toggleSection("logEntries")} style={collapseBtn}>
+                        {isCollapsed("logEntries") ? "Expand" : "Collapse"}
+                      </button>
+                    </div>
+                    {!isCollapsed("logEntries") ? (
+                      entries.length === 0 ? (
+                        <div style={{ color: "#666" }}>No items yet.</div>
+                      ) : (
+                        displaySegments.map((seg) => {
+                          const segRows = groupedRowsBySegment.get(seg.key) || [];
                           return (
-                            <div key={row.mealId}>
-                              <div
-                                className="nt-meal-group-hdr"
-                                onClick={() => setExpandedSavedMealRows((prev) => ({ ...prev, [row.mealId]: !prev[row.mealId] }))}
-                              >
-                                <span style={{ fontSize: "0.82rem", color: "var(--text-2)", fontWeight: 600 }}>{row.mealName}</span>
-                                <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{row.items.length} foods {expandedSavedMealRows[row.mealId] ? "▲" : "▼"}</span>
-                              </div>
-                              {expandedSavedMealRows[row.mealId] && (
-                                <div style={{ display: "grid", gap: "0.28rem", marginTop: "0.28rem" }}>
-                                  {row.items.map((it, iti) => (
-                                    <div className="nt-food-row" key={it.id || iti}>
-                                      <div style={{ minWidth: 0 }}>
-                                        <div className="nt-food-name">{it.food}</div>
-                                        <div className="nt-food-meta">{it.qty}{it.unit}</div>
+                            <div key={seg.key} style={{ border: "1px solid #2a1118", borderRadius: "10px", padding: "0.6rem", background: "#040406" }}>
+                              <div style={{ fontWeight: 700, marginBottom: "0.45rem" }}>{seg.label}</div>
+                              {segRows.length === 0 ? (
+                                <div style={{ color: "#666", fontSize: "0.9rem" }}>No items.</div>
+                              ) : (
+                                <div style={{ display: "grid", gap: "0.45rem" }}>
+                                  {segRows.map((row) => {
+                                    if (row.kind === "meal") {
+                                      const expanded = Boolean(expandedSavedMealRows?.[row.mealId]);
+                                      return (
+                                        <div key={`meal-${row.mealId}`} style={{ border: "1px solid #2a1118", borderRadius: "10px", background: "#050507", padding: "0.55rem 0.6rem" }}>
+                                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                                            <div style={{ minWidth: 0 }}>
+                                              <div style={{ fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.mealName}</div>
+                                              <div style={{ color: "#888", fontSize: "0.86rem", marginTop: "0.15rem" }}>{row.items.length} foods</div>
+                                            </div>
+                                            <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+                                              <button type="button" onClick={() => setExpandedSavedMealRows((prev) => ({ ...(prev || {}), [row.mealId]: !expanded }))} style={subtleBtn}>
+                                                {expanded ? "Hide" : "Show"}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setEntries((prev) => prev.filter((x) => String(x.meal_instance_id || "") !== row.mealId))
+                                                }
+                                                style={subtleBtn}
+                                              >
+                                                Remove meal
+                                              </button>
+                                            </div>
+                                          </div>
+                                          {expanded ? (
+                                            <div style={{ marginTop: "0.45rem", display: "grid", gap: "0.35rem" }}>
+                                              {row.items.map((it) => (
+                                                <div key={it.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: "0.55rem", padding: "0.45rem 0.5rem", border: "1px solid #2a1118", borderRadius: "8px", background: "#040406" }}>
+                                                  <div style={{ minWidth: 0 }}>
+                                                    <div style={{ color: "#fff", fontSize: "0.9rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.food}</div>
+                                                    <div style={{ color: "#888", fontSize: "0.82rem" }}>{it.qty}{it.unit}</div>
+                                                  </div>
+                                                  <button type="button" onClick={() => setEntries((prev) => prev.filter((x) => x.id !== it.id))} style={subtleBtn}>Remove</button>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    }
+                                    const it = row.item;
+                                    return (
+                                      <div key={it.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: "0.75rem", padding: "0.65rem 0.75rem", border: "1px solid #2a1118", borderRadius: "10px", background: "#050507" }}>
+                                        <div style={{ minWidth: 0 }}>
+                                          <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.food}</div>
+                                          <div style={{ color: "#888", fontSize: "0.9rem", marginTop: "0.2rem" }}>
+                                            {it.qty}{it.unit}
+                                          </div>
+                                        </div>
+                                        <button type="button" onClick={() => setEntries((prev) => prev.filter((x) => x.id !== it.id))} style={subtleBtn}>Remove</button>
                                       </div>
-                                      <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
                           );
-                        })}
-
-                        <button
-                          className="nt-add-food-btn"
-                          onClick={() => {
-                            setEntrySegment(seg.key);
-                            setEntryFood("");
-                            setEntryQty("");
-                            setEntryFoodId(null);
-                            setEntryUserFoodId(null);
-                            setEntryFoodLocked(false);
-                            setFoodResults([]);
-                            setFoodModalOpen(true);
-                          }}
-                        >
-                          + Add Food
-                        </button>
-                      </div>
-                    )}
+                        })
+                      )
+                    ) : null}
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            {/* Right: stats sidebar */}
-            <div className="nt-sidebar">
-
-              {/* Macro summary */}
-              <div className="nt-panel">
-                <div className="nt-section-label">◈ MACROS</div>
-                <div className="nt-segment-pills">
-                  {summarySegments.map((seg) => (
-                    <button
-                      key={seg.key}
-                      className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`}
-                      onClick={() => setSummarySegment(seg.key)}
-                    >
-                      {seg.label}
+                <div style={{ marginTop: "1rem", display: "grid", gap: "0.6rem", border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                    <div style={{ color: "#aaa" }}>Notes</div>
+                    <button type="button" onClick={() => toggleSection("notes")} style={collapseBtn}>
+                      {isCollapsed("notes") ? "Expand" : "Collapse"}
                     </button>
-                  ))}
-                </div>
-                <div className="nt-macro-summary">
-                  {(() => {
-                    const cals = Number(effectiveLogTotals.calories || 0);
-                    const target = Number(todaysTargets?.calories || 0);
-                    const fillPct = target > 0 ? Math.min(100, (cals / target) * 100) : 0;
-                    return (
-                      <>
-                        <div className="nt-calorie-row">
-                          <span className="nt-calorie-num">{Math.round(cals)}</span>
-                          <span className="nt-calorie-target">/ {target} kcal</span>
-                        </div>
-                        <div className="nt-calorie-track">
-                          <div className="nt-calorie-fill" style={{ width: `${fillPct}%` }} />
-                        </div>
-                      </>
-                    );
-                  })()}
-                  <div className="nt-macro-bars">
-                    {[
-                      { key: "protein_g", label: "Protein", val: effectiveLogTotals.protein_g, target: todaysTargets?.protein_g, color: "var(--accent-3)" },
-                      { key: "carbs_g",   label: "Carbs",   val: effectiveLogTotals.carbs_g,   target: todaysTargets?.carbs_g,   color: "#4a9eff" },
-                      { key: "fats_g",    label: "Fats",    val: effectiveLogTotals.fats_g,    target: todaysTargets?.fats_g,    color: "#e5a100" }
-                    ].map((m) => {
-                      const val = round1(m.val || 0);
-                      const tgt = Number(m.target || 0);
-                      const fillPct = tgt > 0 ? Math.min(100, (val / tgt) * 100) : 0;
-                      const over = tgt > 0 && val > tgt * 1.05;
-                      return (
-                        <div className="nt-macro-bar-row" key={m.key}>
-                          <span className="nt-macro-label">{m.label}</span>
-                          <div className="nt-macro-track">
-                            <div className="nt-macro-fill" style={{ width: `${fillPct}%`, background: over ? "var(--warn)" : m.color }} />
-                          </div>
-                          <span className={`nt-macro-val${over ? " nt-macro-over" : ""}`}>{val}/{tgt}g</span>
-                        </div>
-                      );
-                    })}
                   </div>
-                  {hasMacroPieData && (
-                    <div className="nt-pie-wrap">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={macroPieDisplayData} dataKey="value" nameKey="name" innerRadius={36} outerRadius={58} paddingAngle={2}>
-                            {macroPieDisplayData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                          </Pie>
-                          <Tooltip
-                            formatter={(value, name, ctx) => [`${Math.round(Number(value || 0))} kcal · ${round1(ctx?.payload?.grams || 0)}g`, String(name || "")]}
-                            contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--line-1)", borderRadius: "8px", color: "var(--text-1)" }}
-                            itemStyle={{ color: "var(--text-1)" }}
-                            cursor={false}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                  {!isCollapsed("notes") ? (
+                    <textarea value={logNotes} onChange={(e) => setLogNotes(e.target.value)} placeholder="Anything useful to remember today..." style={{ ...field, minHeight: "110px", resize: "vertical" }} />
+                  ) : null}
+                </div>
+                  </>
+                ) : null}
+              </div>
+              <div style={{ ...card, background: "#040406", padding: "0.9rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>Day controls</div>
+                    <div style={{ color: "#666", marginTop: "0.25rem" }}>{dayLabel[todayType] || "Today"}</div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <button type="button" onClick={() => toggleSection("dayControls")} style={collapseBtn}>
+                      {isCollapsed("dayControls") ? "Expand" : "Collapse"}
+                    </button>
+                    <select value={todayType} onChange={(e) => saveTodayType(e.target.value)} style={{ ...field, width: "170px" }}>
+                      <option value="training">Training day</option>
+                      <option value="rest">Rest day</option>
+                      <option value="high">High day</option>
+                    </select>
+                  </div>
+                </div>
+
+                {!isCollapsed("dayControls") ? (
+                  <>
+                    <div style={{ marginTop: "0.85rem", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" }}>
+                      <div><div style={{ color: "#aaa" }}>Calories</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets?.calories ?? "—"}</div></div>
+                      <div><div style={{ color: "#aaa" }}>Protein</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets ? `${todaysTargets.protein_g}g` : "—"}</div></div>
+                      <div><div style={{ color: "#aaa" }}>Carbs</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets ? `${todaysTargets.carbs_g}g` : "—"}</div></div>
+                      <div><div style={{ color: "#aaa" }}>Fats</div><div style={{ marginTop: "0.2rem", fontSize: "1.05rem" }}>{todaysTargets ? `${todaysTargets.fats_g}g` : "—"}</div></div>
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Hydration */}
-              <div className="nt-panel">
-                <div className="nt-section-label">◈ HYDRATION</div>
-                <div className="nt-hydration-grid">
-                  <div>
-                    <div className="nt-hydration-label">Water (ml)</div>
-                    <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={inp} />
-                  </div>
-                  <div>
-                    <div className="nt-hydration-label">Salt (g)</div>
-                    <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={inp} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Micronutrients */}
-              {showMicronutrientsSection && (
-                <div className="nt-panel">
-                  <div className="nt-micro-toggle" style={{ padding: 0, background: "none", border: "none", borderRadius: 0 }} onClick={() => toggleSection("micros")}>
-                    <span className="nt-micro-toggle-label">
-                      ◈ MICRONUTRIENTS{visibleMicroRows.length > 0 ? ` (${visibleMicroRows.length})` : ""}
-                    </span>
-                    <span style={{ color: "var(--text-3)", fontSize: "0.78rem" }}>{isCollapsed("micros") ? "▼" : "▲"}</span>
-                  </div>
-
-                  {!isCollapsed("micros") && (
-                    <div style={{ marginTop: "0.75rem" }}>
-                      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.65rem" }}>
-                        <select value={microGroupFilter} onChange={(e) => setMicroGroupFilter(e.target.value)} style={{ ...sel, flex: 1, fontSize: "0.78rem", padding: "0.35rem 0.5rem" }}>
-                          <option value="all">All groups</option>
-                          {microGroups.map((g) => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                        <select value={microTargetMode} onChange={(e) => saveMicroMode(e.target.value)} disabled={savingMicroTargets} style={{ ...sel, flex: 1, fontSize: "0.78rem", padding: "0.35rem 0.5rem" }}>
-                          <option value="rdi">RDI</option>
-                          <option value="bodyweight">BW</option>
-                          <option value="custom">Custom</option>
-                        </select>
+                    <div style={{ height: "1px", background: "#2a1118", margin: "0.9rem 0" }} />
+                    <div>
+                      <div style={{ fontWeight: 800 }}>Water & salt</div>
+                      <div style={{ marginTop: "0.7rem", display: "grid", gap: "0.75rem" }}>
+                        <div>
+                          <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Water (ml)</div>
+                          <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={field} />
+                        </div>
+                        <div>
+                          <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Salt (g)</div>
+                          <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={field} />
+                        </div>
                       </div>
-                      <div className="nt-segment-pills" style={{ marginBottom: "0.6rem" }}>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              </div>
+
+              <div className="nutrition-macro-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "1rem" }}>
+                <div style={card}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                    <div style={{ fontWeight: 800 }}>Macronutrients</div>
+                    <button type="button" onClick={() => toggleSection("dailyTotals")} style={collapseBtn}>
+                      {isCollapsed("dailyTotals") ? "Expand" : "Collapse"}
+                    </button>
+                  </div>
+                  {!isCollapsed("dailyTotals") ? (
+                    <>
+                      <div style={{ marginTop: "0.55rem", display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
                         {summarySegments.map((seg) => (
-                          <button key={`mi-${seg.key}`} className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`} onClick={() => setSummarySegment(seg.key)}>
+                          <button
+                            key={`macro-${seg.key}`}
+                            type="button"
+                            onClick={() => setSummarySegment(seg.key)}
+                            style={pill(summarySegment === seg.key)}
+                          >
                             {seg.label}
                           </button>
                         ))}
                       </div>
 
-                      {dayNutrientsLoading ? (
-                        <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>Loading...</div>
-                      ) : visibleMicroRows.length === 0 ? (
-                        <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>
-                          {summarySegment === "all" ? "Log food to see micros." : `No data in ${selectedSummaryLabel.toLowerCase()} yet.`}
-                        </div>
-                      ) : (
-                        <div style={{ display: "grid", gap: "0.4rem", maxHeight: "380px", overflowY: "auto", paddingRight: "0.15rem" }}>
-                          {visibleMicroRows.map((n) => (
-                            <div className="nt-micro-item" key={n.code}>
-                              <div className="nt-micro-item-top">
-                                <div>
-                                  <span className="nt-micro-name">{displayNutrientLabel(n.code, n.label)}</span>
-                                  <span className="nt-micro-group"> · {displayNutrientGroup(n.code, n.sort_group)}</span>
-                                </div>
-                                <span className="nt-micro-amount">
-                                  {formatNutrientAmount(n.amount)} {formatNutrientUnit(n.unit)}
-                                  {" / "}
-                                  {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${formatNutrientUnit(n.unit)}` : "N/T"}
+                      <div style={{ marginTop: "0.8rem", display: "grid", gap: "0.55rem" }}>
+                        {macroProgress.map((m) => {
+                          const progress = pct(m.value, m.target || 0);
+                          return (
+                            <div key={m.key}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", color: "#bbb", marginBottom: "0.25rem" }}>
+                                <span>{m.label}</span>
+                                <span style={{ color: "#fff" }}>
+                                  {m.value}/{m.target || 0} {m.unit}
                                 </span>
                               </div>
-                              {microTargetMode === "custom" && (
-                                <div style={{ marginTop: "0.28rem", display: "flex", justifyContent: "flex-end" }}>
-                                  <input
-                                    type="number"
-                                    value={microTargetDrafts[n.code] ?? 0}
-                                    onChange={(e) => setMicroTargetDrafts((prev) => ({ ...prev, [n.code]: Math.max(0, Number(e.target.value || 0)) }))}
-                                    style={{ ...inp, width: "110px", fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
-                                  />
-                                </div>
-                              )}
-                              <div className="nt-micro-track" style={{ marginTop: "0.22rem" }}>
-                                <div className="nt-micro-fill" style={{ width: `${n.amount <= 0 ? 0 : Math.max(2, n.sliderPct)}%` }} />
+                              <div style={{ height: "10px", borderRadius: "999px", background: "#0f1014", overflow: "hidden" }}>
+                                <div
+                                  style={{
+                                    width: `${progress}%`,
+                                    height: "100%",
+                                    background: `linear-gradient(90deg, ${m.color}, ${m.color}cc)`,
+                                    transition: "width 240ms ease"
+                                  }}
+                                />
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {microTargetMode === "custom" && (
-                        <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end" }}>
-                          <button className="nt-btn nt-btn--primary nt-btn--sm" onClick={saveCustomMicroTargets} disabled={savingMicroTargets}>
-                            Save Targets
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ══════════════════ MEAL PLAN ════════════════════════════════════════ */}
-      {tab === "meal_plan" && (
-        <>
-          <div className="nt-panel">
-            <div className="nt-week-nav">
-              <div>
-                <div className="nt-section-label">◈ WEEKLY MEAL PLAN</div>
-                <div className="nt-week-label">{formatWeekRange(currentWeekStart)}</div>
-              </div>
-              <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
-                <button className="nt-btn nt-btn--sm" onClick={() => shiftWeek(-1)}>← Prev</button>
-                <button className="nt-btn nt-btn--sm" onClick={() => shiftWeek(1)}>Next →</button>
-                <button className="nt-btn nt-btn--primary" onClick={generateMealPlan} disabled={mealPlanGenerating}>
-                  {mealPlanGenerating ? "Generating…" : "Generate with AI"}
-                </button>
-              </div>
-            </div>
-            {mealPlanError && (
-              <div style={{ marginTop: "0.7rem", fontSize: "0.82rem", color: "var(--bad)", padding: "0.5rem 0.75rem", background: "rgba(255,79,115,0.07)", border: "1px solid rgba(255,79,115,0.2)", borderRadius: "var(--radius-sm)" }}>
-                {mealPlanError}
-              </div>
-            )}
-          </div>
-
-          {mealPlanLoading ? (
-            <div className="nt-panel" style={{ textAlign: "center", color: "var(--text-3)", padding: "2rem", fontSize: "0.82rem" }}>Loading plan...</div>
-          ) : !mealPlanData ? (
-            <div className="nt-panel">
-              <div className="nt-plan-empty">
-                <div className="nt-plan-empty-icon">⬡</div>
-                <div className="nt-plan-empty-title">No plan for this week</div>
-                <div className="nt-plan-empty-sub">
-                  Generate a 7-day AI meal plan tailored to your macro targets, training schedule, and dietary preferences.
-                  Carbs are automatically timed around your workouts — higher around training, lower on rest days.
-                </div>
-                <button className="nt-btn nt-btn--primary" onClick={generateMealPlan} disabled={mealPlanGenerating}>
-                  {mealPlanGenerating ? "Generating…" : "Generate Week Plan"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="nt-plan-days">
-              {(mealPlanData.days || []).map((day) => {
-                const dateObj = new Date(day.date + "T00:00:00Z");
-                const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dateObj.getUTCDay()];
-                const dateStr = dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
-                const isToday = day.date === todayIso();
-                const expanded = !isCollapsed(`plan_${day.date}`);
-                const dt = day.day_type || "rest";
-                return (
-                  <div className={`nt-plan-day nt-plan-day--${dt}`} key={day.date}>
-                    <div className="nt-plan-day-header" onClick={() => toggleSection(`plan_${day.date}`)}>
-                      <div className="nt-plan-day-left">
-                        <span className="nt-plan-day-name">{dayName.toUpperCase()} {dateStr}</span>
-                        <span className={`nt-day-type-badge nt-day-type-badge--${dt}`} style={{ fontSize: "0.57rem" }}>{dt.toUpperCase()}</span>
-                        {isToday && (
-                          <span style={{ fontSize: "0.58rem", fontFamily: "var(--font-display)", letterSpacing: "0.1em", padding: "0.1rem 0.42rem", borderRadius: "999px", background: "rgba(222,41,82,0.14)", border: "1px solid var(--accent-2)", color: "var(--accent-3)" }}>
-                            TODAY
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
-                        {day.totals && (
-                          <span className="nt-plan-day-totals">
-                            {day.totals.calories} kcal · P{day.totals.protein_g}g C{day.totals.carbs_g}g F{day.totals.fat_g}g
-                          </span>
-                        )}
-                        <span style={{ color: "var(--text-3)", fontSize: "0.72rem" }}>{expanded ? "▲" : "▼"}</span>
-                      </div>
-                    </div>
-
-                    {expanded && (
-                      <div className="nt-plan-day-body">
-                        {(day.meals || []).map((meal, mi) => {
-                          const isPre = meal.timing_label === "pre_workout";
-                          const isPost = meal.timing_label === "post_workout";
-                          return (
-                            <div className={`nt-plan-meal${isPre ? " nt-plan-meal--pre" : isPost ? " nt-plan-meal--post" : ""}`} key={mi}>
-                              <div className="nt-plan-meal-header">
-                                <div>
-                                  <span className="nt-plan-meal-name">{meal.name}</span>
-                                  {isPre && <span className="nt-plan-timing-chip nt-plan-timing-chip--pre">PRE-WORKOUT</span>}
-                                  {isPost && <span className="nt-plan-timing-chip nt-plan-timing-chip--post">POST-WORKOUT</span>}
-                                </div>
-                                <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{meal.approximate_time || ""}</span>
-                              </div>
-                              <div style={{ display: "grid", gap: "0.16rem" }}>
-                                {(meal.foods || []).map((f, fi) => (
-                                  <div className="nt-plan-food" key={fi}>
-                                    · {f.name} <span style={{ color: "var(--text-3)" }}>{f.amount}</span>
-                                  </div>
-                                ))}
-                              </div>
-                              {meal.estimated && (
-                                <div className="nt-plan-meal-macros">
-                                  {meal.estimated.calories} kcal · P{meal.estimated.protein_g}g · C{meal.estimated.carbs_g}g · F{meal.estimated.fat_g}g
-                                </div>
-                              )}
                             </div>
                           );
                         })}
                       </div>
-                    )}
+
+                      <div style={{ marginTop: "0.65rem", color: "#bbb", fontSize: "0.92rem" }}>
+                        Alcohol: <span style={{ color: "#fff" }}>{round1(effectiveLogTotals.alcohol_g)}g</span> ({Math.round(Number(effectiveLogTotals.alcohol_g || 0) * 7)} kcal)
+                      </div>
+
+                      <div style={{ marginTop: "0.9rem", height: "180px", border: "1px solid #2a1118", borderRadius: "10px", background: "#050507", padding: "0.4rem" }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={macroPieDisplayData}
+                              dataKey="value"
+                              nameKey="name"
+                              innerRadius={42}
+                              outerRadius={68}
+                              paddingAngle={2}
+                            >
+                              {macroPieDisplayData.map((entry) => (
+                                <Cell key={entry.name} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            {hasMacroPieData ? (
+                              <Tooltip
+                                formatter={(value, name, ctx) => {
+                                  const grams = Number(ctx?.payload?.grams || 0);
+                                  return [`${Math.round(Number(value || 0))} kcal • ${round1(grams)} g`, String(name || "")];
+                                }}
+                                contentStyle={{ background: "#050507", border: "1px solid #2a1118", borderRadius: "8px", color: "#fff" }}
+                                itemStyle={{ color: "#fff" }}
+                                labelStyle={{ color: "#fff" }}
+                                wrapperStyle={{ zIndex: 30, pointerEvents: "none" }}
+                                cursor={false}
+                              />
+                            ) : null}
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                    </>
+                  ) : null}
+                </div>
+
+                {showMicronutrientsSection ? (
+                  <div style={card}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.8rem" }}>
+                      <div style={{ fontWeight: 800 }}>Micronutrients</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+                        <button type="button" onClick={() => toggleSection("micros")} style={collapseBtn}>
+                          {isCollapsed("micros") ? "Expand" : "Collapse"}
+                        </button>
+                        <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                          {dayNutrientsLoading ? "Loading..." : `${visibleMicroRows.length} shown`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!isCollapsed("micros") ? (
+                      <>
+                        <div style={{ marginTop: "0.55rem", display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+                          {summarySegments.map((seg) => (
+                            <button
+                              key={`micro-${seg.key}`}
+                              type="button"
+                              onClick={() => setSummarySegment(seg.key)}
+                              style={pill(summarySegment === seg.key)}
+                            >
+                              {seg.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div style={{ marginTop: "0.5rem", display: "grid", gap: "0.5rem" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                            <div style={{ color: "#888", fontSize: "0.85rem" }}>Target mode</div>
+                            <select
+                              value={microTargetMode}
+                              onChange={(e) => saveMicroMode(e.target.value)}
+                              disabled={savingMicroTargets}
+                              style={{ ...field, width: "180px", padding: "0.45rem" }}
+                            >
+                              <option value="rdi">RDI</option>
+                              <option value="bodyweight">Bodyweight</option>
+                              <option value="custom">Custom</option>
+                            </select>
+                          </div>
+                          {microTargetWarnings.length > 0 ? (
+                            <div style={{ color: "#8a8a8a", fontSize: "0.83rem" }}>{microTargetWarnings[0]}</div>
+                          ) : null}
+                        </div>
+
+                        <div style={{ marginTop: "0.6rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem" }}>
+                          <div style={{ color: "#888", fontSize: "0.85rem" }}>Group</div>
+                          <select
+                            value={microGroupFilter}
+                            onChange={(e) => setMicroGroupFilter(e.target.value)}
+                            style={{ ...field, width: "180px", padding: "0.45rem" }}
+                          >
+                            <option value="all">All groups</option>
+                            {microGroups.map((g) => (
+                              <option key={g} value={g}>
+                                {g}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {visibleMicroRows.length === 0 ? (
+                          <div style={{ color: "#666", marginTop: "0.5rem" }}>
+                            {summarySegment === "all"
+                              ? "No micronutrient data available yet."
+                              : `No micronutrient data in ${selectedSummaryLabel.toLowerCase()} yet.`}
+                          </div>
+                        ) : (
+                          <>
+                            <div
+                              style={{
+                                marginTop: "0.75rem",
+                                display: "grid",
+                                gap: "0.6rem",
+                                maxHeight: "360px",
+                                overflowY: "auto",
+                                paddingRight: "0.25rem"
+                              }}
+                            >
+                              {visibleMicroRows.map((n) => (
+                                <div key={n.code} style={{ border: "1px solid #231018", borderRadius: "10px", padding: "0.5rem 0.6rem", background: "#050507" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", color: "#aaa", fontSize: "0.9rem" }}>
+                                    <div style={{ minWidth: 0, whiteSpace: "normal", lineHeight: 1.2 }}>
+                                      <span style={{ color: "#fff" }}>{displayNutrientLabel(n.code, n.label)}</span>
+                                      <span style={{ color: "#777" }}> • {displayNutrientGroup(n.code, n.sort_group)}</span>
+                                    </div>
+                                    <div style={{ color: "#fff", flexShrink: 0 }}>
+                                      {formatNutrientAmount(n.amount)} {formatNutrientUnit(n.unit)}
+                                      {" / "}
+                                      {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${formatNutrientUnit(n.unit)}` : "N/T"}
+                                    </div>
+                                  </div>
+                                  {microTargetMode === "custom" ? (
+                                    <div style={{ marginTop: "0.35rem", display: "flex", justifyContent: "flex-end" }}>
+                                      <input
+                                        type="number"
+                                        value={microTargetDrafts[n.code] ?? 0}
+                                        onChange={(e) =>
+                                          setMicroTargetDrafts((prev) => ({
+                                            ...prev,
+                                            [n.code]: Math.max(0, Number(e.target.value || 0))
+                                          }))
+                                        }
+                                        style={{ ...field, width: "130px", padding: "0.45rem" }}
+                                      />
+                                    </div>
+                                  ) : null}
+                                  <div style={{ marginTop: "0.35rem", height: "10px", background: "#101217", borderRadius: "999px", overflow: "hidden" }}>
+                                    <div
+                                      style={{
+                                        width: `${Number(n.amount || 0) <= 0 ? 0 : Math.max(2, n.sliderPct)}%`,
+                                        height: "100%",
+                                        background: "linear-gradient(90deg, #8a0f2e, #de2952)",
+                                        transition: "width 240ms ease"
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        {microTargetMode === "custom" ? (
+                          <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end" }}>
+                            <button type="button" onClick={saveCustomMicroTargets} disabled={savingMicroTargets} style={primaryBtn(savingMicroTargets)}>
+                              Save custom micronutrient targets
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
                   </div>
-                );
-              })}
+                ) : null}
+              </div>
             </div>
           )}
-        </>
-      )}
 
-      {/* ══════════════════ SETTINGS ═════════════════════════════════════════ */}
-      {tab === "settings" && (
-        <div className="nt-settings-grid">
-
-          {/* Macro targets - read only */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ MACRO TARGETS</div>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-3)", marginBottom: "0.85rem", lineHeight: 1.5 }}>
-              Calculated by your onboarding algorithm. Update them by adjusting your profile in Settings.
-            </div>
-            <div className="nt-targets-grid">
-              {["training", "rest", "high"].map((dayType) => {
-                const t = targets?.[dayType];
-                if (!t) return null;
-                return (
-                  <div key={dayType} className="nt-target-day">
-                    <div className="nt-target-day-name">{dayLabel[dayType]}</div>
-                    <div style={{ display: "grid", gap: "0.32rem" }}>
-                      {[["calories", "Calories", "kcal"], ["protein_g", "Protein", "g"], ["carbs_g", "Carbs", "g"], ["fats_g", "Fats", "g"]].map(([f, lbl, unit]) => (
-                        <div key={f} className="nt-target-ro-row">
-                          <span className="nt-target-ro-label">{lbl}</span>
-                          <span className="nt-target-ro-val">{t[f] ?? "—"}<span className="nt-target-ro-unit">{unit}</span></span>
+          {tab === "goals" && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <div className="nutrition-targets-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "1rem" }}>
+                {["training", "rest", "high"].map((dayType) => {
+                  const t = editTargets?.[dayType];
+                  if (!t) return null;
+                  return (
+                    <div key={dayType} style={card}>
+                      <div style={{ fontWeight: 800 }}>{dayLabel[dayType]}</div>
+                      <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.65rem" }}>
+                        <div>
+                          <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Calories</div>
+                          <input type="number" value={t.calories} onChange={(e) => updateEditField(dayType, "calories", e.target.value)} style={field} />
                         </div>
-                      ))}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.5rem" }}>
+                          <div>
+                            <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Protein (g)</div>
+                            <input type="number" value={t.protein_g} onChange={(e) => updateEditField(dayType, "protein_g", e.target.value)} style={field} />
+                          </div>
+                          <div>
+                            <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Carbs (g)</div>
+                            <input type="number" value={t.carbs_g} onChange={(e) => updateEditField(dayType, "carbs_g", e.target.value)} style={field} />
+                          </div>
+                          <div>
+                            <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>Fats (g)</div>
+                            <input type="number" value={t.fats_g} onChange={(e) => updateEditField(dayType, "fats_g", e.target.value)} style={field} />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  );
+                })}
 
-          {/* Meal plan preferences */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ MEAL PLAN PREFERENCES</div>
-            <div style={{ display: "grid", gap: "0.7rem" }}>
-              <div>
-                <div className="nt-target-field-label">Meals per day</div>
-                <select
-                  value={profile?.meals_per_day || 4}
-                  onChange={async (e) => { await updateProfile({ meals_per_day: Number(e.target.value) }); pushToast("Updated."); }}
-                  style={sel}
-                >
-                  {[2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n} meals</option>)}
-                </select>
-              </div>
-              <div>
-                <div className="nt-target-field-label">Typical training time</div>
-                <select
-                  value={profile?.training_time_hour ?? 17}
-                  onChange={async (e) => { await updateProfile({ training_time_hour: Number(e.target.value) }); pushToast("Updated."); }}
-                  style={sel}
-                >
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>{String(i).padStart(2, "0")}:00</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Meal presets */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ MEAL PRESETS</div>
-            <div style={{ display: "grid", gap: "0.6rem" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.5rem" }}>
-                <select value={activePresetId} onChange={(e) => setActivePresetId(e.target.value)} style={sel}>
-                  {mealPresets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <button className="nt-btn nt-btn--sm" onClick={resetPresetDraftToCurrent}>Reset</button>
-              </div>
-              <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
-                <button className="nt-btn nt-btn--sm" onClick={() => { setPresetNameDraft(DEFAULT_PRESET_NAME); setPresetSegmentsDraft(DEFAULT_MEAL_SEGMENTS.map((s) => ({ ...s }))); }}>Standard</button>
-                <button className="nt-btn nt-btn--sm" onClick={() => { setPresetNameDraft(DEFAULT_CUSTOM_PRESET_NAME); setPresetSegmentsDraft(DEFAULT_CUSTOM_MEAL_SEGMENTS.map((s) => ({ ...s }))); }}>Custom</button>
-              </div>
-              <input value={presetNameDraft} onChange={(e) => setPresetNameDraft(e.target.value)} placeholder="Preset name" style={inp} />
-              <div style={{ display: "grid", gap: "0.38rem" }}>
-                {presetSegmentsDraft.map((seg, idx) => (
-                  <div key={`${seg.key}-${idx}`} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.45rem" }}>
-                    <input
-                      value={seg.label}
-                      onChange={(e) => setPresetSegmentsDraft((prev) => prev.map((row, i) => i === idx ? { ...row, label: e.target.value } : row))}
-                      placeholder={`Segment ${idx + 1}`}
-                      style={{ ...inp, fontSize: "0.88rem" }}
-                    />
-                    <button className="nt-btn nt-btn--sm" onClick={() => setPresetSegmentsDraft((prev) => prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx))}>✕</button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.45rem" }}>
-                <input
-                  value={newSegmentLabel}
-                  onChange={(e) => setNewSegmentLabel(e.target.value)}
-                  placeholder="Add segment..."
-                  style={{ ...inp, fontSize: "0.88rem" }}
-                />
-                <button className="nt-btn nt-btn--sm" onClick={() => {
-                  const label = String(newSegmentLabel || "").trim();
-                  if (!label) return;
-                  const key = normalizeSegmentKey(label);
-                  if (presetSegmentsDraft.some((s) => normalizeSegmentKey(s.key) === key)) { setNewSegmentLabel(""); return; }
-                  setPresetSegmentsDraft((prev) => [...prev, { key, label, position: prev.length + 1 }]);
-                  setNewSegmentLabel("");
-                }}>+ Add</button>
-              </div>
-              <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                <button className="nt-btn nt-btn--sm" disabled={savingPreset} onClick={() => upsertPreset({ createNew: true })}>Create New</button>
-                <button className="nt-btn nt-btn--sm" disabled={savingPreset || !activePresetId} onClick={deleteActivePreset}>Delete</button>
-                <button className="nt-btn nt-btn--primary nt-btn--sm" disabled={savingPreset} onClick={() => upsertPreset({ createNew: false })}>Save Preset</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Saved meals */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ SAVED MEALS</div>
-            {savedMeals.length === 0 ? (
-              <div style={{ fontSize: "0.84rem", color: "var(--text-3)" }}>No saved meals yet. Log meals and save them for quick re-use.</div>
-            ) : (
-              <div style={{ display: "grid", gap: "0.5rem" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "0.5rem", alignItems: "center" }}>
-                  <select value={savedMealSelection} onChange={(e) => setSavedMealSelection(e.target.value)} style={sel}>
-                    <option value="">Select saved meal</option>
-                    {savedMeals.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <button className="nt-btn nt-btn--sm nt-btn--primary" onClick={addSavedMealToLog}>Add to Log</button>
-                  <button className="nt-btn nt-btn--sm" disabled={savingSavedMeal || !savedMealSelection} onClick={deleteSavedMeal}>Delete</button>
+                <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
+                  <button type="button" onClick={saveTargets} style={primaryBtn(false)}>Save targets</button>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* Micro panel toggle */}
-          <div className="nt-panel" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-            <div>
-              <div className="nt-section-label" style={{ marginBottom: "0.2rem" }}>◈ MICRONUTRIENT PANEL</div>
-              <div style={{ fontSize: "0.84rem", color: "var(--text-3)" }}>Show micronutrient tracking in the Log Today view.</div>
             </div>
-            <button
-              className={`nt-btn nt-btn--sm${showMicronutrientsSection ? " nt-btn--primary" : ""}`}
-              onClick={() => setShowMicronutrientsSection((prev) => !prev)}
-              style={{ flexShrink: 0 }}
-            >
-              {showMicronutrientsSection ? "On" : "Off"}
-            </button>
-          </div>
+          )}
+
+          {tab === "meal_plan" && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <div style={card}>
+                <div style={{ fontWeight: 800 }}>Meal Plan</div>
+              </div>
+            </div>
+          )}
+
+          {tab === "settings" && (
+            <div style={{ display: "grid", gap: "1rem" }}>
+              <div style={{ ...card, display: "grid", gap: "0.9rem" }}>
+                <div style={{ fontWeight: 800 }}>Nutrition Settings</div>
+
+                <div style={{ border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem", background: "#040406", display: "grid", gap: "0.65rem" }}>
+                  <div style={{ fontWeight: 700 }}>Meal Presets</div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: "0.55rem" }}>
+                    <select value={activePresetId} onChange={(e) => setActivePresetId(e.target.value)} style={field}>
+                      {mealPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={resetPresetDraftToCurrent} style={subtleBtn}>Reset draft</button>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPresetNameDraft(DEFAULT_PRESET_NAME);
+                        setPresetSegmentsDraft(DEFAULT_MEAL_SEGMENTS.map((seg) => ({ ...seg })));
+                      }}
+                      style={subtleBtn}
+                    >
+                      Use Standard template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPresetNameDraft(DEFAULT_CUSTOM_PRESET_NAME);
+                        setPresetSegmentsDraft(DEFAULT_CUSTOM_MEAL_SEGMENTS.map((seg) => ({ ...seg })));
+                      }}
+                      style={subtleBtn}
+                    >
+                      Use Custom template
+                    </button>
+                  </div>
+
+                  <input
+                    value={presetNameDraft}
+                    onChange={(e) => setPresetNameDraft(e.target.value)}
+                    placeholder="Preset name"
+                    style={field}
+                  />
+
+                  <div style={{ display: "grid", gap: "0.45rem" }}>
+                    {presetSegmentsDraft.map((seg, idx) => (
+                      <div key={`${seg.key}-${idx}`} style={{ display: "grid", gridTemplateColumns: "1fr 96px", gap: "0.5rem" }}>
+                        <input
+                          value={seg.label}
+                          onChange={(e) =>
+                            setPresetSegmentsDraft((prev) =>
+                              prev.map((row, i) => (i === idx ? { ...row, label: e.target.value } : row))
+                            )
+                          }
+                          placeholder={`Segment ${idx + 1}`}
+                          style={field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPresetSegmentsDraft((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
+                          }
+                          style={subtleBtn}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.5rem" }}>
+                    <input value={newSegmentLabel} onChange={(e) => setNewSegmentLabel(e.target.value)} placeholder="Add segment..." style={field} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const label = String(newSegmentLabel || "").trim();
+                        if (!label) return;
+                        const key = normalizeSegmentKey(label);
+                        if (presetSegmentsDraft.some((s) => normalizeSegmentKey(s.key) === key)) {
+                          setNewSegmentLabel("");
+                          return;
+                        }
+                        setPresetSegmentsDraft((prev) => [...prev, { key, label, position: prev.length + 1 }]);
+                        setNewSegmentLabel("");
+                      }}
+                      style={subtleBtn}
+                    >
+                      Add segment
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                    <button type="button" disabled={savingPreset} onClick={() => upsertPreset({ createNew: true })} style={subtleBtn}>Create new</button>
+                    <button type="button" disabled={savingPreset || !activePresetId} onClick={deleteActivePreset} style={subtleBtn}>Delete preset</button>
+                    <button type="button" disabled={savingPreset} onClick={() => upsertPreset({ createNew: false })} style={primaryBtn(savingPreset)}>Save preset</button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", border: "1px solid #2a1118", borderRadius: "10px", padding: "0.7rem" }}>
+                  <div>
+                    <div style={{ color: "#fff", fontWeight: 700 }}>Show micronutrients</div>
+                    <div style={{ color: "#888", marginTop: "0.2rem", fontSize: "0.88rem" }}>Controls micronutrient sliders and targets in the log view.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMicronutrientsSection((prev) => !prev)}
+                    style={pill(showMicronutrientsSection)}
+                  >
+                    {showMicronutrientsSection ? "On" : "Off"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+      </div>
     </div>
   );
 }

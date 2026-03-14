@@ -2,321 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useProfile } from "../context/ProfileContext";
 
-const CSS = `
-.cs-page { width: 100%; }
-
-.cs-section-label {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-family: var(--font-display);
-  font-size: 0.65rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent-3);
-  margin-bottom: 1.4rem;
-}
-.cs-section-label::before {
-  content: "";
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: var(--accent-3);
-  flex-shrink: 0;
-}
-
-.cs-stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.cs-readout {
-  border: 1px solid var(--line-1);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-  padding: 1.25rem;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-.cs-readout::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent-2), transparent);
-  opacity: 0.5;
-}
-.cs-readout-value {
-  font-family: var(--font-display);
-  font-size: 1.9rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text-1);
-  letter-spacing: 0.02em;
-}
-.cs-readout-label {
-  font-family: var(--font-display);
-  font-size: 0.58rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  margin-top: 0.55rem;
-}
-
-.cs-forms-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.cs-card {
-  border: 1px solid var(--line-1);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-  overflow: hidden;
-}
-
-.cs-card-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--line-1);
-  background: linear-gradient(90deg, rgba(138,15,46,0.18), rgba(138,15,46,0.06));
-}
-.cs-card-topbar-title {
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--accent-3);
-}
-.cs-card-topbar-sub {
-  font-family: var(--font-display);
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.cs-card-body {
-  padding: 1.1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.cs-input {
-  background: rgba(10,5,8,0.9) !important;
-  border: 1px solid var(--line-1) !important;
-  color: var(--text-1) !important;
-  border-radius: var(--radius-sm) !important;
-  padding: 0.6rem 0.8rem !important;
-  width: 100%;
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  box-sizing: border-box;
-}
-.cs-input:focus {
-  outline: none;
-  border-color: var(--accent-3) !important;
-  box-shadow: 0 0 0 2px rgba(222,41,82,0.28), 0 0 8px rgba(222,41,82,0.2) !important;
-}
-
-.cs-btn-primary {
-  width: 100%;
-  padding: 0.72rem 1rem;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 60%, var(--accent-3) 100%);
-  color: #fff;
-  border: none;
-  font-family: var(--font-display);
-  font-size: 0.65rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(181,21,60,0.35);
-  transition: all 160ms;
-}
-.cs-btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none !important;
-}
-.cs-btn-primary:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(222,41,82,0.45);
-  transform: translateY(-1px);
-}
-
-.cs-btn-danger {
-  padding: 0.35rem 0.65rem;
-  border-radius: var(--radius-sm);
-  background: rgba(255,79,115,0.08);
-  color: var(--bad);
-  border: 1px solid rgba(255,79,115,0.28);
-  font-family: var(--font-display);
-  font-size: 0.58rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 120ms;
-  white-space: nowrap;
-}
-.cs-btn-danger:hover {
-  background: rgba(255,79,115,0.16);
-  border-color: var(--bad);
-}
-
-.cs-warn {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  border: 1px solid var(--warn);
-  border-radius: var(--radius-sm);
-  background: rgba(229,161,0,0.08);
-  padding: 0.75rem 1rem;
-  color: var(--warn);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-.cs-warn-icon {
-  font-size: 0.9rem;
-  flex-shrink: 0;
-  margin-top: 0.05rem;
-}
-
-.cs-error {
-  font-size: 0.8rem;
-  color: var(--bad);
-  padding: 0.5rem 0.75rem;
-  border: 1px solid rgba(255,79,115,0.3);
-  border-radius: var(--radius-sm);
-  background: rgba(255,79,115,0.06);
-}
-
-.cs-log-card {
-  border: 1px solid var(--line-1);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-  overflow: hidden;
-  margin-bottom: 1rem;
-}
-
-.cs-log-body {
-  padding: 0.5rem 0;
-}
-
-.cs-log-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--line-1);
-  gap: 0.75rem;
-  transition: background 120ms;
-}
-.cs-log-row:last-child { border-bottom: none; }
-.cs-log-row:hover { background: rgba(138,15,46,0.08); }
-
-.cs-log-date {
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
-  min-width: 90px;
-}
-
-.cs-log-val {
-  font-family: var(--font-display);
-  font-size: 0.88rem;
-  color: var(--text-1);
-  font-weight: 600;
-  flex: 1;
-}
-
-.cs-log-sub {
-  font-family: var(--font-display);
-  font-size: 0.58rem;
-  letter-spacing: 0.08em;
-  color: var(--text-3);
-  margin-left: 0.4rem;
-}
-
-/* Type badge pill */
-.cs-type-pill {
-  display: inline-flex;
-  align-items: center;
-  font-family: var(--font-display);
-  font-size: 0.6rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 0.22rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid currentColor;
-  margin-right: 0.5rem;
-  opacity: 0.85;
-}
-.cs-type-pill.steps  { color: #5bc0f8; border-color: rgba(91,192,248,0.4); background: rgba(91,192,248,0.08); }
-.cs-type-pill.cardio { color: var(--accent-3); border-color: rgba(222,41,82,0.4); background: rgba(222,41,82,0.08); }
-
-.cs-empty {
-  padding: 1.5rem 1rem;
-  text-align: center;
-  color: var(--text-3);
-  font-family: var(--font-display);
-  font-size: 0.65rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.cs-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.cs-hint {
-  font-size: 0.75rem;
-  color: var(--text-3);
-  line-height: 1.4;
-}
-
-.cs-status-badge {
-  font-family: var(--font-display);
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-@media (max-width: 720px) {
-  .cs-forms-row {
-    grid-template-columns: 1fr;
-  }
-  .cs-stats-row {
-    gap: 0.65rem;
-  }
-  .cs-readout-value { font-size: 1.45rem; }
-}
-@media (max-width: 540px) {
-  .cs-stats-row {
-    grid-template-columns: 1fr;
-    gap: 0.6rem;
-  }
-  .cs-readout { text-align: left; padding: 1rem; }
-}
-`;
-
 const formatDate = (d) => {
   const dt = new Date(d);
   const y = dt.getFullYear();
@@ -519,205 +204,146 @@ function CardioSteps() {
     await refreshAll(userId);
   };
 
-  // Build unified activity log sorted by date desc
-  const activityLog = useMemo(() => {
-    const stepsRows = recentSteps.map((r) => ({
-      key: `s-${r.log_date}`,
-      date: r.log_date,
-      type: "steps",
-      value: `${r.steps.toLocaleString()} steps`,
-      sub: null,
-      id: null
-    }));
+  if (loading) return <div>Loading...</div>;
 
-    const cardioRows = recentCardio.map((r) => ({
-      key: `c-${r.id}`,
-      date: r.log_date,
-      type: "cardio",
-      value: `${r.minutes} min`,
-      sub: r.avg_hr ? `@ ${r.avg_hr} bpm` : null,
-      id: r.id
-    }));
+  const card = { background: "#050507", border: "1px solid #2a1118", padding: "1rem" };
+  const input = { width: "100%", padding: "0.6rem", background: "#111", color: "#fff", border: "1px solid #2a1118" };
 
-    return [...stepsRows, ...cardioRows].sort((a, b) =>
-      b.date.localeCompare(a.date)
-    );
-  }, [recentSteps, recentCardio]);
-
-  const showStepsWarn = stepsTarget && stepsToday !== null && stepsToday >= stepsTarget * 1.8;
-  const showCardioWarn = cardioTodayMin >= 180;
-
-  if (loading) {
-    return (
-      <>
-        <style>{CSS}</style>
-        <div className="cs-loading">Initialising activity monitor...</div>
-      </>
-    );
-  }
-
-  const isSaving = savingSteps || savingCardio;
-
-  return (
-    <>
-      <style>{CSS}</style>
-      <div className="cs-page">
-
-        {/* Section label */}
-        <div className="cs-section-label">Activity Monitor</div>
-
-        {/* Top stats row */}
-        <div className="cs-stats-row">
-          <div className="cs-readout">
-            <div className="cs-readout-value">
-              {stepsToday !== null ? stepsToday.toLocaleString() : "—"}
-            </div>
-            <div className="cs-readout-label">Steps Today</div>
-          </div>
-
-          <div className="cs-readout">
-            <div className="cs-readout-value">
-              {cardioTodayMin > 0 ? `${cardioTodayMin} min` : "—"}
-            </div>
-            <div className="cs-readout-label">Cardio Today</div>
-          </div>
-
-          <div className="cs-readout">
-            <div className="cs-readout-value">
-              {avgSteps7 !== null ? avgSteps7.toLocaleString() : "—"}
-            </div>
-            <div className="cs-readout-label">7-Day Avg Steps</div>
+return (
+    <div style={{ width: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Cardio & Steps</h1>
+          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
+            Track baseline activity. The plan can adjust steps/cardio later.
           </div>
         </div>
+        <div style={{ color: "#666" }}>{savingSteps || savingCardio ? "Saving..." : "Saved"}</div>
+      </div>
 
-        {error && <div className="cs-error" style={{ marginBottom: "1rem" }}>{error}</div>}
+      {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 
-        {/* Log forms */}
-        <div className="cs-forms-row">
-
-          {/* Log steps */}
-          <div className="cs-card">
-            <div className="cs-card-topbar">
-              <span className="cs-card-topbar-title">ACT-S // Log Steps</span>
-              <span className="cs-card-topbar-sub">
-                {stepsTarget ? `Target: ${stepsTarget.toLocaleString()}` : "No target set"}
-              </span>
-            </div>
-            <div className="cs-card-body">
-              <input
-                className="cs-input"
-                type="number"
-                value={stepsInput}
-                onChange={(e) => setStepsInput(e.target.value)}
-                placeholder="e.g. 8000"
-              />
-              <button
-                className="cs-btn-primary"
-                onClick={saveSteps}
-                disabled={savingSteps}
-              >
-                {savingSteps ? "Saving..." : "Save Steps"}
-              </button>
-
-              {stepsTarget && (
-                <div className="cs-hint">
-                  {stepsToday !== null
-                    ? `${Math.round((stepsToday / stepsTarget) * 100)}% of daily target`
-                    : "Log steps to see target progress"}
-                </div>
-              )}
-
-              {showStepsWarn && (
-                <div className="cs-warn">
-                  <span className="cs-warn-icon">&#9888;</span>
-                  <span>Very high activity today. If recovery drops or weight trend gets too aggressive, consider pulling back.</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Log cardio */}
-          <div className="cs-card">
-            <div className="cs-card-topbar">
-              <span className="cs-card-topbar-title">ACT-C // Log Cardio</span>
-              <span className="cs-card-topbar-sub">
-                {isSaving ? "Saving..." : "Ready"}
-              </span>
-            </div>
-            <div className="cs-card-body">
-              <input
-                className="cs-input"
-                type="number"
-                value={cardioMinutesInput}
-                onChange={(e) => setCardioMinutesInput(e.target.value)}
-                placeholder="Minutes (e.g. 30)"
-              />
-              <input
-                className="cs-input"
-                type="number"
-                value={cardioHrInput}
-                onChange={(e) => setCardioHrInput(e.target.value)}
-                placeholder="Avg HR — optional (60–220)"
-              />
-              <button
-                className="cs-btn-primary"
-                onClick={addCardio}
-                disabled={savingCardio}
-              >
-                {savingCardio ? "Saving..." : "Add Cardio Session"}
-              </button>
-
-              <div className="cs-hint">
-                Multiple sessions can be added per day. LISS is usually best for bodybuilding.
-              </div>
-
-              {showCardioWarn && (
-                <div className="cs-warn">
-                  <span className="cs-warn-icon">&#9888;</span>
-                  <span>Very high cardio volume today. If recovery or performance drops, pull this back.</span>
-                </div>
-              )}
-            </div>
-          </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginTop: "1.5rem" }}>
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Steps today</div>
+          <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>{stepsToday !== null ? stepsToday : "Not logged"}</div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>{stepsTarget ? `Target: ${stepsTarget}` : "No target set"}</div>
         </div>
 
-        {/* Unified activity log */}
-        <div className="cs-log-card">
-          <div className="cs-card-topbar">
-            <span className="cs-card-topbar-title">Activity Log</span>
-            <span className="cs-card-topbar-sub">{activityLog.length} entries</span>
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>Cardio today</div>
+          <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>{cardioTodayMin > 0 ? `${cardioTodayMin} min` : "None"}</div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>LISS is usually best for bodybuilding</div>
+        </div>
+
+        <div style={card}>
+          <div style={{ color: "#aaa" }}>7-day avg steps</div>
+          <div style={{ fontSize: "1.4rem", marginTop: "0.4rem" }}>{avgSteps7 !== null ? avgSteps7 : "—"}</div>
+          <div style={{ color: "#666", marginTop: "0.4rem" }}>More data = better decisions</div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Log steps</div>
+          <div style={{ marginTop: "0.75rem" }}>
+            <input
+              type="number"
+              value={stepsInput}
+              onChange={(e) => setStepsInput(e.target.value)}
+              placeholder="e.g. 8000"
+              style={input}
+            />
           </div>
-          <div className="cs-log-body">
-            {activityLog.length === 0 && (
-              <div className="cs-empty">No activity logged yet — start tracking above.</div>
-            )}
-            {activityLog.map((row) => (
-              <div key={row.key} className="cs-log-row">
-                <div className="cs-log-date">{row.date}</div>
-                <div className="cs-log-val">
-                  <span className={`cs-type-pill ${row.type}`}>
-                    {row.type === "steps" ? "Steps" : "Cardio"}
-                  </span>
-                  {row.value}
-                  {row.sub && <span className="cs-log-sub">{row.sub}</span>}
+          <button
+            onClick={saveSteps}
+            disabled={savingSteps}
+            style={{ marginTop: "0.75rem", padding: "0.7rem", width: "100%", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
+          >
+            {savingSteps ? "Saving..." : "Save steps"}
+          </button>
+
+          {stepsTarget && stepsToday !== null && stepsToday >= stepsTarget * 1.8 ? (
+            <div style={{ marginTop: "0.75rem", color: "#ffb86b" }}>
+              Very high activity today. If recovery drops or weight trend gets too aggressive, consider pulling back.
+            </div>
+          ) : null}
+        </div>
+
+        <div style={card}>
+          <div style={{ fontWeight: 700 }}>Add cardio session</div>
+          <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.6rem" }}>
+            <input
+              type="number"
+              value={cardioMinutesInput}
+              onChange={(e) => setCardioMinutesInput(e.target.value)}
+              placeholder="Minutes (e.g. 30)"
+              style={input}
+            />
+            <input
+              type="number"
+              value={cardioHrInput}
+              onChange={(e) => setCardioHrInput(e.target.value)}
+              placeholder="Avg HR (optional, e.g. 120)"
+              style={input}
+            />
+          </div>
+          <button
+            onClick={addCardio}
+            disabled={savingCardio}
+            style={{ marginTop: "0.75rem", padding: "0.7rem", width: "100%", background: "#0b0b10", color: "#fff", border: "1px solid #2a1118" }}
+          >
+            {savingCardio ? "Saving..." : "Add cardio"}
+          </button>
+
+          {cardioTodayMin >= 180 ? (
+            <div style={{ marginTop: "0.75rem", color: "#ffb86b" }}>
+              Very high cardio volume today. If recovery or performance drops, pull this back.
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div style={{ marginTop: "1rem", background: "#050507", border: "1px solid #2a1118", padding: "1rem" }}>
+        <div style={{ fontWeight: 700, marginBottom: "0.75rem" }}>Recent cardio sessions</div>
+        {!recentCardio.length ? (
+          <div style={{ color: "#666" }}>No sessions yet</div>
+        ) : (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            {recentCardio.map((r) => (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div style={{ color: "#aaa" }}>
+                  {r.log_date} — <span style={{ color: "#fff" }}>{r.minutes} min</span>
+                  {r.avg_hr ? <span style={{ color: "#666" }}> @ {r.avg_hr} bpm</span> : null}
                 </div>
-                <div>
-                  {row.type === "cardio" && row.id && (
-                    <button
-                      className="cs-btn-danger"
-                      onClick={() => deleteCardio(row.id)}
-                    >
-                      Del
-                    </button>
-                  )}
-                </div>
+                <button
+                  onClick={() => deleteCardio(r.id)}
+                  style={{ padding: "0.4rem 0.7rem", background: "transparent", color: "#fff", border: "1px solid #2a1118" }}
+                >
+                  Delete
+                </button>
               </div>
             ))}
           </div>
-        </div>
-
+        )}
       </div>
-    </>
+
+      <div style={{ marginTop: "1rem", background: "#050507", border: "1px solid #2a1118", padding: "1rem" }}>
+        <div style={{ fontWeight: 700, marginBottom: "0.75rem" }}>Recent steps</div>
+        {!recentSteps.length ? (
+          <div style={{ color: "#666" }}>No steps logged yet</div>
+        ) : (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            {recentSteps.map((r) => (
+              <div key={r.log_date} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div style={{ color: "#aaa" }}>{r.log_date}</div>
+                <div style={{ color: "#fff", fontWeight: 700 }}>{r.steps}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

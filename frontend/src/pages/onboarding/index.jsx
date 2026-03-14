@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useOnboardingForm } from "./useOnboardingForm";
 import { validateStep } from "./validation";
 import { buildCaloriePreview } from "../../lib/tdee";
@@ -19,78 +18,6 @@ import Step12_Baselines from "./steps/Step12_Baselines";
 import Step13_NutritionPrefs from "./steps/Step13_NutritionPrefs";
 import Step14_Allergies from "./steps/Step14_Allergies";
 import Step15_Safety from "./steps/Step15_Safety";
-
-// ─── Submitting overlay ───────────────────────────────────────────────────────
-
-const PHRASES = [
-  "Calibrating your TDEE…",
-  "Curating your plan…",
-  "Designing your training split…",
-  "Setting your nutrition targets…",
-  "Configuring your macro ratios…",
-  "Analysing your activity baseline…",
-  "Scheduling your training days…",
-  "Locking in your calorie targets…",
-  "Finalising your programme…",
-  "Almost ready…",
-];
-
-const SUBMITTING_CSS = `
-  @keyframes obSpin {
-    to { transform: rotate(360deg); }
-  }
-  @keyframes obFadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes obShimmer {
-    0%   { left: -60%; }
-    100% { left: 110%; }
-  }
-
-  .ob-spinner {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    border: 2px solid rgba(40,183,141,0.1);
-    border-top: 2px solid var(--ok);
-    border-right: 2px solid rgba(40,183,141,0.35);
-    animation: obSpin 0.85s linear infinite;
-    margin: 0 auto 2.2rem;
-  }
-
-  .ob-phrase {
-    font-family: var(--font-display);
-    font-size: 0.8rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--text-2);
-    margin: 0 0 2.6rem;
-    min-height: 1.3em;
-    animation: obFadeUp 0.45s ease both;
-  }
-
-  .ob-shimmer-track {
-    width: 220px;
-    height: 2px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 2px;
-    overflow: hidden;
-    position: relative;
-    margin: 0 auto;
-  }
-
-  .ob-shimmer-fill {
-    position: absolute;
-    top: 0;
-    left: -60%;
-    width: 55%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, var(--ok), rgba(40,183,141,0.6), transparent);
-    border-radius: 2px;
-    animation: obShimmer 1.55s ease-in-out infinite;
-  }
-`;
 
 // Steps that auto-advance on selection (no "Continue" button needed)
 const AUTO_ADVANCE_STEPS = new Set([3, 4, 6, 9]);
@@ -123,7 +50,6 @@ function getDisplayProgress(step, skipped) {
 }
 
 export default function Onboarding() {
-  const navigate = useNavigate();
   const {
     form,
     setField,
@@ -142,8 +68,6 @@ export default function Onboarding() {
   const [direction, setDirection] = useState("forward"); // "forward" | "back"
   const [animating, setAnimating] = useState(false);
   const [validationError, setValidationError] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [phraseIdx, setPhraseIdx] = useState(0);
   const contentRef = useRef(null);
 
   // Resume at saved step once profile loads
@@ -152,15 +76,6 @@ export default function Onboarding() {
       setStep(savedStep);
     }
   }, [loading, savedStep]);
-
-  // Cycle phrases during final submission
-  useEffect(() => {
-    if (!submitting) return;
-    const id = setInterval(() => {
-      setPhraseIdx((i) => (i + 1) % PHRASES.length);
-    }, 1900);
-    return () => clearInterval(id);
-  }, [submitting]);
 
   const skipped = getSkippedSteps(form);
   const { counted, total } = getDisplayProgress(step, skipped);
@@ -180,20 +95,8 @@ export default function Onboarding() {
     while (skipped.has(nextStep) && nextStep <= TOTAL_STEPS) nextStep++;
 
     if (nextStep > TOTAL_STEPS) {
-      // Final step — show loading overlay, then submit
-      setSubmitting(true);
-      try {
-        const result = await handleSubmit();
-        if (result?.error) {
-          setSubmitting(false); // Hide overlay so the error message is visible
-        }
-        // On success: handleSubmit navigates away and this component unmounts
-      } catch (err) {
-        // Catch any unexpected throw so the overlay never hangs silently
-        console.error("Onboarding submit error:", err);
-        setSubmitting(false);
-        setValidationError({ field: null, message: "Something went wrong — please try again." });
-      }
+      // Final step — submit
+      await handleSubmit();
       return;
     }
 
@@ -288,23 +191,14 @@ export default function Onboarding() {
 
       {/* ── Step counter ─────────────────────────────────────────── */}
       <div style={styles.stepMeta}>
-        {step === 1 ? (
-          <button
-            onClick={() => navigate("/")}
-            style={styles.backBtn}
-            aria-label="Exit to home"
-          >
-            ← Exit
-          </button>
-        ) : (
-          <button
-            onClick={goBack}
-            style={styles.backBtn}
-            aria-label="Go back"
-          >
-            ← Back
-          </button>
-        )}
+        <button
+          onClick={goBack}
+          disabled={step === 1}
+          style={styles.backBtn}
+          aria-label="Go back"
+        >
+          ← Back
+        </button>
         <span style={styles.stepLabel}>
           {counted} / {total}
         </span>
@@ -327,27 +221,11 @@ export default function Onboarding() {
         <div style={styles.footer}>
           <button
             onClick={advance}
-            disabled={saving || submitting}
-            style={saving || submitting ? { ...styles.continueBtn, ...styles.continueBtnDisabled } : styles.continueBtn}
+            disabled={saving}
+            style={saving ? { ...styles.continueBtn, ...styles.continueBtnDisabled } : styles.continueBtn}
           >
             {saving ? "Saving…" : isLastStep ? "Complete setup" : "Continue"}
           </button>
-        </div>
-      )}
-
-      {/* ── Submitting overlay ───────────────────────────────────── */}
-      {submitting && (
-        <div style={styles.submittingOverlay}>
-          <style>{SUBMITTING_CSS}</style>
-          <div style={styles.submittingContent}>
-            <div className="ob-spinner" />
-            <p key={phraseIdx} className="ob-phrase">
-              {PHRASES[phraseIdx % PHRASES.length]}
-            </p>
-            <div className="ob-shimmer-track">
-              <div className="ob-shimmer-fill" />
-            </div>
-          </div>
         </div>
       )}
     </div>
@@ -470,23 +348,5 @@ const styles = {
   continueBtnDisabled: {
     opacity: 0.5,
     cursor: "not-allowed",
-  },
-
-  submittingOverlay: {
-    position: "fixed",
-    inset: 0,
-    zIndex: 200,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background:
-      "radial-gradient(1200px 520px at 8% -20%, rgba(181,21,60,0.14), transparent 70%), " +
-      "radial-gradient(1100px 460px at 95% -15%, rgba(138,15,46,0.18), transparent 68%), " +
-      "linear-gradient(180deg, var(--bg-1), var(--bg-0))",
-  },
-
-  submittingContent: {
-    textAlign: "center",
-    padding: "2rem",
   },
 };

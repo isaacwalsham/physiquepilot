@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { parseHeightToCm, parseWeightToKg, parseWeeklyRateToKg, cmToDisplayInput, kgToDisplay } from "../../lib/units";
-import { useProfile } from "../../context/ProfileContext";
 
 const API_URL = (
   import.meta.env.VITE_API_URL ||
@@ -74,7 +73,6 @@ const defaultForm = {
 
 export function useOnboardingForm() {
   const navigate = useNavigate();
-  const { patchProfileLocal, silentRefreshProfile } = useProfile();
   const [profile, setProfile] = useState(null);
   const [form, setFormState] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
@@ -98,17 +96,11 @@ export function useOnboardingForm() {
         .maybeSingle();
 
       if (!p) {
-        // Create bare profile if missing, then fetch it back so handleSubmit has a valid profile.user_id
+        // Create bare profile if missing
         await supabase.from("profiles").upsert(
           { user_id: user.id, email: user.email, subscription_status: "inactive", is_suspended: false, onboarding_complete: false },
           { onConflict: "user_id" }
         );
-        const { data: created } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (created) setProfile(created);
         setLoading(false);
         return;
       }
@@ -116,7 +108,7 @@ export function useOnboardingForm() {
       setProfile(p);
 
       if (p.onboarding_complete) {
-        navigate("/app/dashboard", { replace: true });
+        navigate("/app", { replace: true });
         return;
       }
 
@@ -268,11 +260,7 @@ export function useOnboardingForm() {
   // ─── Final submit ─────────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(async () => {
-    if (!profile?.user_id) {
-      setSaving(false);
-      setError("Profile not loaded — please refresh and try again.");
-      return { error: "No profile." };
-    }
+    if (!profile?.user_id) return { error: "No profile." };
     setSaving(true);
     setError("");
 
@@ -323,60 +311,32 @@ export function useOnboardingForm() {
       return { error: updateErr.message };
     }
 
-    // DB write succeeded — patch context and navigate immediately.
-    // Do NOT await the nutrition init or profile refresh here; slow / restricted
-    // networks (e.g. managed Chromebooks) would otherwise stall navigation forever.
+    // Trigger nutrition init (backend calculates day targets with new TDEE formula)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
+    const initRes = await fetch(`${API_URL}/api/nutrition/init`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ user_id: profile.user_id }),
+    }).then(async (r) => {
+      const j = await r.json();
+      return r.ok ? { error: null } : { error: j?.error || "Nutrition init failed" };
+    });
+
+    if (initRes.error) {
+      setSaving(false);
+      setError(String(initRes.error));
+      return { error: initRes.error };
+    }
+
     setSaving(false);
-    // Patch context so RequireOnboardingComplete sees onboarding_complete: true
-    // the instant we navigate — prevents the replaceState redirect loop.
-    patchProfileLocal({ onboarding_complete: true });
-    navigate("/app/dashboard", { replace: true });
-
-    // ── Fire-and-forget background tasks ───────────────────────────────────
-    // Nutrition init + silent context refresh run after navigation so they
-    // can never block the user reaching the dashboard.
-    // Uses AbortController + setTimeout instead of AbortSignal.timeout()
-    // for compatibility with older Chrome / ChromeOS builds.
-    (async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-        try {
-          const r = await fetch(`${API_URL}/api/nutrition/init`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ user_id: profile.user_id }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          if (!r.ok) {
-            const j = await r.json().catch(() => ({}));
-            console.warn("Nutrition init non-fatal error:", j?.error || r.status);
-          }
-        } catch (fetchErr) {
-          clearTimeout(timeoutId);
-          console.warn("Nutrition init skipped (will retry on dashboard):", fetchErr?.message);
-        }
-      } catch (sessionErr) {
-        console.warn("Background session fetch failed:", sessionErr?.message);
-      }
-
-      // Refresh profile context so dashboard has fresh data (macros, schedule, etc.)
-      await silentRefreshProfile().catch((e) =>
-        console.warn("Silent profile refresh failed:", e?.message)
-      );
-    })();
-
+    navigate("/app", { replace: true });
     return { error: null };
-  }, [profile, form, navigate, patchProfileLocal, silentRefreshProfile]);
+  }, [profile, form, navigate]);
 
   return {
     form,
