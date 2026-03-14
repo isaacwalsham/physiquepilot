@@ -22,8 +22,9 @@ export function useTour(profile) {
   const step = TOUR_STEPS[stepIndex] ?? TOUR_STEPS[0];
 
   // ── Auto-start when profile loads and tour hasn't been completed ──────────
+  // treat null / undefined the same as false — the column may not exist yet
   useEffect(() => {
-    if (profile && profile.tour_completed === false) {
+    if (profile && profile.tour_completed !== true) {
       setActive(true);
       setStepIndex(0);
     }
