@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { ProfileProvider, useProfile } from "./context/ProfileContext";
 
+import MaintenancePage from "./pages/MaintenancePage";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -17,6 +18,23 @@ import Training from "./pages/Training";
 import CheckIns from "./pages/CheckIns";
 import Coach from "./pages/Coach";
 import Settings from "./pages/Settings";
+
+// ─── Maintenance mode ─────────────────────────────────────────────────────────
+// Set to false and redeploy to re-open the site.
+
+const MAINTENANCE_MODE = true;
+
+function MaintenanceGate({ children }) {
+  const params = new URLSearchParams(window.location.search);
+  const bypass = params.get("preview") === "pilot";
+
+  // Persist bypass across client-side navigation within the same tab
+  if (bypass) sessionStorage.setItem("preview_bypass", "pilot");
+  const hasBypass = bypass || sessionStorage.getItem("preview_bypass") === "pilot";
+
+  if (MAINTENANCE_MODE && !hasBypass) return <MaintenancePage />;
+  return children;
+}
 
 // ─── Auth guard — checks Supabase session ─────────────────────────────────────
 
@@ -113,9 +131,11 @@ function AppRoutes() {
 
 function App() {
   return (
-    <ProfileProvider>
-      <AppRoutes />
-    </ProfileProvider>
+    <MaintenanceGate>
+      <ProfileProvider>
+        <AppRoutes />
+      </ProfileProvider>
+    </MaintenanceGate>
   );
 }
 
