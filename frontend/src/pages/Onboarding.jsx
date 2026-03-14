@@ -564,7 +564,7 @@ function Onboarding() {
       setLoading(true);
       setError("");
 
-      const { data: userRes, error: userError } = await supabase.auth.getUser();
+      const { data: sessionR } = await supabase.auth.getSession(); const userRes = { user: sessionR?.session?.user }; const userError = null;
       const user = userRes?.user;
 
       if (userError || !user) {

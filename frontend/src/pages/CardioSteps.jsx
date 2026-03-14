@@ -44,7 +44,7 @@ function CardioSteps() {
       setLoading(true);
       setError("");
 
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: sessionR } = await supabase.auth.getSession(); const userData = { user: sessionR?.session?.user };
       const user = userData?.user;
       if (!user) {
         setError("Not logged in.");

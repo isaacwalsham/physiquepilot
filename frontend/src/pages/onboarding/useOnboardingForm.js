@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useProfile } from "../../context/ProfileContext";
 import { supabase } from "../../supabaseClient";
 import { parseHeightToCm, parseWeightToKg, parseWeeklyRateToKg, cmToDisplayInput, kgToDisplay } from "../../lib/units";
 
@@ -73,6 +74,7 @@ const defaultForm = {
 
 export function useOnboardingForm() {
   const navigate = useNavigate();
+  const { refreshProfile } = useProfile();
   const [profile, setProfile] = useState(null);
   const [form, setFormState] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
@@ -335,10 +337,12 @@ export function useOnboardingForm() {
       console.warn("nutrition/init network error (non-fatal):", err);
     });
 
+    // Refresh ProfileContext so RequireOnboardingComplete sees onboarding_complete: true
+    await refreshProfile();
     setSaving(false);
     navigate("/app", { replace: true });
     return { error: null };
-  }, [profile, form, navigate]);
+  }, [profile, form, navigate, refreshProfile]);
 
   return {
     form,

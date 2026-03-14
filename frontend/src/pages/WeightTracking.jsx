@@ -783,7 +783,7 @@ function useWeightData() {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await (async () => { const { data: s } = await supabase.auth.getSession(); return { data: { user: s?.session?.user } }; })();
       if (!user) { setLoading(false); return; }
       setUserId(user.id);
 
