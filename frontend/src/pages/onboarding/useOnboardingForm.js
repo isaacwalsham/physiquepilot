@@ -317,7 +317,9 @@ export function useOnboardingForm() {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
 
-    const initRes = await fetch(`${API_URL}/api/nutrition/init`, {
+    // Fire nutrition init — non-blocking. A failure logs a warning but never
+    // prevents the user from reaching the dashboard.
+    fetch(`${API_URL}/api/nutrition/init`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -325,15 +327,13 @@ export function useOnboardingForm() {
       },
       body: JSON.stringify({ user_id: profile.user_id }),
     }).then(async (r) => {
-      const j = await r.json();
-      return r.ok ? { error: null } : { error: j?.error || "Nutrition init failed" };
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        console.warn("nutrition/init warning (non-fatal):", j?.error || r.status);
+      }
+    }).catch((err) => {
+      console.warn("nutrition/init network error (non-fatal):", err);
     });
-
-    if (initRes.error) {
-      setSaving(false);
-      setError(String(initRes.error));
-      return { error: initRes.error };
-    }
 
     setSaving(false);
     navigate("/app", { replace: true });

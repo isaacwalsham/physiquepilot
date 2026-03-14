@@ -3812,7 +3812,7 @@ app.post("/api/nutrition/init", authenticate, async (req, res) => {
 
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
-    .select("current_weight_kg, goal_type, weekly_weight_change_target_kg, height_cm, sex, date_of_birth, activity_level, body_fat_pct, calorie_mode, custom_calories, rest_day_deficit, high_day_surplus")
+    .select("current_weight_kg, starting_weight_kg, goal_type, weekly_weight_change_target_kg, height_cm, sex, date_of_birth, activity_level, body_fat_pct, calorie_mode, custom_calories, rest_day_deficit, high_day_surplus")
     .eq("user_id", user_id)
     .maybeSingle();
 
@@ -3820,10 +3820,10 @@ app.post("/api/nutrition/init", authenticate, async (req, res) => {
     return res.status(400).json({ ok: false, error: profileErr.message });
   }
 
-  const weightKg = Number(profile?.current_weight_kg || 0);
-  if (!weightKg) {
+  // Fall back to starting_weight_kg if current_weight_kg not yet set
+  const weightKg = Number(profile?.current_weight_kg || profile?.starting_weight_kg || 0);
     return res.status(400).json({ ok: false, error: "current_weight_kg missing in profiles" });
-  }
+    return res.status(400).json({ ok: false, error: "Weight data missing — complete body metrics in onboarding." });
 
   const goalType = profile?.goal_type || "maintain";
   const weeklyRateKg = Number(profile?.weekly_weight_change_target_kg || 0);
