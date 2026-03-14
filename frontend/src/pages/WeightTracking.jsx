@@ -37,6 +37,7 @@ import {
   calcBMI,
   calculateTrend,
   dateToDayX,
+  daysBetween,
   dayXToISO,
   displayWeight,
   formatDisplayDate,
@@ -146,15 +147,15 @@ const CSS = `
 /* ── Stat cards grid ── */
 .wt-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 0.85rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.4rem;
 }
 .wt-stat-card {
   border: 1px solid var(--line-1);
   border-radius: var(--radius-md);
   background: var(--surface-1);
-  padding: 1.15rem 1rem;
+  padding: 1.4rem 1rem 1.25rem;
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -166,11 +167,11 @@ const CSS = `
   top: 0; left: 0; right: 0;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--accent-2), transparent);
-  opacity: 0.45;
+  opacity: 0.55;
 }
 .wt-stat-value {
   font-family: var(--font-display);
-  font-size: 1.65rem;
+  font-size: 1.85rem;
   font-weight: 700;
   line-height: 1;
   color: var(--text-1);
@@ -186,12 +187,12 @@ const CSS = `
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-3);
-  margin-top: 0.5rem;
+  margin-top: 0.55rem;
 }
 .wt-stat-sub {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--text-3);
-  margin-top: 0.3rem;
+  margin-top: 0.35rem;
 }
 .wt-bmi-badge {
   display: inline-block;
@@ -264,10 +265,10 @@ const CSS = `
   border: 1px solid var(--line-1);
   border-radius: var(--radius-md);
   background: var(--surface-1);
-  padding: 1.5rem;
+  padding: 2rem 2.25rem;
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: 2.5rem;
 }
 .wt-milestone-arc-wrap {
   flex-shrink: 0;
@@ -288,7 +289,7 @@ const CSS = `
 }
 .wt-milestone-pct {
   font-family: var(--font-display);
-  font-size: 2.2rem;
+  font-size: 2.8rem;
   font-weight: 700;
   color: var(--text-1);
   line-height: 1;
@@ -302,7 +303,7 @@ const CSS = `
 /* ── Chart controls ── */
 .wt-chart-wrap {
   padding: 0.75rem 0.25rem 0.5rem 0;
-  height: 280px;
+  height: 380px;
 }
 .wt-range-pills {
   display: flex;
@@ -364,7 +365,7 @@ const CSS = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.7rem 1rem;
+  padding: 0.9rem 1.1rem;
   border-bottom: 1px solid var(--line-1);
   gap: 0.75rem;
   transition: background var(--motion-fast);
@@ -469,32 +470,32 @@ const CSS = `
 .wt-predict-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  gap: 1.25rem;
+  margin-bottom: 1.4rem;
 }
 .wt-predict-card {
   border: 1px solid var(--line-1);
   border-radius: var(--radius-md);
   background: var(--surface-1);
-  padding: 1.25rem;
+  padding: 1.75rem 1.5rem;
 }
 .wt-predict-title {
   font-family: var(--font-display);
-  font-size: 0.62rem;
+  font-size: 0.65rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--accent-3);
-  margin-bottom: 1rem;
+  margin-bottom: 1.1rem;
 }
 .wt-predict-result {
-  margin-top: 0.85rem;
-  padding: 0.75rem;
+  margin-top: 0.9rem;
+  padding: 0.9rem 1rem;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   border: 1px solid var(--line-1);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--text-1);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .wt-predict-result.ok { border-color: rgba(40,183,141,0.3); background: rgba(40,183,141,0.06); }
 .wt-predict-result.bad { border-color: rgba(255,79,115,0.3); background: rgba(255,79,115,0.06); }
@@ -713,15 +714,19 @@ const CSS = `
 }
 
 /* ── Responsive ── */
+@media (max-width: 1100px) {
+  .wt-stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
 @media (max-width: 720px) {
   .wt-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .wt-milestone-section { flex-direction: column; align-items: flex-start; gap: 1rem; }
   .wt-predict-grid { grid-template-columns: 1fr; }
   .wt-chart-controls { flex-direction: column; }
+  .wt-chart-wrap { height: 280px; }
 }
 @media (max-width: 480px) {
   .wt-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
-  .wt-stat-value { font-size: 1.3rem; }
+  .wt-stat-value { font-size: 1.4rem; }
   .wt-fab { bottom: 1.25rem; right: 1.25rem; }
   .wt-log-trend { display: none; }
 }
@@ -787,6 +792,15 @@ function useWeightData() {
       if (!user) { setLoading(false); return; }
       setUserId(user.id);
 
+      // Try to fetch profile with wt_* preference columns; fall back to base
+      // columns only if those columns don't exist yet (Supabase returns 406).
+      const WT_COLS =
+        "unit_system, goal_weight_kg, starting_weight_kg, height_cm, " +
+        "wt_goal_weight_kg, wt_fresh_start_date, wt_cards_hidden, " +
+        "wt_chart_compare_days, wt_prediction_mode, wt_commitment_rate_kg";
+      const BASE_COLS =
+        "unit_system, goal_weight_kg, starting_weight_kg, height_cm";
+
       const [logsRes, profileRes] = await Promise.all([
         supabase
           .from("weight_logs")
@@ -795,17 +809,24 @@ function useWeightData() {
           .order("log_date", { ascending: true }),
         supabase
           .from("profiles")
-          .select(
-            "unit_system, goal_weight_kg, starting_weight_kg, height_cm, " +
-            "wt_goal_weight_kg, wt_fresh_start_date, wt_cards_hidden, " +
-            "wt_chart_compare_days, wt_prediction_mode, wt_commitment_rate_kg"
-          )
-          .eq("id", user.id)
+          .select(WT_COLS)
+          .eq("user_id", user.id)
           .single(),
       ]);
 
       setLogs(logsRes.data || []);
-      setProfile(profileRes.data || {});
+
+      if (profileRes.error) {
+        // wt_* columns likely not migrated yet — retry with base columns only
+        const fallback = await supabase
+          .from("profiles")
+          .select(BASE_COLS)
+          .eq("user_id", user.id)
+          .single();
+        setProfile(fallback.data || {});
+      } else {
+        setProfile(profileRes.data || {});
+      }
     } finally {
       setLoading(false);
     }
