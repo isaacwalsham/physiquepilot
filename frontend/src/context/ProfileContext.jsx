@@ -49,11 +49,13 @@ export function ProfileProvider({ children }) {
     loadProfile();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") loadProfile();
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") loadProfile();
       if (event === "SIGNED_OUT") {
         setProfile(null);
         setLoading(false);
       }
+      // Ignore other events (e.g. USER_UPDATED, PASSWORD_RECOVERY) to avoid
+      // unnecessary re-fetches or stale-state side-effects.
     });
 
     return () => sub?.subscription?.unsubscribe?.();
