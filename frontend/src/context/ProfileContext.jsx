@@ -31,8 +31,8 @@ export function ProfileProvider({ children }) {
     setLoading(true);
     setError(null);
 
-    const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData?.session?.user;
     if (!user) {
       setProfile(null);
       setLoading(false);
