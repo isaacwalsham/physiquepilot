@@ -202,6 +202,100 @@ export const ORDERED_SPLITS = [
       { name:'Legs',      muscle_focus:['quadriceps','hamstrings','glutes','calves'],color:'#bb33ff' },
     ],
   },
+  {
+    id: 'fullbody_2x', name: 'Full Body 2×/Week', type: 'fullbody',
+    days_per_week: 2, recommended: false,
+    description: 'Two full-body sessions per week — A and B alternating.',
+    who: 'Beginners easing into training or those with limited time.',
+    days: [
+      { name: 'Full Body A', muscle_focus: ['chest','back','shoulders','quads','hamstrings','core'], color: '#3b82f6' },
+      { name: 'Full Body B', muscle_focus: ['chest','back','shoulders','quads','glutes','core'], color: '#6366f1' },
+    ],
+  },
+  {
+    id: 'upper_lower_3', name: 'Upper/Lower 3-Day', type: 'upper_lower',
+    days_per_week: 3, recommended: false,
+    description: 'A/B/A one week, B/A/B the next — 3 sessions per week.',
+    who: 'Beginners progressing from full-body or intermediates with 3 days available.',
+    days: [
+      { name: 'Upper A', muscle_focus: ['chest','back','shoulders','biceps','triceps'], color: '#f59e0b' },
+      { name: 'Lower A', muscle_focus: ['quads','hamstrings','glutes','calves'], color: '#10b981' },
+      { name: 'Upper B', muscle_focus: ['chest','back','shoulders','biceps','triceps'], color: '#f59e0b' },
+    ],
+  },
+  {
+    id: 'upper_lower_5', name: 'Upper/Lower 5-Day', type: 'upper_lower',
+    days_per_week: 5, recommended: false,
+    description: 'Two upper days, two lower days, plus an extra upper session.',
+    who: 'Intermediate to advanced lifters wanting high frequency.',
+    days: [
+      { name: 'Upper A', muscle_focus: ['chest','back','shoulders','biceps','triceps'], color: '#f59e0b' },
+      { name: 'Lower A', muscle_focus: ['quads','hamstrings','glutes','calves'], color: '#10b981' },
+      { name: 'Upper B', muscle_focus: ['chest','back','shoulders','biceps','triceps'], color: '#f59e0b' },
+      { name: 'Lower B', muscle_focus: ['quads','hamstrings','glutes','calves'], color: '#10b981' },
+      { name: 'Upper C', muscle_focus: ['chest','shoulders','triceps','biceps'], color: '#fb923c' },
+    ],
+  },
+  {
+    id: 'phul', name: 'PHUL 4-Day', type: 'upper_lower',
+    days_per_week: 4, recommended: false,
+    description: 'Power Upper/Lower + Hypertrophy Upper/Lower — strength and size in one week.',
+    who: 'Intermediates wanting to develop both strength and hypertrophy.',
+    days: [
+      { name: 'Power Upper', muscle_focus: ['chest','back','shoulders','biceps','triceps'], color: '#ef4444' },
+      { name: 'Power Lower', muscle_focus: ['quads','hamstrings','glutes','calves'], color: '#dc2626' },
+      { name: 'Hypertrophy Upper', muscle_focus: ['chest','back','shoulders','biceps','triceps'], color: '#f97316' },
+      { name: 'Hypertrophy Lower', muscle_focus: ['quads','hamstrings','glutes','calves'], color: '#fb923c' },
+    ],
+  },
+  {
+    id: 'push_pull_4', name: 'Push/Pull 4-Day', type: 'ppl',
+    days_per_week: 4, recommended: false,
+    description: 'Two push sessions (chest, shoulders, triceps) + two pull sessions (back, biceps).',
+    who: 'Intermediates who train legs separately or with limited time.',
+    days: [
+      { name: 'Push A', muscle_focus: ['chest','shoulders','triceps'], color: '#8b5cf6' },
+      { name: 'Pull A', muscle_focus: ['back','biceps','traps'], color: '#6d28d9' },
+      { name: 'Push B', muscle_focus: ['chest','shoulders','triceps'], color: '#8b5cf6' },
+      { name: 'Pull B', muscle_focus: ['back','biceps','traps'], color: '#6d28d9' },
+    ],
+  },
+  {
+    id: 'torso_limbs', name: 'Torso/Limbs 4-Day', type: 'upper_lower',
+    days_per_week: 4, recommended: false,
+    description: 'Torso (chest, back, shoulders) alternates with Limbs (arms, legs) — fresh take on upper/lower.',
+    who: 'Intermediates looking for a different split structure.',
+    days: [
+      { name: 'Torso A', muscle_focus: ['chest','back','shoulders'], color: '#0ea5e9' },
+      { name: 'Limbs A', muscle_focus: ['quads','hamstrings','biceps','triceps'], color: '#0284c7' },
+      { name: 'Torso B', muscle_focus: ['chest','back','shoulders'], color: '#0ea5e9' },
+      { name: 'Limbs B', muscle_focus: ['glutes','calves','biceps','triceps'], color: '#0284c7' },
+    ],
+  },
+  {
+    id: 'phat', name: 'PHAT 5-Day', type: 'upper_lower',
+    days_per_week: 5, recommended: false,
+    description: 'Two power days + three hypertrophy days — high volume, high intensity.',
+    who: 'Intermediate to advanced lifters chasing maximum muscle and strength.',
+    days: [
+      { name: 'Upper Power', muscle_focus: ['chest','back','shoulders','biceps','triceps'], color: '#ef4444' },
+      { name: 'Lower Power', muscle_focus: ['quads','hamstrings','glutes'], color: '#dc2626' },
+      { name: 'Back & Shoulders Hyp', muscle_focus: ['back','shoulders','traps'], color: '#3b82f6' },
+      { name: 'Lower Hyp', muscle_focus: ['quads','hamstrings','glutes','calves'], color: '#10b981' },
+      { name: 'Chest & Arms Hyp', muscle_focus: ['chest','biceps','triceps'], color: '#8b5cf6' },
+    ],
+  },
+  {
+    id: 'chest_back_arms_legs', name: 'Chest+Back / Arms / Legs', type: 'bro',
+    days_per_week: 3, recommended: false,
+    description: 'Chest and Back together, Arms day, Legs day — classic 3-day bro split.',
+    who: 'Intermediate lifters who want a simple 3-day structure with clear focus.',
+    days: [
+      { name: 'Chest & Back', muscle_focus: ['chest','back'], color: '#dc143c' },
+      { name: 'Arms & Shoulders', muscle_focus: ['biceps','triceps','shoulders'], color: '#8b5cf6' },
+      { name: 'Legs', muscle_focus: ['quads','hamstrings','glutes','calves'], color: '#10b981' },
+    ],
+  },
 ];
 
 // ─── Build a 14-day schedule from an active program ─────────────────────────
@@ -270,8 +364,10 @@ export function autoAssignExercises(muscleFocusList, experienceLevel, allExercis
         custom_name: null,
         order_index: order++,
         target_sets: 2,
-        target_reps_min: ex.is_compound ? 6 : 10,
-        target_reps_max: ex.is_compound ? 9 : 15,
+        target_reps_min: ex.is_compound ? 6 : 9,
+        target_reps_max: ex.is_compound ? 9 : 12,
+        set_2_reps_min: ex.is_compound ? 9 : 12,
+        set_2_reps_max: ex.is_compound ? 12 : 15,
         target_rir: 0,
         notes: null,
       });

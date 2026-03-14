@@ -6,6 +6,25 @@ import {
   MUSCLE_COLORS, MUSCLE_DISPLAY, formatLocalDate,
 } from "./trainingUtils";
 
+// Experience level mapping for each split
+const SPLIT_LEVEL_MAP = {
+  fullbody_3: 'beginner',
+  fullbody_2x: 'beginner',
+  upper_lower_3: 'beginner',
+  upper_lower_4: 'intermediate',
+  upper_lower_5: 'intermediate',
+  ppl_3: 'intermediate',
+  ppl_6: 'intermediate',
+  arnold: 'intermediate',
+  phul: 'intermediate',
+  push_pull_4: 'intermediate',
+  torso_limbs: 'intermediate',
+  chest_back_arms_legs: 'intermediate',
+  phat: 'advanced',
+  bro_5: 'advanced',
+  custom: 'advanced',
+};
+
 const STYLES = `
 .ts-shell {
   max-width: 680px;
@@ -160,6 +179,38 @@ const STYLES = `
   color: #fff;
   opacity: 0.9;
   white-space: nowrap;
+}
+
+/* ── Experience filter pills ──────────────────────────── */
+.ts-filter-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.ts-filter-pill {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-1);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all var(--motion-fast);
+  white-space: nowrap;
+}
+.ts-filter-pill.active {
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  border-color: var(--accent-2);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(181,21,60,0.35);
+}
+.ts-filter-pill:hover:not(.active) {
+  border-color: var(--line-2);
+  color: var(--text-2);
 }
 
 /* ── Step 2: schedule ──────────────────────────────────── */
@@ -352,6 +403,7 @@ export default function TrainingSetup({ profile, onComplete }) {
   // Step 1
   const templates = ORDERED_SPLITS;
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+  const [templateFilter, setTemplateFilter] = useState(null); // null = auto (based on experience)
 
   // Step 2
   const [scheduleMode, setScheduleMode] = useState("fixed");
@@ -362,19 +414,48 @@ export default function TrainingSetup({ profile, onComplete }) {
   const [error, setError] = useState(null);
 
   // Resolve the actual selected template object
-  const selectedTemplate =
-    ORDERED_SPLITS.find((t) => t.id === selectedTemplateId) || null;
+  const selectedTemplate = selectedTemplateId === 'custom'
+    ? { id: 'custom', name: 'Build My Own', type: 'custom', days_per_week: null, days: [] }
+    : ORDERED_SPLITS.find((t) => t.id === selectedTemplateId) || null;
 
   // ── navigation helpers ───────────────────────────────────────────────────
 
   function handleNextFromStep0() {
-    // Reset template selection when experience changes
+    // Reset template selection when experience changes, set filter to match experience
     setSelectedTemplateId(null);
+    setTemplateFilter(null); // reset to auto
     setStep(1);
   }
 
-  function handleNextFromStep1() {
+  async function handleNextFromStep1() {
     if (!selectedTemplate) return;
+    if (selectedTemplateId === 'custom') {
+      // Custom path: create blank program and navigate to SplitBuilder
+      setSaving(true);
+      setError(null);
+      try {
+        const { data: sessionR } = await supabase.auth.getSession();
+        const user = sessionR?.session?.user;
+        if (!user) throw new Error('Not authenticated');
+        await supabase.from('profiles').update({ training_experience: experience }).eq('user_id', user.id);
+        await supabase.from('training_programs').update({ is_active: false }).eq('user_id', user.id).eq('is_active', true);
+        const { error: progErr } = await supabase.from('training_programs').insert({
+          user_id: user.id,
+          name: 'My Custom Program',
+          split_type: 'custom',
+          is_active: true,
+          start_date: formatLocalDate(new Date()),
+          training_days: [],
+          experience_level: experience,
+        });
+        if (progErr) throw new Error(progErr.message);
+        onComplete();
+      } catch (err) {
+        setError(err.message || 'Something went wrong.');
+        setSaving(false);
+      }
+      return;
+    }
     // Pre-populate suggested days
     if (selectedTemplate.days_per_week) {
       setSelectedDays(suggestTrainingDays(selectedTemplate.days_per_week));
@@ -551,12 +632,52 @@ export default function TrainingSetup({ profile, onComplete }) {
   // ── Step 1 ───────────────────────────────────────────────────────────────
 
   function renderStep1() {
-    const tmpl = ORDERED_SPLITS;
+    // Determine active filter — if templateFilter is explicitly set use it, else default to experience level
+    const activeFilter = templateFilter !== null ? templateFilter : experience;
+
+    const filterLevels = [
+      { id: 'all', label: 'All' },
+      { id: 'beginner', label: 'Beginner' },
+      { id: 'intermediate', label: 'Intermediate' },
+      { id: 'advanced', label: 'Advanced' },
+    ];
+
+    const visibleTemplates = activeFilter === 'all'
+      ? ORDERED_SPLITS
+      : ORDERED_SPLITS.filter(t => SPLIT_LEVEL_MAP[t.id] === activeFilter);
+
+    // Build My Own card (always shown at end)
+    const buildMyOwnCard = {
+      id: 'custom',
+      name: 'Build My Own',
+      type: 'custom',
+      days_per_week: null,
+      recommended: false,
+      description: 'Build your program entirely from scratch. Full control over every training day and exercise selection.',
+      who: 'For experienced lifters who know exactly what works for their body and want complete customisation.',
+      days: [],
+      isCustomCard: true,
+    };
+
     return (
       <div className="ts-step">
         <h2 className="ts-title">Choose your training split</h2>
+
+        {/* Filter pills */}
+        <div className="ts-filter-pills">
+          {filterLevels.map(f => (
+            <button
+              key={f.id}
+              className={`ts-filter-pill${activeFilter === f.id ? ' active' : ''}`}
+              onClick={() => setTemplateFilter(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         <div className="ts-template-grid">
-          {tmpl.map((t) => (
+          {[...visibleTemplates, buildMyOwnCard].map((t) => (
             <div
               key={t.id}
               className={`ts-template-card${selectedTemplateId === t.id ? " selected" : ""}`}
@@ -564,6 +685,11 @@ export default function TrainingSetup({ profile, onComplete }) {
             >
               {t.recommended && (
                 <span className="ts-badge-rec">RECOMMENDED</span>
+              )}
+              {t.isCustomCard && (
+                <span className="ts-badge-rec" style={{ background: 'var(--surface-2)', color: 'var(--text-3)', border: '1px solid var(--line-2)' }}>
+                  INTERMEDIATE / ADVANCED
+                </span>
               )}
               <div className="ts-template-name">{t.name}</div>
               <div className="ts-template-meta">
@@ -597,12 +723,14 @@ export default function TrainingSetup({ profile, onComplete }) {
           </button>
           <button
             className="ts-btn ts-btn-primary"
-            disabled={!selectedTemplateId}
+            disabled={!selectedTemplateId || saving}
             onClick={handleNextFromStep1}
           >
-            Continue →
+            {saving && <span className="ts-spinner" />}
+            {saving ? 'Creating…' : 'Continue →'}
           </button>
         </div>
+        {error && <div className="ts-error">{error}</div>}
       </div>
     );
   }
