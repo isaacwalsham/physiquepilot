@@ -634,26 +634,69 @@ const STYLE = `
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function ExerciseRow({ pde, index, total, dayId, onReorder, onRemove, onChange }) {
-  const [sets, setSets] = useState(pde.target_sets ?? 3);
+  const [sets, setSets] = useState(pde.target_sets ?? 2);
   const [repsMin, setRepsMin] = useState(pde.target_reps_min ?? 6);
-  const [repsMax, setRepsMax] = useState(pde.target_reps_max ?? 10);
+  const [repsMax, setRepsMax] = useState(pde.target_reps_max ?? 9);
+  const [set2Min, setSet2Min] = useState(pde.set_2_reps_min ?? 9);
+  const [set2Max, setSet2Max] = useState(pde.set_2_reps_max ?? 12);
   const [rir, setRir] = useState(pde.target_rir ?? 2);
+  const [machineBrand, setMachineBrand] = useState(pde.machine_brand ?? '');
+  const [machineName, setMachineName] = useState(pde.machine_name ?? '');
+  const [singleArm, setSingleArm] = useState(() => {
+    const notes = pde.equipment_notes ?? '';
+    return notes.startsWith('single-arm') || notes.startsWith('single-arm,single-leg');
+  });
+  const [singleLeg, setSingleLeg] = useState(() => {
+    const notes = pde.equipment_notes ?? '';
+    return notes.includes('single-leg');
+  });
+  const [equipmentNotes, setEquipmentNotes] = useState(() => {
+    const notes = pde.equipment_notes ?? '';
+    // Strip unilateral prefix from notes field
+    return notes.replace(/^(single-arm,?|single-leg,?)+/g, '').replace(/^,/, '').trim();
+  });
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    setSets(pde.target_sets ?? 3);
+    setSets(pde.target_sets ?? 2);
     setRepsMin(pde.target_reps_min ?? 6);
-    setRepsMax(pde.target_reps_max ?? 10);
+    setRepsMax(pde.target_reps_max ?? 9);
+    setSet2Min(pde.set_2_reps_min ?? 9);
+    setSet2Max(pde.set_2_reps_max ?? 12);
     setRir(pde.target_rir ?? 2);
+    setMachineBrand(pde.machine_brand ?? '');
+    setMachineName(pde.machine_name ?? '');
+    const notes = pde.equipment_notes ?? '';
+    setSingleArm(notes.startsWith('single-arm'));
+    setSingleLeg(notes.includes('single-leg'));
+    setEquipmentNotes(notes.replace(/^(single-arm,?|single-leg,?)+/g, '').replace(/^,/, '').trim());
   }, [pde.id]);
 
-  async function handleBlur() {
+  function buildEquipmentNotes(arm, leg, notes) {
+    const parts = [];
+    if (arm) parts.push('single-arm');
+    if (leg) parts.push('single-leg');
+    if (notes.trim()) parts.push(notes.trim());
+    return parts.join(',');
+  }
+
+  async function save(overrides = {}) {
+    const arm = overrides.singleArm !== undefined ? overrides.singleArm : singleArm;
+    const leg = overrides.singleLeg !== undefined ? overrides.singleLeg : singleLeg;
+    const notes = overrides.equipmentNotes !== undefined ? overrides.equipmentNotes : equipmentNotes;
     await supabase
       .from('program_day_exercises')
       .update({
-        target_sets: sets,
-        target_reps_min: repsMin,
-        target_reps_max: repsMax,
-        target_rir: rir,
+        target_sets: overrides.sets !== undefined ? overrides.sets : sets,
+        target_reps_min: overrides.repsMin !== undefined ? overrides.repsMin : repsMin,
+        target_reps_max: overrides.repsMax !== undefined ? overrides.repsMax : repsMax,
+        set_2_reps_min: overrides.set2Min !== undefined ? overrides.set2Min : set2Min,
+        set_2_reps_max: overrides.set2Max !== undefined ? overrides.set2Max : set2Max,
+        target_rir: overrides.rir !== undefined ? overrides.rir : rir,
+        machine_brand: overrides.machineBrand !== undefined ? overrides.machineBrand : machineBrand,
+        machine_name: overrides.machineName !== undefined ? overrides.machineName : machineName,
+        is_unilateral: arm || leg,
+        equipment_notes: buildEquipmentNotes(arm, leg, notes),
       })
       .eq('id', pde.id);
     onChange();
@@ -662,72 +705,176 @@ function ExerciseRow({ pde, index, total, dayId, onReorder, onRemove, onChange }
   const name = pde.custom_name || pde.exercises?.name || 'Unknown Exercise';
 
   return (
-    <div className="sb-ex-row">
-      <span className="sb-ex-name" title={name}>{name}</span>
-      <div className="sb-ex-targets">
-        <input
-          className="sb-ex-input"
-          type="number"
-          min={1}
-          max={20}
-          value={sets}
-          onChange={e => setSets(Number(e.target.value))}
-          onBlur={handleBlur}
-          title="Sets"
-        />
-        <span className="sb-ex-targets-label">×</span>
-        <input
-          className="sb-ex-input"
-          type="number"
-          min={1}
-          max={50}
-          value={repsMin}
-          onChange={e => setRepsMin(Number(e.target.value))}
-          onBlur={handleBlur}
-          title="Reps min"
-        />
-        <span className="sb-ex-targets-label">–</span>
-        <input
-          className="sb-ex-input"
-          type="number"
-          min={1}
-          max={50}
-          value={repsMax}
-          onChange={e => setRepsMax(Number(e.target.value))}
-          onBlur={handleBlur}
-          title="Reps max"
-        />
-        <span className="sb-ex-targets-label" style={{ marginLeft: 2 }}>RIR</span>
-        <input
-          className="sb-ex-input"
-          type="number"
-          min={0}
-          max={5}
-          value={rir}
-          onChange={e => setRir(Number(e.target.value))}
-          onBlur={handleBlur}
-          title="RIR"
-        />
+    <div style={{ background: 'var(--surface-2)', border: '1px solid var(--line-1)', borderRadius: 'var(--radius-sm)', marginBottom: 2 }}>
+      {/* Main row */}
+      <div className="sb-ex-row" style={{ borderRadius: 0, border: 'none', marginBottom: 0 }}>
+        <span className="sb-ex-name" title={name}>{name}</span>
+        <div className="sb-ex-targets">
+          <input
+            className="sb-ex-input"
+            type="number"
+            min={1}
+            max={20}
+            value={sets}
+            onChange={e => setSets(Number(e.target.value))}
+            onBlur={() => save()}
+            title="Sets"
+          />
+          <span className="sb-ex-targets-label">sets</span>
+          <span className="sb-ex-targets-label" style={{ marginLeft: 4 }}>RIR</span>
+          <input
+            className="sb-ex-input"
+            type="number"
+            min={0}
+            max={5}
+            value={rir}
+            onChange={e => setRir(Number(e.target.value))}
+            onBlur={() => save()}
+            title="RIR"
+          />
+        </div>
+        <div className="sb-ex-row-actions">
+          <button
+            className="sb-order-btn"
+            onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+            title={expanded ? 'Collapse' : 'Expand details'}
+            style={{ fontSize: '0.7rem', padding: '2px 7px' }}
+          >{expanded ? '▲' : '▼'}</button>
+          <button
+            className="sb-order-btn"
+            onClick={() => onReorder(dayId, index, -1)}
+            disabled={index === 0}
+            title="Move up"
+          >↑</button>
+          <button
+            className="sb-order-btn"
+            onClick={() => onReorder(dayId, index, 1)}
+            disabled={index === total - 1}
+            title="Move down"
+          >↓</button>
+          <button
+            className="sb-remove-btn"
+            onClick={() => onRemove(pde)}
+            title="Remove"
+          >×</button>
+        </div>
       </div>
-      <div className="sb-ex-row-actions">
-        <button
-          className="sb-order-btn"
-          onClick={() => onReorder(dayId, index, -1)}
-          disabled={index === 0}
-          title="Move up"
-        >↑</button>
-        <button
-          className="sb-order-btn"
-          onClick={() => onReorder(dayId, index, 1)}
-          disabled={index === total - 1}
-          title="Move down"
-        >↓</button>
-        <button
-          className="sb-remove-btn"
-          onClick={() => onRemove(pde)}
-          title="Remove"
-        >×</button>
-      </div>
+
+      {/* Expanded detail panel */}
+      {expanded && (
+        <div style={{ padding: '8px 10px 10px', borderTop: '1px solid var(--line-1)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Rep ranges row */}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Set 1:</span>
+              <input
+                className="sb-ex-input"
+                type="number" min={1} max={50}
+                value={repsMin}
+                onChange={e => setRepsMin(Number(e.target.value))}
+                onBlur={() => save()}
+                title="Set 1 reps min"
+              />
+              <span className="sb-ex-targets-label">–</span>
+              <input
+                className="sb-ex-input"
+                type="number" min={1} max={50}
+                value={repsMax}
+                onChange={e => setRepsMax(Number(e.target.value))}
+                onBlur={() => save()}
+                title="Set 1 reps max"
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>reps</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Set 2:</span>
+              <input
+                className="sb-ex-input"
+                type="number" min={1} max={50}
+                value={set2Min}
+                onChange={e => setSet2Min(Number(e.target.value))}
+                onBlur={() => save()}
+                title="Set 2 reps min"
+              />
+              <span className="sb-ex-targets-label">–</span>
+              <input
+                className="sb-ex-input"
+                type="number" min={1} max={50}
+                value={set2Max}
+                onChange={e => setSet2Max(Number(e.target.value))}
+                onBlur={() => save()}
+                title="Set 2 reps max"
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>reps</span>
+            </div>
+          </div>
+
+          {/* Machine fields row */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Machine brand:</span>
+              <input
+                style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--text-1)', background: 'var(--surface-3)', border: '1px solid var(--line-2)', borderRadius: 6, padding: '2px 6px', width: 90, outline: 'none' }}
+                type="text"
+                value={machineBrand}
+                onChange={e => setMachineBrand(e.target.value)}
+                onBlur={() => save()}
+                placeholder="e.g. Life Fitness"
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Machine name:</span>
+              <input
+                style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--text-1)', background: 'var(--surface-3)', border: '1px solid var(--line-2)', borderRadius: 6, padding: '2px 6px', width: 110, outline: 'none' }}
+                type="text"
+                value={machineName}
+                onChange={e => setMachineName(e.target.value)}
+                onBlur={() => save()}
+                placeholder="e.g. Chest Press"
+              />
+            </div>
+          </div>
+
+          {/* Unilateral checkboxes */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: 'var(--text-2)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={singleArm}
+                onChange={e => {
+                  setSingleArm(e.target.checked);
+                  save({ singleArm: e.target.checked });
+                }}
+              />
+              Single arm
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: 'var(--text-2)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={singleLeg}
+                onChange={e => {
+                  setSingleLeg(e.target.checked);
+                  save({ singleLeg: e.target.checked });
+                }}
+              />
+              Single leg
+            </label>
+          </div>
+
+          {/* Notes */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Notes:</span>
+            <input
+              style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--text-1)', background: 'var(--surface-3)', border: '1px solid var(--line-2)', borderRadius: 6, padding: '2px 6px', flex: 1, outline: 'none', minWidth: 0 }}
+              type="text"
+              value={equipmentNotes}
+              onChange={e => setEquipmentNotes(e.target.value)}
+              onBlur={() => save()}
+              placeholder="Optional notes"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -769,9 +916,11 @@ function AddExercisePanel({ dayId, currentCount, onClose, onAdded }) {
       program_day_id: dayId,
       exercise_id: ex.id,
       order_index: nextOrderIndex,
-      target_sets: 3,
-      target_reps_min: ex.is_compound ? 6 : 10,
-      target_reps_max: ex.is_compound ? 10 : 15,
+      target_sets: 2,
+      target_reps_min: ex.is_compound ? 6 : 9,
+      target_reps_max: ex.is_compound ? 9 : 12,
+      set_2_reps_min: ex.is_compound ? 9 : 12,
+      set_2_reps_max: ex.is_compound ? 12 : 15,
       target_rir: 2,
     });
     onAdded();

@@ -367,7 +367,7 @@ function formatDuration(minutes) {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function TrainingCalendar({ program, programDays, onStartSession, onProgramUpdated }) {
+export default function TrainingCalendar({ program, programDays, onProgramUpdated }) {
   const [schedule] = useState(() => buildSchedule(program, programDays));
   const [completedDates, setCompletedDates] = useState(new Set());
   const [recentSessions, setRecentSessions] = useState([]);
@@ -533,18 +533,7 @@ export default function TrainingCalendar({ program, programDays, onStartSession,
                 {/* Actions */}
                 <div className="tc-day-actions">
                   {isToday && isTraining && (
-                    <button
-                      className="tc-session-btn primary"
-                      onClick={() => onStartSession?.(splitDay, date)}
-                    >
-                      ▶ Start Session
-                    </button>
-                  )}
-
-                  {isToday && !isTraining && (
-                    <button className="tc-session-btn ghost">
-                      Override
-                    </button>
+                    <span className="tc-tag-scheduled" style={{ color: 'var(--accent-3)', fontStyle: 'normal', fontWeight: 600 }}>Today</span>
                   )}
 
                   {!isToday && isPast && isCompleted && (
