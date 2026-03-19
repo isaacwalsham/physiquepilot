@@ -72,22 +72,30 @@ const CSS = `
     flex-shrink: 0;
     gap: 1rem;
     flex-wrap: wrap;
+    position: relative;
   }
   .db-header-eyebrow {
     font-family: var(--font-display);
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     letter-spacing: 0.2em;
     color: var(--text-3);
     margin-bottom: 0.2rem;
   }
   .db-header-greeting {
     font-family: var(--font-display);
-    font-size: 1.15rem;
+    font-size: 1.25rem;
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
-  .db-header-center { display: flex; align-items: center; }
+  .db-header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+  }
   .db-header-right {
     display: flex;
     flex-direction: column;
@@ -110,7 +118,7 @@ const CSS = `
   /* ── Clock ── */
   .db-clock {
     font-family: var(--font-display);
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     letter-spacing: 0.15em;
     color: var(--accent-3);
     font-variant-numeric: tabular-nums;
@@ -163,7 +171,7 @@ const CSS = `
   /* ── MFD label ── */
   .db-mfd {
     font-family: var(--font-display);
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--accent-3);
@@ -183,7 +191,7 @@ const CSS = `
   /* ── Big number ── */
   .db-bignum {
     font-family: var(--font-display);
-    font-size: 2.6rem;
+    font-size: 3.2rem;
     font-weight: 700;
     line-height: 1;
     color: var(--text-1);
@@ -193,14 +201,14 @@ const CSS = `
   .db-stat { display: flex; flex-direction: column; gap: 0.15rem; }
   .db-stat-label {
     font-family: var(--font-display);
-    font-size: 0.68rem;
+    font-size: 0.78rem;
     letter-spacing: 0.14em;
     color: var(--text-3);
     text-transform: uppercase;
   }
   .db-stat-val {
     font-family: var(--font-display);
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     color: var(--text-1);
   }
 
@@ -210,9 +218,9 @@ const CSS = `
     align-items: center;
     gap: 0.3rem;
     font-family: var(--font-display);
-    font-size: 0.75rem;
+    font-size: 0.82rem;
     letter-spacing: 0.07em;
-    padding: 0.25rem 0.7rem;
+    padding: 0.28rem 0.75rem;
     border: 1px solid;
     border-radius: 6px;
     text-transform: uppercase;
@@ -242,10 +250,10 @@ const CSS = `
 
   /* ── Habit row ── */
   .db-habit-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
-  .db-habit-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .db-habit-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .db-habit-name {
     font-family: var(--font-display);
-    font-size: 0.78rem;
+    font-size: 0.88rem;
     letter-spacing: 0.06em;
     color: var(--text-2);
     flex: 1;
@@ -253,7 +261,7 @@ const CSS = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .db-habit-check { font-family: var(--font-display); font-size: 0.78rem; flex-shrink: 0; }
+  .db-habit-check { font-family: var(--font-display); font-size: 0.88rem; flex-shrink: 0; }
 
   /* ── Progress bar ── */
   .db-progress-track { height: 4px; background: var(--line-1); border-radius: 2px; overflow: hidden; }
@@ -305,13 +313,13 @@ const CSS = `
     display: block;
     width: 100%;
     margin-top: auto;
-    padding: 0.7rem;
+    padding: 0.8rem;
     background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
     border: none;
     border-radius: var(--radius-sm);
     color: #fff;
     font-family: var(--font-display);
-    font-size: 0.82rem;
+    font-size: 0.92rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     cursor: pointer;
@@ -333,14 +341,14 @@ const CSS = `
   /* ── Countdown ── */
   .db-countdown {
     font-family: var(--font-display);
-    font-size: 4.5rem;
+    font-size: 5.5rem;
     font-weight: 700;
     line-height: 1;
     color: var(--text-1);
   }
   .db-countdown-unit {
     font-family: var(--font-display);
-    font-size: 0.75rem;
+    font-size: 0.88rem;
     letter-spacing: 0.2em;
     color: var(--text-3);
     margin-top: 0.2rem;
@@ -349,7 +357,7 @@ const CSS = `
   /* ── Cal status bar ── */
   .db-cal-status {
     font-family: var(--font-display);
-    font-size: 0.82rem;
+    font-size: 0.92rem;
     letter-spacing: 0.1em;
     padding: 0.4rem 0.7rem;
     border-radius: var(--radius-sm);
@@ -407,7 +415,7 @@ function ToggleSwitch({ on, onToggle, labelOff, labelOn }) {
 // ─── ArcGauge ─────────────────────────────────────────────────────────────────
 function ArcGauge({ value, max, label, color, unit = "g", size = 110 }) {
   const pct = max > 0 ? Math.min(value / max, 1) : 0;
-  const sw = 9;
+  const sw = Math.round(size * 0.065);
   const r = (size - sw * 2) / 2;
   const circ = 2 * Math.PI * r;
   const arcFraction = 0.75;
@@ -436,7 +444,7 @@ function ArcGauge({ value, max, label, color, unit = "g", size = 110 }) {
           <span style={{ fontFamily: "var(--font-display)", fontSize: size * 0.1, color, lineHeight: 1 }}>{unit}</span>
         </div>
       </div>
-      <div style={{ textAlign: "center", fontFamily: "var(--font-display)", fontSize: "0.58rem", letterSpacing: "0.14em", color: "var(--text-3)", marginTop: "2px" }}>{label}</div>
+      <div style={{ textAlign: "center", fontFamily: "var(--font-display)", fontSize: "0.75rem", letterSpacing: "0.14em", color: "var(--text-3)", marginTop: "4px" }}>{label}</div>
     </div>
   );
 }
@@ -724,12 +732,12 @@ export default function Dashboard() {
                 <div className="db-bignum">{dispW(latest.weight_kg)}</div>
                 <div style={{ marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   {trend !== null && (
-                    <span style={{ fontFamily: "var(--font-display)", fontSize: "1rem",
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem",
                       color: trend > 0.05 ? "var(--bad)" : trend < -0.05 ? "#60a5fa" : "var(--ok)" }}>
                       {trend > 0.05 ? "↑" : trend < -0.05 ? "↓" : "→"} {dispW(Math.abs(trend))}
                     </span>
                   )}
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-3)", fontFamily: "var(--font-display)" }}>vs 7-day avg</span>
+                  <span style={{ fontSize: "0.88rem", color: "var(--text-3)", fontFamily: "var(--font-display)" }}>vs 7-day avg</span>
                 </div>
                 <div style={{ marginTop: "0.5rem" }}>
                   {loggedToday
@@ -790,7 +798,7 @@ export default function Dashboard() {
                 label="CALORIES"
                 color="var(--accent-3)"
                 unit="kcal"
-                size={148}
+                size={200}
               />
               <ArcGauge
                 value={Math.round(nutLogged.protein_g)}
@@ -798,7 +806,7 @@ export default function Dashboard() {
                 label="PROTEIN"
                 color="#22c55e"
                 unit="g"
-                size={148}
+                size={200}
               />
               <ArcGauge
                 value={Math.round(nutLogged.carbs_g)}
@@ -806,7 +814,7 @@ export default function Dashboard() {
                 label="CARBS"
                 color="#4d8eff"
                 unit="g"
-                size={148}
+                size={200}
               />
               <ArcGauge
                 value={Math.round(nutLogged.fats_g)}
@@ -814,7 +822,7 @@ export default function Dashboard() {
                 label="FATS"
                 color="#f59e0b"
                 unit="g"
-                size={148}
+                size={200}
               />
             </div>
 
@@ -832,7 +840,7 @@ export default function Dashboard() {
 
             <div style={{
               fontFamily: "var(--font-display)",
-              fontSize: "0.72rem",
+              fontSize: "0.85rem",
               letterSpacing: "0.14em",
               color: "var(--text-3)",
               textAlign: "center",
@@ -856,7 +864,7 @@ export default function Dashboard() {
               ◈ TRAINING
             </div>
 
-            <div style={{ fontFamily: "var(--font-display)", fontSize: "1.3rem", fontWeight: 700, color: todayProgramDay?.is_rest ? "var(--text-3)" : "var(--text-1)", marginBottom: "0.5rem", lineHeight: 1.2 }}>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: "1.6rem", fontWeight: 700, color: todayProgramDay?.is_rest ? "var(--text-3)" : "var(--text-1)", marginBottom: "0.5rem", lineHeight: 1.2 }}>
               {todayProgramDay?.is_rest
                 ? "REST DAY"
                 : programDayName}
@@ -867,14 +875,14 @@ export default function Dashboard() {
                 ? <span className="db-badge db-badge-ok">✓ SESSION LOGGED</span>
                 : todayDayType === "training"
                   ? <span className="db-badge db-badge-warn">PENDING</span>
-                  : <span style={{ fontFamily: "var(--font-display)", fontSize: "0.78rem", color: "var(--text-3)" }}>Rest day</span>}
+                  : <span style={{ fontFamily: "var(--font-display)", fontSize: "0.9rem", color: "var(--text-3)" }}>Rest day</span>}
             </div>
 
             <hr className="db-hr" />
 
             <div className="db-stat">
               <span className="db-stat-label">NUTRITION TARGET</span>
-              <span className="db-stat-val" style={{ fontSize: "0.95rem", marginTop: "0.2rem", color: "var(--text-2)" }}>
+              <span className="db-stat-val" style={{ fontSize: "1.1rem", marginTop: "0.2rem", color: "var(--text-2)" }}>
                 {todayDayType === "training" ? "Training day macros"
                  : todayDayType === "high"   ? "High day macros"
                  :                             "Rest day macros"}
@@ -894,16 +902,16 @@ export default function Dashboard() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.3rem", flex: 1, justifyContent: "center" }}>
-              <RadialGauge value={stepsToday || 0} max={stepsTarget || 10000} size={140} />
+              <RadialGauge value={stepsToday || 0} max={stepsTarget || 10000} size={160} />
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: "0.85rem", fontWeight: 700, color: "var(--text-1)" }}>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-1)" }}>
                   {stepsToday !== null ? stepsToday.toLocaleString() : "—"}
-                  <span style={{ fontSize: "0.72rem", color: "var(--text-3)", marginLeft: "0.35rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-3)", marginLeft: "0.35rem" }}>
                     / {stepsTarget !== null ? stepsTarget.toLocaleString() : "10,000"}
                   </span>
                 </div>
                 {stepsToday !== null && stepsTarget !== null && stepsToday < stepsTarget && (
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", color: "var(--text-3)", letterSpacing: "0.1em" }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontSize: "0.85rem", color: "var(--text-3)", letterSpacing: "0.1em" }}>
                     {(stepsTarget - stepsToday).toLocaleString()} REMAINING
                   </div>
                 )}
@@ -927,7 +935,7 @@ export default function Dashboard() {
                 )}
               </div>
             ) : (
-              <span style={{ fontFamily: "var(--font-display)", fontSize: "0.78rem", color: "var(--text-3)" }}>
+              <span style={{ fontFamily: "var(--font-display)", fontSize: "0.92rem", color: "var(--text-3)" }}>
                 NO CARDIO LOGGED
               </span>
             )}
@@ -945,8 +953,8 @@ export default function Dashboard() {
             </div>
 
             <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.3rem" }}>
-              <div className="db-bignum" style={{ fontSize: "2.2rem" }}>
-                {habits.done}<span style={{ color: "var(--text-3)", fontSize: "1.4rem" }}>/{habits.total}</span>
+              <div className="db-bignum" style={{ fontSize: "2.8rem" }}>
+                {habits.done}<span style={{ color: "var(--text-3)", fontSize: "1.8rem" }}>/{habits.total}</span>
               </div>
               <span className={`db-badge ${habitPct >= 0.8 ? "db-badge-ok" : habitPct >= 0.3 ? "db-badge-warn" : "db-badge-training"}`}>
                 {habits.total > 0 ? `${Math.round(habitPct * 100)}%` : "—"}
@@ -997,7 +1005,7 @@ export default function Dashboard() {
               <div className="db-countdown-unit">
                 {daysUntil === 0 ? "Check-in day" : "days to check-in"}
               </div>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.75rem", color: "var(--text-3)", letterSpacing: "0.12em", marginTop: "0.3rem" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.9rem", color: "var(--text-3)", letterSpacing: "0.12em", marginTop: "0.3rem" }}>
                 {(profile?.check_in_day || "Monday")}s
               </div>
             </div>
@@ -1005,7 +1013,7 @@ export default function Dashboard() {
             <hr className="db-hr" />
 
             <div style={{ marginBottom: "0.5rem" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", letterSpacing: "0.12em", color: "var(--text-3)", marginBottom: "0.35rem" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.82rem", letterSpacing: "0.12em", color: "var(--text-3)", marginBottom: "0.35rem" }}>
                 Week progress
               </div>
               <div className="db-progress-track">
@@ -1035,7 +1043,7 @@ export default function Dashboard() {
             </div>
 
             <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "0.5rem" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.82rem", color: "var(--text-3)", letterSpacing: "0.04em", lineHeight: 1.7 }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.95rem", color: "var(--text-3)", letterSpacing: "0.04em", lineHeight: 1.7 }}>
                 Ask anything about your training, nutrition, or progress. The Pilot has access to all of your data.
               </div>
             </div>
