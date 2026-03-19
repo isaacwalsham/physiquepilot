@@ -679,7 +679,7 @@ export default function Dashboard() {
         {/* ── HEADER ──────────────────────────────────────────────────────────── */}
         <div className="db-header">
           <div className="db-header-left">
-            <div className="db-header-eyebrow">PHYSIQUE PILOT // COMMAND INTERFACE</div>
+            <div className="db-header-eyebrow">PHYSIQUE PILOT</div>
             <div className="db-header-greeting">
               <span className="db-dot db-dot-green" />
               {greeting}, <span style={{ color: "var(--accent-3)" }}>{firstName}.</span>
@@ -780,7 +780,7 @@ export default function Dashboard() {
 
             <div className="db-mfd">
               <span className={`db-dot ${calRemaining !== null && calRemaining < 0 ? "db-dot-red" : "db-dot-green"}`} />
-              ◈ FUEL SYSTEMS
+              ◈ NUTRITION
             </div>
 
             <div className="db-gauge-grid">
@@ -866,28 +866,19 @@ export default function Dashboard() {
               {trainSession
                 ? <span className="db-badge db-badge-ok">✓ SESSION LOGGED</span>
                 : todayDayType === "training"
-                  ? <span className="db-badge db-badge-warn">⏳ PENDING</span>
-                  : <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: "var(--text-3)" }}>NO SESSION REQUIRED</span>}
+                  ? <span className="db-badge db-badge-warn">PENDING</span>
+                  : <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: "var(--text-3)" }}>Rest day</span>}
             </div>
 
             <hr className="db-hr" />
 
-            <div className="db-stat" style={{ marginBottom: "0.4rem" }}>
-              <span className="db-stat-label">ACTIVE PROTOCOL</span>
-              <span className="db-stat-val" style={{ fontSize: "0.78rem", marginTop: "0.2rem" }}>
-                {todayDayType === "training" ? "PERFORMANCE MACROS"
-                 : todayDayType === "high"   ? "SURPLUS MACROS"
-                 :                             "DEFICIT MACROS"}
+            <div className="db-stat">
+              <span className="db-stat-label">NUTRITION TARGET</span>
+              <span className="db-stat-val" style={{ fontSize: "0.78rem", marginTop: "0.2rem", color: "var(--text-2)" }}>
+                {todayDayType === "training" ? "Training day macros"
+                 : todayDayType === "high"   ? "High day macros"
+                 :                             "Rest day macros"}
               </span>
-            </div>
-
-            <div style={{ fontFamily: "var(--font-display)", fontSize: "0.6rem", color: "var(--text-3)", lineHeight: 1.6, letterSpacing: "0.06em" }}>
-              {todayDayType === "training"
-                ? <><span style={{ color: "var(--accent-3)" }}>></span> High protein intake<br /><span style={{ color: "var(--accent-3)" }}>></span> Elevated carbs pre/post<br /><span style={{ color: "var(--accent-3)" }}>></span> Full calorie allocation</>
-                : todayDayType === "high"
-                  ? <><span style={{ color: "var(--accent-3)" }}>></span> Refeed protocol<br /><span style={{ color: "var(--accent-3)" }}>></span> Surplus carb intake<br /><span style={{ color: "var(--accent-3)" }}>></span> Glycogen replenishment</>
-                  : <><span style={{ color: "var(--accent-3)" }}>></span> Reduced calorie intake<br /><span style={{ color: "var(--accent-3)" }}>></span> Protein maintained<br /><span style={{ color: "var(--accent-3)" }}>></span> Recovery mode active</>
-              }
             </div>
 
             <div className="db-nav-hint">OPEN TRAINING →</div>
@@ -1004,10 +995,10 @@ export default function Dashboard() {
             <div style={{ textAlign: "center", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.25rem" }}>
               <div className="db-countdown">{daysUntil}</div>
               <div className="db-countdown-unit">
-                {daysUntil === 0 ? "CHECK-IN TODAY" : "DAYS UNTIL CHECK-IN"}
+                {daysUntil === 0 ? "Check-in day" : "days to check-in"}
               </div>
               <div style={{ fontFamily: "var(--font-display)", fontSize: "0.58rem", color: "var(--text-3)", letterSpacing: "0.12em", marginTop: "0.3rem" }}>
-                NEXT: {(profile?.check_in_day || "MONDAY").toUpperCase()}
+                {(profile?.check_in_day || "Monday")}s
               </div>
             </div>
 
@@ -1015,7 +1006,7 @@ export default function Dashboard() {
 
             <div style={{ marginBottom: "0.5rem" }}>
               <div style={{ fontFamily: "var(--font-display)", fontSize: "0.56rem", letterSpacing: "0.12em", color: "var(--text-3)", marginBottom: "0.35rem" }}>
-                WEEK PROGRESS
+                Week progress
               </div>
               <div className="db-progress-track">
                 <div className="db-progress-fill" style={{
@@ -1027,7 +1018,7 @@ export default function Dashboard() {
 
             {daysUntil === 0 && (
               <button className="db-cta-btn" onClick={(e) => { e.stopPropagation(); navigate("/app/check-ins"); }}>
-                SUBMIT CHECK-IN →
+                Go to check-in
               </button>
             )}
 
@@ -1043,26 +1034,14 @@ export default function Dashboard() {
               ◈ THE PILOT
             </div>
 
-            <div style={{ textAlign: "center", marginBottom: "0.5rem" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem", fontWeight: 700, color: "var(--accent-3)", letterSpacing: "0.08em", lineHeight: 1 }}>
-                PHYSIQUE PILOT
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "0.5rem" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: "var(--text-3)", letterSpacing: "0.08em", lineHeight: 1.7 }}>
+                Ask anything about your training, nutrition, or progress. The Pilot has access to all of your data.
               </div>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: "0.56rem", color: "var(--text-3)", letterSpacing: "0.2em", marginTop: "0.2rem" }}>
-                AI COACHING SYSTEM
-              </div>
-            </div>
-
-            <div style={{ width: "100%", height: "1px", background: "linear-gradient(to right, transparent, var(--accent-3), transparent)", marginBottom: "0.65rem", flexShrink: 0 }} />
-
-            <div style={{ flex: 1 }}>
-              <div className="db-terminal-line"><span className="db-terminal-prompt">&gt;</span> SYSTEM: ONLINE</div>
-              <div className="db-terminal-line"><span className="db-terminal-prompt">&gt;</span> MODEL: GPT-4o mini</div>
-              <div className="db-terminal-line"><span className="db-terminal-prompt">&gt;</span> MODE: SUPPORTIVE</div>
-              <div className="db-terminal-line"><span className="db-terminal-prompt">&gt;</span> CONSTRAINTS: ACTIVE</div>
             </div>
 
             <button className="db-cta-btn" onClick={(e) => { e.stopPropagation(); navigate("/app/coach"); }}>
-              OPEN CHANNEL →
+              Open The Pilot
             </button>
 
             <div className="db-nav-hint">OPEN COACH →</div>
