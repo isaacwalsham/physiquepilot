@@ -366,6 +366,56 @@ const CSS = `
     flex-shrink: 0;
   }
 
+  /* ── Bio carousel ── */
+  .db-bio-carousel {
+    flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 0.6rem;
+  }
+  .db-bio-slide {
+    flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0.4rem 0;
+    animation: bioFadeIn 0.25s ease;
+  }
+  @keyframes bioFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .db-bio-nav {
+    display: flex; align-items: center; justify-content: space-between; padding-top: 0.5rem;
+    border-top: 1px solid var(--line-1); margin-top: auto; flex-shrink: 0;
+  }
+  .db-bio-arrow {
+    width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-2);
+    background: transparent; color: var(--text-3); display: flex; align-items: center;
+    justify-content: center; cursor: pointer; font-size: 0.75rem;
+    transition: all 0.15s ease; flex-shrink: 0; line-height: 1;
+  }
+  .db-bio-arrow:hover { border-color: var(--accent-2); color: var(--accent-3); background: rgba(181,21,60,0.12); }
+  .db-bio-dots { display: flex; gap: 5px; align-items: center; }
+  .db-bio-dot {
+    height: 5px; border-radius: 3px; background: var(--line-2);
+    transition: all 0.25s ease; cursor: pointer; width: 5px;
+  }
+  .db-bio-dot.active { background: var(--accent-3); width: 18px; box-shadow: 0 0 6px var(--accent-2); }
+  .db-sparkline-label {
+    font-family: var(--font-display); font-size: 0.65rem; letter-spacing: 0.12em;
+    color: var(--text-3); text-align: center; margin-top: 0.3rem;
+  }
+  .db-progress-goal-track {
+    height: 8px; background: var(--line-1); border-radius: 4px; overflow: hidden; margin: 0.5rem 0;
+  }
+  .db-progress-goal-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-3));
+    box-shadow: 0 0 8px var(--accent-2);
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  }
+  .db-slide-title {
+    font-family: var(--font-display); font-size: 0.68rem; letter-spacing: 0.14em;
+    color: var(--text-3); text-transform: uppercase; margin-bottom: 0.4rem;
+  }
+  .db-slide-big {
+    font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; line-height: 1; color: var(--text-1);
+  }
+  .db-slide-sub {
+    font-family: var(--font-display); font-size: 0.78rem; color: var(--text-3); margin-top: 0.25rem;
+  }
+
   /* ── Responsive ── */
   @media (max-width: 1100px) {
     .db-grid {
@@ -496,6 +546,39 @@ function RadialGauge({ value, max, size = 120 }) {
   );
 }
 
+// ─── SparkLine ────────────────────────────────────────────────────────────────
+function SparkLine({ logs }) {
+  if (!logs?.length) return <div style={{ fontFamily: "var(--font-display)", fontSize: "0.75rem", color: "var(--text-3)" }}>Not enough data</div>;
+  const W = 220, H = 64;
+  const vals = logs.map(l => Number(l.weight_kg));
+  const min  = Math.min(...vals);
+  const max  = Math.max(...vals);
+  const range = max - min || 0.5;
+  const px = (i) => (i / Math.max(vals.length - 1, 1)) * (W - 12) + 6;
+  const py = (v)  => H - ((v - min) / range) * (H - 12) - 6;
+  const pts = vals.map((v, i) => `${px(i)},${py(v)}`).join(" ");
+  const fillPts = `${px(0)},${H} ${pts} ${px(vals.length - 1)},${H}`;
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible", display: "block" }}>
+      <defs>
+        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--accent-3)" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="var(--accent-3)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={fillPts} fill="url(#spark-fill)" />
+      <polyline points={pts} fill="none" stroke="var(--accent-3)" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round"
+        style={{ filter: "drop-shadow(0 0 4px var(--accent-2))" }} />
+      {vals.map((v, i) => (
+        <circle key={i} cx={px(i)} cy={py(v)} r={i === vals.length - 1 ? 4 : 2.5}
+          fill={i === vals.length - 1 ? "var(--accent-3)" : "var(--surface-2)"}
+          stroke="var(--accent-3)" strokeWidth={i === vals.length - 1 ? 0 : 1.5} />
+      ))}
+    </svg>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -506,6 +589,9 @@ export default function Dashboard() {
   const [unitDisplay,      setUnitDisplay]      = useState("kg");
   const [latest,           setLatest]           = useState(null);
   const [avg7,             setAvg7]             = useState(null);
+  const [wLogs,            setWLogs]            = useState([]);
+  const [bestWeight,       setBestWeight]       = useState(null);
+  const [bioSlide,         setBioSlide]         = useState(0);
   const [stepsToday,       setStepsToday]       = useState(null);
   const [stepsTarget,      setStepsTarget]      = useState(null);
   const [cardioToday,      setCardioToday]      = useState(null);
@@ -532,14 +618,24 @@ export default function Dashboard() {
 
       const today = todayLocalISO();
 
-      // Weight
-      const { data: wLogs } = await supabase
+      // Weight — fetch 14 days for carousel slides
+      const { data: wLogsRaw } = await supabase
         .from("weight_logs").select("log_date, weight_kg")
-        .eq("user_id", user.id).order("log_date", { ascending: false }).limit(7);
-      if (wLogs?.length) {
-        setLatest(wLogs[0]);
-        setAvg7(wLogs.reduce((s, l) => s + Number(l.weight_kg), 0) / wLogs.length);
-      } else { setLatest(null); setAvg7(null); }
+        .eq("user_id", user.id).order("log_date", { ascending: false }).limit(14);
+      if (wLogsRaw?.length) {
+        setLatest(wLogsRaw[0]);
+        const last7 = wLogsRaw.slice(0, 7);
+        setAvg7(last7.reduce((s, l) => s + Number(l.weight_kg), 0) / last7.length);
+        setWLogs([...wLogsRaw].reverse()); // ascending for sparkline
+      } else { setLatest(null); setAvg7(null); setWLogs([]); }
+      // Best weight (min for losing, max for gaining)
+      const isGaining = profile?.goal === "gain" || profile?.goal_type === "gain";
+      const { data: bestRow } = await supabase
+        .from("weight_logs").select("weight_kg")
+        .eq("user_id", user.id)
+        .order("weight_kg", { ascending: !isGaining })
+        .limit(1);
+      setBestWeight(bestRow?.[0]?.weight_kg ?? null);
 
       // Steps
       const { data: sRow } = await supabase
@@ -754,30 +850,141 @@ export default function Dashboard() {
               </>
             )}
 
-            {avg7 !== null && (
-              <>
-                <hr className="db-hr" />
-                <div className="db-stat">
-                  <span className="db-stat-label">7-DAY AVERAGE</span>
-                  <span className="db-stat-val" style={{ fontSize: "0.9rem" }}>{dispW(avg7)}</span>
-                </div>
-              </>
-            )}
+            {latest && (() => {
+              const BIO_SLIDES = 6;
+              const goalW   = Number(profile?.target_weight_kg || profile?.goal_weight_kg || 0);
+              const startW  = Number(profile?.starting_weight_kg || 0);
+              const currW   = Number(latest.weight_kg);
+              const isGain  = profile?.goal === "gain" || profile?.goal_type === "gain";
+              // slide 2: week avgs
+              const thisWeekLogs = wLogs.slice(-7);
+              const lastWeekLogs = wLogs.slice(-14, -7);
+              const thisAvg = thisWeekLogs.length ? thisWeekLogs.reduce((s,l)=>s+Number(l.weight_kg),0)/thisWeekLogs.length : null;
+              const lastAvg = lastWeekLogs.length ? lastWeekLogs.reduce((s,l)=>s+Number(l.weight_kg),0)/lastWeekLogs.length : null;
+              const weekDelta = thisAvg !== null && lastAvg !== null ? thisAvg - lastAvg : null;
+              // slide 3: progress to goal
+              const progPct = goalW && startW && startW !== goalW
+                ? Math.min(Math.max(isGain
+                    ? (currW - startW) / (goalW - startW)
+                    : (startW - currW) / (startW - goalW), 0), 1) * 100
+                : null;
+              // slide 4: rate of change
+              const sortedLogs = [...wLogs];
+              const rateWks = sortedLogs.length >= 2
+                ? (() => {
+                    const days = (new Date(sortedLogs[sortedLogs.length-1].log_date) - new Date(sortedLogs[0].log_date)) / 86400000;
+                    const delta = Number(sortedLogs[sortedLogs.length-1].weight_kg) - Number(sortedLogs[0].weight_kg);
+                    return days > 0 ? (delta / days) * 7 : null;
+                  })()
+                : null;
 
-            {(profile?.goal_weight_kg || profile?.target_weight_kg) && latest && (
-              <>
-                <hr className="db-hr" />
-                <div className="db-stat">
-                  <span className="db-stat-label">DISTANCE TO GOAL</span>
-                  <span className="db-stat-val" style={{ fontSize: "0.85rem" }}>
-                    {dispW(Math.abs(Number(latest.weight_kg) - Number(profile.goal_weight_kg || profile.target_weight_kg)))}
-                    <span style={{ fontFamily: "var(--font-display)", fontSize: "0.6rem", color: "var(--text-3)", marginLeft: "0.4rem" }}>
-                      {Number(latest.weight_kg) > Number(profile.goal_weight_kg || profile.target_weight_kg) ? "to lose" : "to gain"}
-                    </span>
-                  </span>
+              const slides = [
+                // 0: sparkline
+                <div key="spark" className="db-bio-slide">
+                  <div className="db-slide-title">7-DAY TREND</div>
+                  <SparkLine logs={wLogs.slice(-7)} />
+                  <div className="db-sparkline-label">
+                    {wLogs.length >= 2
+                      ? `${dispW(Number(wLogs[wLogs.length-1]?.weight_kg))} now · ${dispW(Number(wLogs[Math.max(wLogs.length-7,0)]?.weight_kg))} 7 days ago`
+                      : "Log more weights to see trend"}
+                  </div>
+                </div>,
+                // 1: total change since start
+                <div key="total" className="db-bio-slide">
+                  <div className="db-slide-title">TOTAL CHANGE</div>
+                  {startW ? (() => {
+                    const diff = currW - startW;
+                    const col = diff < -0.05 ? "#60a5fa" : diff > 0.05 ? "var(--bad)" : "var(--ok)";
+                    return <>
+                      <div className="db-slide-big" style={{ color: col }}>
+                        {diff > 0 ? "+" : ""}{dispW(diff)}
+                      </div>
+                      <div className="db-slide-sub">since starting weight ({dispW(startW)})</div>
+                    </>;
+                  })() : <div className="db-slide-sub">Set a starting weight in Settings to track total change.</div>}
+                </div>,
+                // 2: this week vs last week
+                <div key="weeks" className="db-bio-slide">
+                  <div className="db-slide-title">THIS WEEK VS LAST</div>
+                  {thisAvg !== null ? <>
+                    <div style={{ display: "flex", gap: "1.2rem", alignItems: "flex-end" }}>
+                      <div>
+                        <div className="db-slide-sub">This week</div>
+                        <div className="db-slide-big" style={{ fontSize: "1.5rem" }}>{dispW(thisAvg)}</div>
+                      </div>
+                      {lastAvg !== null && <div>
+                        <div className="db-slide-sub">Last week</div>
+                        <div className="db-slide-big" style={{ fontSize: "1.5rem", color: "var(--text-3)" }}>{dispW(lastAvg)}</div>
+                      </div>}
+                    </div>
+                    {weekDelta !== null && <div className="db-slide-sub" style={{ marginTop: "0.3rem",
+                      color: weekDelta < -0.05 ? "#60a5fa" : weekDelta > 0.05 ? "var(--bad)" : "var(--ok)" }}>
+                      {weekDelta > 0 ? "+" : ""}{dispW(weekDelta)} vs last week
+                    </div>}
+                  </> : <div className="db-slide-sub">Log weights across two weeks to compare.</div>}
+                </div>,
+                // 3: progress to goal
+                <div key="prog" className="db-bio-slide">
+                  <div className="db-slide-title">PROGRESS TO GOAL</div>
+                  {goalW && startW ? <>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.2rem" }}>
+                      <span className="db-slide-sub">{dispW(startW)}</span>
+                      <span className="db-slide-sub">{dispW(goalW)}</span>
+                    </div>
+                    <div className="db-progress-goal-track">
+                      <div className="db-progress-goal-fill" style={{ width: `${progPct || 0}%` }} />
+                    </div>
+                    <div className="db-slide-big" style={{ fontSize: "1.6rem", marginTop: "0.3rem" }}>
+                      {Math.round(progPct || 0)}%
+                      <span className="db-slide-sub" style={{ fontSize: "0.78rem", marginLeft: "0.5rem" }}>
+                        {dispW(Math.abs(currW - goalW))} to go
+                      </span>
+                    </div>
+                  </> : <div className="db-slide-sub">Set a target weight in Settings to track progress.</div>}
+                </div>,
+                // 4: rate of change
+                <div key="rate" className="db-bio-slide">
+                  <div className="db-slide-title">RATE OF CHANGE</div>
+                  {rateWks !== null ? <>
+                    <div className="db-slide-big" style={{
+                      color: rateWks < -0.05 ? "#60a5fa" : rateWks > 0.05 ? "var(--bad)" : "var(--ok)" }}>
+                      {rateWks > 0 ? "+" : ""}{dispW(rateWks)}
+                    </div>
+                    <div className="db-slide-sub">per week (avg over logged data)</div>
+                  </> : <div className="db-slide-sub">Not enough data to calculate rate.</div>}
+                </div>,
+                // 5: best weight
+                <div key="best" className="db-bio-slide">
+                  <div className="db-slide-title">{isGain ? "PEAK WEIGHT" : "LOWEST WEIGHT"}</div>
+                  {bestWeight ? <>
+                    <div className="db-slide-big" style={{ color: "var(--accent-3)" }}>{dispW(bestWeight)}</div>
+                    <div className="db-slide-sub">
+                      {isGain ? "Heaviest recorded" : "Lightest recorded"} · {dispW(Math.abs(currW - Number(bestWeight)))} {isGain ? "below" : "above"} current
+                    </div>
+                  </> : <div className="db-slide-sub">No data yet.</div>}
+                </div>,
+              ];
+
+              return (
+                <div className="db-bio-carousel">
+                  {slides[bioSlide]}
+                  <div className="db-bio-nav">
+                    <button className="db-bio-arrow"
+                      onClick={(e) => { e.stopPropagation(); setBioSlide(s => (s - 1 + BIO_SLIDES) % BIO_SLIDES); }}
+                      aria-label="Previous">‹</button>
+                    <div className="db-bio-dots">
+                      {Array.from({ length: BIO_SLIDES }).map((_, i) => (
+                        <div key={i} className={`db-bio-dot${bioSlide === i ? " active" : ""}`}
+                          onClick={(e) => { e.stopPropagation(); setBioSlide(i); }} />
+                      ))}
+                    </div>
+                    <button className="db-bio-arrow"
+                      onClick={(e) => { e.stopPropagation(); setBioSlide(s => (s + 1) % BIO_SLIDES); }}
+                      aria-label="Next">›</button>
+                  </div>
                 </div>
-              </>
-            )}
+              );
+            })()}
 
             <div className="db-nav-hint">OPEN WEIGHT LOG →</div>
           </div>
