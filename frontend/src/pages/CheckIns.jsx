@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 
 const dayNameToIndex = {
   Sunday: 0,
@@ -1263,17 +1264,7 @@ function CheckIns() {
     await loadHistory(userId);
   };
 
-  if (loading) {
-    return (
-      <div className="ci-loading">
-        <style>{CSS}</style>
-        <div className="ci-loading-dot" />
-        <div className="ci-loading-dot" />
-        <div className="ci-loading-dot" />
-        <span>Loading...</span>
-      </div>
-    );
-  }
+  if (loading) return <PhysiquePilotLoader />;
 
   const weightSubClass =
     metrics.weightChangeKg === null

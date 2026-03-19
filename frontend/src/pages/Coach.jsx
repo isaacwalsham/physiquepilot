@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 
 const formatISO = (d) => {
   const dt = new Date(d);
@@ -711,13 +712,7 @@ function Coach() {
     setSending(false);
   };
 
-  if (loading) {
-    return (
-      <div style={{ fontFamily: "var(--font-display)", color: "var(--text-3)", fontSize: "0.8rem", letterSpacing: "0.12em", padding: "2rem" }}>
-        Loading...
-      </div>
-    );
-  }
+  if (loading) return <PhysiquePilotLoader />;
 
   const dayType = training?.is_rest_day ? "rest" : "training";
   const targetCalories = targets?.[dayType]?.calories ?? null;

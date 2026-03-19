@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useProfile } from "../context/ProfileContext";
 import { supabase } from "../supabaseClient";
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
@@ -221,7 +222,7 @@ function Settings() {
   };
 
   // ── Styles ────────────────────────────────────────────────────────────────
-  if (loading) return <div style={{ color: "#aaa", padding: "2rem" }}>Loading...</div>;
+  if (loading) return <PhysiquePilotLoader />;
 
   const card = {
     background: "#050507",

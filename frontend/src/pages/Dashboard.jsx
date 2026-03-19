@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useProfile } from "../context/ProfileContext";
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 
 const API_URL = (() => {
   const raw =
@@ -271,23 +272,6 @@ function MacroBar({ label, value, max, unit = "g", color = "#dc143c" }) {
   );
 }
 
-// ─── Loading ──────────────────────────────────────────────────────────────────
-function CockpitLoader() {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", height: "60vh", gap: "0.6rem",
-    }}>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: "0.8rem", color: "var(--accent-3)", letterSpacing: "0.2em" }}>
-        INITIALISING SYSTEMS
-      </div>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: "0.6rem", color: "var(--text-3)", letterSpacing: "0.15em" }}>
-        LOADING PILOT DATA...
-      </div>
-    </div>
-  );
-}
-
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -419,7 +403,7 @@ export default function Dashboard() {
   const calLogged    = Math.round(nutLogged.calories);
   const calRemaining = calTarget ? calTarget - calLogged : null;
 
-  if (profileLoading || loading) return <CockpitLoader />;
+  if (profileLoading || loading) return <PhysiquePilotLoader />;
 
   return (
     <>
