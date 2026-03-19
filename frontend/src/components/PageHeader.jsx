@@ -39,7 +39,7 @@ export function PageTabs({ tabs, active, onChange }) {
 
 const CSS = `
   .ph-wrap { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
-  .ph-title { font-family:var(--font-display); font-size:0.72rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--accent-3); display:flex; align-items:center; gap:0.55rem; }
+  .ph-title { font-family:var(--font-display); font-size:1rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--accent-3); display:flex; align-items:center; gap:0.55rem; }
   .ph-bar { display:inline-block; width:28px; height:2px; background:var(--accent-1); border-radius:999px; flex-shrink:0; }
   .ph-right { display:flex; gap:0.25rem; align-items:center; flex-wrap:wrap; }
   .ph-tab { background:transparent; border:1px solid var(--line-1); color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.1em; padding:0.4rem 0.9rem; border-radius:var(--radius-sm); transition:all var(--motion-fast); white-space:nowrap; }
