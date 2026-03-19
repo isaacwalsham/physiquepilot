@@ -6,6 +6,7 @@ import {
   ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
 import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
+import PageHeader from "../components/PageHeader";
 
 /* ─── colour tokens ──────────────────────────────────────── */
 const CRIMSON = "#e8274b";   // steps / primary metric
@@ -83,30 +84,6 @@ const CSS = `
     color: var(--text-1, #e8e8f0);
   }
 
-  /* header */
-  .ac-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--line-1, #1e1e2e);
-    margin-bottom: 1rem;
-  }
-  .ac-title {
-    font-family: var(--font-display, 'Chakra Petch', sans-serif);
-    font-size: 1.65rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin: 0;
-  }
-  .ac-subtitle {
-    font-size: 0.72rem;
-    color: var(--text-3, #555);
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    margin-top: 0.25rem;
-  }
   .ac-status { display: flex; align-items: center; gap: 0.5rem; }
   .ac-status-label {
     font-family: var(--font-display, 'Chakra Petch', sans-serif);
@@ -961,19 +938,16 @@ export default function CardioSteps() {
       <div className="ac-wrap">
 
         {/* ── HEADER ── */}
-        <div className="ac-header">
-          <div>
-            <h1 className="ac-title">Activity</h1>
-            <div className="ac-subtitle">
-              Step &amp; Cardio Telemetry ·{" "}
-              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
+        <PageHeader
+          title="ACTIVITY"
+          subtitle={`STEP & CARDIO TELEMETRY · ${new Date().toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short", year:"numeric" }).toUpperCase()}`}
+          right={
+            <div className="ac-status">
+              <span className="ac-status-label">{savingSteps || savingCardio ? "syncing" : "live"}</span>
+              <div className={`ac-dot${savingSteps || savingCardio ? " busy" : ""}`} />
             </div>
-          </div>
-          <div className="ac-status">
-            <span className="ac-status-label">{savingSteps || savingCardio ? "syncing" : "live"}</span>
-            <div className={`ac-dot${savingSteps || savingCardio ? " busy" : ""}`} />
-          </div>
-        </div>
+          }
+        />
 
         {error && <div className="ac-error">{error}</div>}
 

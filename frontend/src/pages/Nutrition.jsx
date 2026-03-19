@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useProfile } from "../context/ProfileContext";
 import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
+import PageHeader, { PageTabs } from "../components/PageHeader";
 
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
@@ -2006,13 +2007,6 @@ export default function Nutrition() {
 
     /* ── Core layout ── */
     .nt-wrap { display:flex; flex-direction:column; gap:0.55rem; height:calc(100vh - 80px); overflow:hidden; }
-    .nt-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem; padding:0.65rem 1rem; background:var(--surface-2); border:1px solid var(--line-1); border-bottom:2px solid var(--accent-2); border-radius:var(--radius-md); position:relative; overflow:hidden; }
-    .nt-header::after { content:""; position:absolute; bottom:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent-3) 40%,transparent); opacity:0.7; pointer-events:none; }
-    .nt-title { font-family:var(--font-display); font-size:0.72rem; color:var(--accent-3); letter-spacing:0.26em; text-transform:uppercase; }
-    .nt-tabs { display:flex; gap:0.28rem; }
-    .nt-tab { padding:0.4rem 0.92rem; border:1px solid var(--line-1); background:transparent; color:var(--text-3); border-radius:999px; cursor:pointer; font-family:var(--font-display); font-size:0.65rem; letter-spacing:0.14em; text-transform:uppercase; transition:all var(--motion-fast); white-space:nowrap; }
-    .nt-tab:hover:not(.nt-tab--active) { border-color:var(--line-2); color:var(--text-2); background:rgba(255,255,255,0.03); }
-    .nt-tab--active { background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); border-color:var(--accent-2); color:#fff; box-shadow:0 0 16px rgba(181,21,60,0.45); }
     .nt-save-status { font-size:0.65rem; color:var(--text-3); font-family:var(--font-display); letter-spacing:0.08em; min-width:90px; text-align:right; }
 
     /* ── Panel ── */
@@ -2364,19 +2358,23 @@ export default function Nutrition() {
       )}
 
       {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="nt-header">
-        <span className="nt-title">◈ NUTRITION</span>
-        <div className="nt-tabs">
-          {[["log", "Log Today"], ["meal_plan", "Meal Plan"], ["settings", "Settings"]].map(([key, label]) => (
-            <button key={key} className={`nt-tab${tab === key ? " nt-tab--active" : ""}`} onClick={() => setTab(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="nt-save-status">
-          {saving ? "SAVING…" : lastSavedAt ? `SAVED ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
-        </span>
-      </div>
+      <PageHeader
+        title="NUTRITION"
+        right={
+          <>
+            <PageTabs
+              tabs={[["log","Log Today"],["meal_plan","Meal Plan"],["settings","Settings"]]}
+              active={tab}
+              onChange={setTab}
+            />
+            {(saving || lastSavedAt) && (
+              <span className="nt-save-status">
+                {saving ? "SAVING…" : lastSavedAt ? `SAVED ${lastSavedAt.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}` : ""}
+              </span>
+            )}
+          </>
+        }
+      />
 
       {error && (
         <div style={{ fontSize: "0.82rem", color: "var(--bad)", padding: "0.55rem 0.9rem", background: "rgba(255,79,115,0.07)", border: "1px solid rgba(255,79,115,0.2)", borderRadius: "var(--radius-sm)" }}>

@@ -7,44 +7,9 @@ import TrainingCalendar from "./training/TrainingCalendar";
 import SplitBuilder from "./training/SplitBuilder";
 import SessionLog from "./training/SessionLog";
 import SessionHistory from "./training/SessionHistory";
+import PageHeader, { PageTabs } from "../components/PageHeader";
 
 const TRAINING_CSS = `
-/* ── Tab bar ── */
-.tr-tabs {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 1.75rem;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-.tr-tabs::-webkit-scrollbar { display: none; }
-.tr-tab {
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid var(--line-1);
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-  transition: all var(--motion-fast);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.tr-tab.active {
-  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
-  border-color: var(--accent-2);
-  color: #fff;
-  box-shadow: 0 0 12px rgba(181,21,60,0.4);
-}
-.tr-tab:hover:not(.active) {
-  border-color: var(--line-2);
-  color: var(--text-2);
-}
-
 /* ── Program sub-tabs ── */
 .tr-prog-tabs {
   display: flex;
@@ -185,25 +150,16 @@ export default function Training() {
       <style>{TRAINING_CSS}</style>
       <div style={{ maxWidth: '100%', fontFamily: 'var(--font-body)', color: 'var(--text-1)' }}>
 
-        {/* Page heading */}
-        <div style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 700, margin: 0, color: 'var(--text-1)' }}>
-            Training
-          </h1>
-        </div>
-
-        {/* Top-level tabs */}
-        <div className="tr-tabs">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              className={`tr-tab${activeTab === t.id ? ' active' : ''}`}
-              onClick={() => setActiveTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <PageHeader
+          title="TRAINING"
+          right={
+            <PageTabs
+              tabs={TABS.map(t => [t.id, t.label])}
+              active={activeTab}
+              onChange={setActiveTab}
+            />
+          }
+        />
 
         {/* Tab content */}
         {activeTab === 'programme' && renderProgram()}

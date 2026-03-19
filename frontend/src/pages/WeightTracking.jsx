@@ -31,6 +31,7 @@ import {
 } from "recharts";
 import { supabase } from "../supabaseClient";
 import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
+import PageHeader, { PageTabs } from "../components/PageHeader";
 import {
   addDays,
   bmiCategory,
@@ -77,42 +78,6 @@ const CSS = `
   height: 2px;
   background: var(--accent-3);
   flex-shrink: 0;
-}
-
-/* ── Tab bar ── */
-.wt-tabs {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 1.5rem;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-.wt-tabs::-webkit-scrollbar { display: none; }
-.wt-tab {
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid var(--line-1);
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-  transition: all var(--motion-fast);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.wt-tab.active {
-  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
-  border-color: var(--accent-2);
-  color: #fff;
-  box-shadow: 0 0 12px rgba(181,21,60,0.4);
-}
-.wt-tab:hover:not(.active) {
-  border-color: var(--line-2);
-  color: var(--text-2);
 }
 
 /* ── Cards ── */
@@ -2150,19 +2115,16 @@ export default function WeightTracking() {
     <div className="wt-page">
       <style>{CSS}</style>
 
-      <div className="wt-section-label">Weight Tracking</div>
-
-      <div className="wt-tabs">
-        {TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            className={`wt-tab${activeTab === id ? " active" : ""}`}
-            onClick={() => setActiveTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <PageHeader
+        title="WEIGHT TRACKING"
+        right={
+          <PageTabs
+            tabs={TABS.map(({ id, label }) => [id, label])}
+            active={activeTab}
+            onChange={setActiveTab}
+          />
+        }
+      />
 
       {loading ? (
         <PhysiquePilotLoader />

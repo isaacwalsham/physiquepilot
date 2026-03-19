@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { useProfile } from "../context/ProfileContext";
 import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
+import PageHeader, { PageTabs } from "../components/PageHeader";
 
 /* ─── constants ──────────────────────────────────────────────────────────── */
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -714,21 +715,16 @@ export default function HabitsTracker() {
       <div className="ht-page">
 
         {/* Header */}
-        <div className="ht-header">
-          <div className="ht-header-left">
-            <span className="ht-title">◈ HABIT TRACKER</span>
-            <span className="ht-date">
-              {new Date().toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short", year:"numeric" }).toUpperCase()}
-            </span>
-          </div>
-          <div className="ht-tabs">
-            {[["today","Today"],["analytics","Analytics"]].map(([key,label]) => (
-              <button key={key} className={`ht-tab${tab === key ? " ht-tab--active" : ""}`} onClick={() => setTab(key)}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <PageHeader
+          title="HABIT TRACKER"
+          right={
+            <PageTabs
+              tabs={[["today","Today"],["analytics","Analytics"]]}
+              active={tab}
+              onChange={setTab}
+            />
+          }
+        />
 
         {/* ── TODAY TAB ───────────────────────────────────────────────────── */}
         {tab === "today" && (
@@ -1411,19 +1407,6 @@ function ResetConfirmModal({ onConfirm, onCancel, saving }) {
 ═══════════════════════════════════════════════════════════════════════════ */
 const CSS = `
   .ht-page { display:flex; flex-direction:column; gap:1.1rem; font-family:var(--font-body); }
-
-  /* ── Header ── */
-  .ht-header { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
-  .ht-header-left { display:flex; flex-direction:column; gap:0.22rem; }
-  .ht-title { font-family:var(--font-display); font-size:0.72rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--accent-3); display:flex; align-items:center; gap:0.55rem; }
-  .ht-title::before { content:""; display:inline-block; width:28px; height:2px; background:var(--accent-1); border-radius:999px; }
-  .ht-date { font-family:var(--font-display); font-size:0.64rem; letter-spacing:0.14em; color:var(--text-3); padding-left:calc(28px + 0.55rem); }
-
-  /* ── Tabs ── */
-  .ht-tabs { display:flex; gap:0.25rem; }
-  .ht-tab { background:transparent; border:1px solid var(--line-1); color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.1em; padding:0.4rem 0.9rem; border-radius:var(--radius-sm); transition:all var(--motion-fast); }
-  .ht-tab:hover { border-color:var(--line-2); color:var(--text-2); }
-  .ht-tab--active { background:var(--surface-3); border-color:var(--accent-2); color:var(--text-1); box-shadow:0 0 10px rgba(222,41,82,0.12); }
 
   /* ── Panels ── */
   .ht-panel { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); padding:0.9rem 1rem; position:relative; overflow:hidden; }

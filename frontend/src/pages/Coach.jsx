@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
+import PageHeader from "../components/PageHeader";
 
 const formatISO = (d) => {
   const dt = new Date(d);
@@ -404,35 +405,6 @@ const CSS = `
     text-transform: uppercase;
   }
 
-  /* ── Page header ── */
-  .pp-page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 1.75rem;
-  }
-
-  .pp-page-title {
-    font-family: var(--font-display);
-    font-size: 1.85rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: var(--text-1);
-    margin: 0;
-    line-height: 1.1;
-  }
-
-  .pp-page-date {
-    font-family: var(--font-display);
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
-    color: var(--text-3);
-    margin-top: 0.4rem;
-    text-transform: uppercase;
-  }
-
   .pp-sending-badge {
     font-family: var(--font-display);
     font-size: 0.68rem;
@@ -468,9 +440,6 @@ const CSS = `
     }
     .pp-chat-input-row {
       flex-direction: column;
-    }
-    .pp-page-title {
-      font-size: 1.4rem;
     }
     .pp-chat-messages {
       height: 280px;
@@ -744,15 +713,10 @@ function Coach() {
       <style>{CSS}</style>
 
       {/* Page header */}
-      <div className="pp-page-header">
-        <div>
-          <h1 className="pp-page-title">Coach</h1>
-          <div className="pp-page-date">
-            {dayLabel(todayIso)} · {todayIso}
-          </div>
-        </div>
-        {sending && <div className="pp-sending-badge">Transmitting…</div>}
-      </div>
+      <PageHeader
+        title="COACH"
+        right={sending ? <span className="pp-sending-badge">Transmitting…</span> : undefined}
+      />
 
       {error && <div className="pp-error-banner">{error}</div>}
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useProfile } from "../context/ProfileContext";
 import { supabase } from "../supabaseClient";
 import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
+import PageHeader from "../components/PageHeader";
 
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
@@ -306,15 +307,11 @@ function Settings() {
     <div className="pp-settings-page" style={{ width: "100%", maxWidth: "1400px", margin: "0 auto" }}>
       <style>{responsiveStyle}</style>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Settings</h1>
-          <div style={{ color: "#aaa", marginTop: "0.5rem" }}>
-            Preferences for tracking, targets, and what you see in the app.
-          </div>
-        </div>
-        <div style={{ color: "#666" }}>{statusText}</div>
-      </div>
+      <PageHeader
+        title="SETTINGS"
+        subtitle="PREFERENCES & TARGETS"
+        right={statusText ? <span style={{ fontFamily:"var(--font-display)", fontSize:"0.65rem", letterSpacing:"0.1em", color:"var(--text-3)" }}>{statusText}</span> : undefined}
+      />
 
       {error && <div style={{ color: "#ff6b6b", marginTop: "1rem" }}>{error}</div>}
 

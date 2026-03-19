@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
+import PageHeader from "../components/PageHeader";
 
 const dayNameToIndex = {
   Sunday: 0,
@@ -44,54 +45,6 @@ const CSS = `
     flex-direction: column;
     gap: 1.5rem;
     font-family: var(--font-body);
-  }
-
-  /* ── Page header ── */
-  .ci-page-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .ci-page-title-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  .ci-accent-prefix {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
-
-  .ci-accent-line {
-    width: 28px;
-    height: 2px;
-    background: var(--accent-3);
-    flex-shrink: 0;
-  }
-
-  .ci-page-label {
-    font-family: var(--font-display);
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--accent-3);
-    font-weight: 600;
-  }
-
-  .ci-page-title {
-    font-family: var(--font-display);
-    font-size: 1.55rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-1);
-    margin: 0;
-    line-height: 1;
   }
 
   .ci-status-badge {
@@ -1288,20 +1241,14 @@ function CheckIns() {
       <style>{CSS}</style>
 
       {/* ── Page header ── */}
-      <div className="ci-page-header">
-        <div className="ci-page-title-group">
-          <div className="ci-accent-prefix">
-            <div className="ci-accent-line" />
-            <span className="ci-page-label">Check-ins</span>
-          </div>
-          <h1 className="ci-page-title">Check-Ins</h1>
-        </div>
-        <div
-          className={`ci-status-badge${existingThisWeek ? " submitted" : ""}`}
-        >
-          {existingThisWeek ? "Submitted" : "Not Submitted"}
-        </div>
-      </div>
+      <PageHeader
+        title="CHECK-INS"
+        right={
+          <span className={`ci-status-badge${existingThisWeek ? " submitted" : ""}`}>
+            {existingThisWeek ? "SUBMITTED" : "NOT SUBMITTED"}
+          </span>
+        }
+      />
 
       {error && <div className="ci-error">{error}</div>}
 
