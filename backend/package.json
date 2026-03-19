@@ -22,7 +22,10 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "lru-cache": "^11.2.5",
+    "node-cron": "^4.2.1",
     "openai": "^6.10.0",
+    "pdfkit": "^0.18.0",
+    "resend": "^6.9.4",
     "stripe": "^20.0.0"
   },
   "devDependencies": {

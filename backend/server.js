@@ -4143,6 +4143,537 @@ Output format (JSON only):
   }
 });
 
+// ─── Physique Pilot AI Coach ──────────────────────────────────────────────────
+
+import { Resend } from "resend";
+import PDFDocument from "pdfkit";
+import cron from "node-cron";
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+const coachLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many messages. Please slow down." }
+});
+
+// ─── Coach Chat ───────────────────────────────────────────────────────────────
+app.post("/api/coach/chat", authenticate, coachLimiter, async (req, res) => {
+  const user_id = req.userId;
+  const { message } = req.body || {};
+
+  if (!message || typeof message !== "string" || !message.trim()) {
+    return res.status(400).json({ ok: false, error: "message is required" });
+  }
+  const safeMessage = message.trim().slice(0, 2000);
+
+  assertEnv(OPENAI_API_KEY, "Missing OPENAI_API_KEY");
+
+  try {
+    // Load user profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, goal, sex, dob, height_cm, check_in_day")
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    // Load last 4 check-ins for context
+    const { data: checkIns } = await supabase
+      .from("weekly_check_ins")
+      .select("week_start, avg_weight_kg, weight_change_kg, avg_calories, avg_protein_g, avg_carbs_g, avg_fat_g, training_sessions_completed, avg_steps, cardio_sessions, hunger_rating, energy_rating, performance_rating, recovery_rating, adherence_rating, sleep_quality_rating, mood_rating, stress_rating, notes")
+      .eq("user_id", user_id)
+      .order("week_start", { ascending: false })
+      .limit(4);
+
+    // Load conversation history (last 20 messages)
+    const { data: history } = await supabase
+      .from("coach_conversations")
+      .select("role, content, created_at")
+      .eq("user_id", user_id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    const historyAsc = (history || []).reverse();
+
+    const age = ageFromDob(profile?.dob);
+    const goalMap = { lose_fat: "Lose Fat", build_muscle: "Build Muscle", recomposition: "Body Recomposition", maintain: "Maintain" };
+    const goalLabel = goalMap[profile?.goal] || profile?.goal || "Not set";
+
+    const checkInSummary = (checkIns || []).map(ci => {
+      const ratings = [
+        ci.hunger_rating && `Hunger: ${ci.hunger_rating}/10`,
+        ci.energy_rating && `Energy: ${ci.energy_rating}/10`,
+        ci.performance_rating && `Performance: ${ci.performance_rating}/10`,
+        ci.recovery_rating && `Recovery: ${ci.recovery_rating}/10`,
+        ci.adherence_rating && `Adherence: ${ci.adherence_rating}/10`,
+        ci.sleep_quality_rating && `Sleep: ${ci.sleep_quality_rating}/10`,
+        ci.mood_rating && `Mood: ${ci.mood_rating}/10`,
+        ci.stress_rating && `Stress: ${ci.stress_rating}/10`,
+      ].filter(Boolean).join(", ");
+      return `Week of ${ci.week_start}: Weight ${ci.avg_weight_kg ?? "N/A"}kg (${ci.weight_change_kg >= 0 ? "+" : ""}${ci.weight_change_kg ?? "N/A"}kg change), Calories ${ci.avg_calories ?? "N/A"} kcal, Protein ${ci.avg_protein_g ?? "N/A"}g, Training ${ci.training_sessions_completed ?? 0} sessions, Steps ${ci.avg_steps ?? 0}/day. Ratings — ${ratings}. Notes: "${ci.notes || "None"}"`;
+    }).join("\n");
+
+    const systemPrompt = `You are The Physique Pilot, an expert AI fitness coach specialising in physique development, evidence-based nutrition, and structured training. You have access to the user's data and check-in history.
+
+USER PROFILE:
+- Name: ${profile?.full_name || "User"}
+- Goal: ${goalLabel}
+- Sex: ${profile?.sex || "Not set"}
+- Age: ${age ?? "Not set"}
+- Height: ${profile?.height_cm ? `${profile.height_cm}cm` : "Not set"}
+
+RECENT CHECK-IN HISTORY (most recent first):
+${checkInSummary || "No check-ins recorded yet."}
+
+YOUR GUIDELINES:
+1. Be direct, evidence-based, and encouraging. Give specific, actionable advice.
+2. Reference the user's actual data when relevant — spot trends, flag concerns, celebrate wins.
+3. Adjust recommendations toward their goal (${goalLabel}).
+4. NEVER discuss performance-enhancing drugs (PEDs), steroids, SARMs, or any banned substances.
+5. Do not provide medical diagnoses or advise stopping prescribed medication. Recommend a GP for medical concerns.
+6. Stay within fitness, nutrition, training, recovery, and lifestyle coaching. Politely decline off-topic requests.
+7. Keep responses concise and structured. Use bullet points for lists. Avoid unnecessary filler.`;
+
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...historyAsc.map(m => ({ role: m.role, content: m.content })),
+      { role: "user", content: safeMessage }
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages,
+      temperature: 0.7,
+      max_tokens: 800
+    });
+
+    const reply = completion.choices[0]?.message?.content?.trim() || "I couldn't generate a response. Please try again.";
+
+    // Store both messages
+    await supabase.from("coach_conversations").insert([
+      { user_id, role: "user", content: safeMessage },
+      { user_id, role: "assistant", content: reply }
+    ]);
+
+    return res.json({ ok: true, reply });
+  } catch (e) {
+    console.error("coach/chat error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ─── Coach: Get conversation history ─────────────────────────────────────────
+app.get("/api/coach/history", authenticate, async (req, res) => {
+  const user_id = req.userId;
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+
+  const { data, error } = await supabase
+    .from("coach_conversations")
+    .select("id, role, content, created_at")
+    .eq("user_id", user_id)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  return res.json({ ok: true, messages: data || [] });
+});
+
+// ─── Coach: Clear conversation history ───────────────────────────────────────
+app.delete("/api/coach/history", authenticate, async (req, res) => {
+  const user_id = req.userId;
+  const { error } = await supabase
+    .from("coach_conversations")
+    .delete()
+    .eq("user_id", user_id);
+
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  return res.json({ ok: true });
+});
+
+// ─── Report Generation ────────────────────────────────────────────────────────
+
+const generateReportText = async (userId, weekStart, weekEnd) => {
+  const [profileRes, checkInRes, recentRes] = await Promise.all([
+    supabase.from("profiles").select("full_name, goal, sex, dob, height_cm, email").eq("user_id", userId).maybeSingle(),
+    supabase.from("weekly_check_ins").select("*").eq("user_id", userId).eq("week_start", weekStart).maybeSingle(),
+    supabase.from("weekly_check_ins").select("avg_weight_kg, avg_calories, week_start").eq("user_id", userId).order("week_start", { ascending: false }).limit(5)
+  ]);
+
+  const profile = profileRes.data;
+  const ci = checkInRes.data;
+  if (!ci) return null;
+
+  const goalMap = { lose_fat: "Lose Fat", build_muscle: "Build Muscle", recomposition: "Body Recomposition", maintain: "Maintain" };
+  const goalLabel = goalMap[profile?.goal] || profile?.goal || "Not set";
+
+  const recentWeights = (recentRes.data || []).map(r => r.avg_weight_kg).filter(Boolean);
+  const trend = recentWeights.length >= 2
+    ? (recentWeights[0] - recentWeights[recentWeights.length - 1] > 0 ? "upward" : "downward")
+    : "stable";
+
+  assertEnv(OPENAI_API_KEY, "Missing OPENAI_API_KEY");
+
+  const prompt = `You are The Physique Pilot AI. Generate a professional weekly check-in report for this athlete.
+
+CLIENT: ${profile?.full_name || "Athlete"}
+GOAL: ${goalLabel}
+WEEK: ${weekStart} to ${weekEnd}
+
+TRACKED METRICS:
+- Average Weight: ${ci.avg_weight_kg ?? "N/A"} kg (${ci.weight_change_kg >= 0 ? "+" : ""}${ci.weight_change_kg ?? "N/A"} kg vs last week)
+- Average Calories: ${ci.avg_calories ?? "N/A"} kcal/day
+- Average Protein: ${ci.avg_protein_g ?? "N/A"} g/day
+- Average Carbs: ${ci.avg_carbs_g ?? "N/A"} g/day
+- Average Fat: ${ci.avg_fat_g ?? "N/A"} g/day
+- Training Sessions: ${ci.training_sessions_completed ?? 0}
+- Cardio Sessions: ${ci.cardio_sessions ?? 0}
+- Average Daily Steps: ${ci.avg_steps ?? 0}
+- Weight Trend (recent): ${trend}
+
+SUBJECTIVE RATINGS (1-10):
+- Hunger: ${ci.hunger_rating ?? "N/A"}
+- Energy: ${ci.energy_rating ?? "N/A"}
+- Performance: ${ci.performance_rating ?? "N/A"}
+- Recovery: ${ci.recovery_rating ?? "N/A"}
+- Adherence: ${ci.adherence_rating ?? "N/A"}
+- Sleep Quality: ${ci.sleep_quality_rating ?? "N/A"}
+- Mood: ${ci.mood_rating ?? "N/A"}
+- Stress: ${ci.stress_rating ?? "N/A"}
+
+CLIENT NOTES: "${ci.notes || "None"}"
+
+Write a structured weekly report with these exact sections:
+1. WEEK SUMMARY — 2-3 sentences on overall progress
+2. WHAT WENT WELL — 2-3 bullet points celebrating positives
+3. AREAS TO FOCUS ON — 2-3 bullet points on areas needing attention
+4. ADJUSTMENTS FOR NEXT WEEK — Specific, actionable changes to calories, macros, training, or cardio based on their goal and data
+5. COACH'S NOTE — 1-2 encouraging sentences to close
+
+Keep it professional, data-driven, specific, and motivating. No PED discussion. No medical advice.`;
+
+  const completion = await openai.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.65,
+    max_tokens: 1000
+  });
+
+  return completion.choices[0]?.message?.content?.trim() || null;
+};
+
+// ─── Generate + store weekly report ──────────────────────────────────────────
+app.post("/api/checkins/generate-report", authenticate, async (req, res) => {
+  const user_id = req.userId;
+  const { week_start, week_end } = req.body || {};
+  if (!week_start || !week_end) {
+    return res.status(400).json({ ok: false, error: "week_start and week_end required" });
+  }
+
+  try {
+    const reportText = await generateReportText(user_id, week_start, week_end);
+    if (!reportText) {
+      return res.status(404).json({ ok: false, error: "No check-in found for this week" });
+    }
+
+    const { data: checkIn } = await supabase
+      .from("weekly_check_ins")
+      .select("*")
+      .eq("user_id", user_id)
+      .eq("week_start", week_start)
+      .maybeSingle();
+
+    const { data: saved, error: saveErr } = await supabase
+      .from("check_in_reports")
+      .upsert({
+        user_id,
+        week_start,
+        week_end,
+        report_text: reportText,
+        report_data: checkIn || {}
+      }, { onConflict: "user_id,week_start" })
+      .select()
+      .maybeSingle();
+
+    if (saveErr) return res.status(500).json({ ok: false, error: saveErr.message });
+
+    return res.json({ ok: true, report: saved });
+  } catch (e) {
+    console.error("generate-report error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ─── Get reports list ─────────────────────────────────────────────────────────
+app.get("/api/checkins/reports", authenticate, async (req, res) => {
+  const user_id = req.userId;
+  const { data, error } = await supabase
+    .from("check_in_reports")
+    .select("id, week_start, week_end, report_text, email_sent, created_at")
+    .eq("user_id", user_id)
+    .order("week_start", { ascending: false })
+    .limit(52);
+
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  return res.json({ ok: true, reports: data || [] });
+});
+
+// ─── Download report as PDF ───────────────────────────────────────────────────
+app.get("/api/checkins/reports/:reportId/pdf", authenticate, async (req, res) => {
+  const user_id = req.userId;
+  const { reportId } = req.params;
+
+  const { data: report, error } = await supabase
+    .from("check_in_reports")
+    .select("*")
+    .eq("id", reportId)
+    .eq("user_id", user_id)
+    .maybeSingle();
+
+  if (error || !report) {
+    return res.status(404).json({ ok: false, error: "Report not found" });
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("user_id", user_id)
+    .maybeSingle();
+
+  try {
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="physique-pilot-report-${report.week_start}.pdf"`);
+    doc.pipe(res);
+
+    // Background
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill("#0a0507");
+
+    // Header bar
+    doc.rect(0, 0, doc.page.width, 90).fill("#150a0f");
+
+    // Title
+    doc.fontSize(22).fillColor("#de2952").font("Helvetica-Bold")
+      .text("PHYSIQUE PILOT", 50, 28, { align: "left", characterSpacing: 6 });
+
+    doc.fontSize(9).fillColor("#9a7f89").font("Helvetica")
+      .text("WEEKLY CHECK-IN REPORT", 50, 56, { characterSpacing: 3 });
+
+    // Accent line
+    doc.rect(50, 75, doc.page.width - 100, 1).fill("#8a0f2e");
+
+    // Client info
+    doc.fontSize(11).fillColor("#f7edf0").font("Helvetica-Bold")
+      .text(profile?.full_name || "Athlete", 50, 105);
+
+    doc.fontSize(9).fillColor("#9a7f89").font("Helvetica")
+      .text(`Week of ${report.week_start} — ${report.week_end}`, 50, 122);
+
+    // Accent line 2
+    doc.rect(50, 142, doc.page.width - 100, 1).fill("#2f1a22");
+
+    // Report content
+    const lines = (report.report_text || "").split("\n");
+    let y = 158;
+    const leftMargin = 50;
+    const contentWidth = doc.page.width - 100;
+
+    for (const line of lines) {
+      if (y > doc.page.height - 80) {
+        doc.addPage();
+        doc.rect(0, 0, doc.page.width, doc.page.height).fill("#0a0507");
+        y = 50;
+      }
+
+      const trimmed = line.trim();
+      if (!trimmed) { y += 10; continue; }
+
+      // Section headers (numbered or ALL CAPS keywords)
+      if (/^\d+\.\s+[A-Z]/.test(trimmed) || /^[A-Z\s']+:/.test(trimmed)) {
+        y += 8;
+        doc.rect(leftMargin, y, 3, 14).fill("#de2952");
+        doc.fontSize(10).fillColor("#de2952").font("Helvetica-Bold")
+          .text(trimmed, leftMargin + 10, y, { width: contentWidth - 10 });
+        y += 22;
+      } else if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+        doc.fontSize(9).fillColor("#cfbbc3").font("Helvetica")
+          .text("◆", leftMargin + 8, y, { width: 12 });
+        doc.text(trimmed.replace(/^[-•]\s*/, ""), leftMargin + 22, y, { width: contentWidth - 22 });
+        y += doc.heightOfString(trimmed.replace(/^[-•]\s*/, ""), { width: contentWidth - 22 }) + 6;
+      } else {
+        doc.fontSize(9).fillColor("#cfbbc3").font("Helvetica")
+          .text(trimmed, leftMargin, y, { width: contentWidth });
+        y += doc.heightOfString(trimmed, { width: contentWidth }) + 6;
+      }
+    }
+
+    // Footer
+    const footerY = doc.page.height - 50;
+    doc.rect(0, footerY - 10, doc.page.width, 60).fill("#150a0f");
+    doc.rect(50, footerY - 10, doc.page.width - 100, 1).fill("#2f1a22");
+    doc.fontSize(8).fillColor("#9a7f89").font("Helvetica")
+      .text("Generated by Physique Pilot · coach@physiquepilot.com · physiquepilot.com", 50, footerY + 4, { align: "center", width: contentWidth });
+
+    doc.end();
+  } catch (e) {
+    console.error("PDF generation error:", e);
+    if (!res.headersSent) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }
+});
+
+// ─── Send report via email (Resend) ──────────────────────────────────────────
+app.post("/api/checkins/reports/:reportId/send-email", authenticate, async (req, res) => {
+  const user_id = req.userId;
+  const { reportId } = req.params;
+
+  if (!resend) {
+    return res.status(503).json({ ok: false, error: "Email service not configured. Set RESEND_API_KEY." });
+  }
+
+  const { data: report, error } = await supabase
+    .from("check_in_reports")
+    .select("*")
+    .eq("id", reportId)
+    .eq("user_id", user_id)
+    .maybeSingle();
+
+  if (error || !report) return res.status(404).json({ ok: false, error: "Report not found" });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("user_id", user_id)
+    .maybeSingle();
+
+  const userEmail = profile?.email;
+  if (!userEmail) return res.status(400).json({ ok: false, error: "No email on file" });
+
+  try {
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="background:#0a0507;color:#f7edf0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:0;">
+  <div style="max-width:600px;margin:0 auto;">
+    <div style="background:#150a0f;padding:32px 40px 24px;border-bottom:2px solid #8a0f2e;">
+      <div style="font-size:22px;font-weight:700;letter-spacing:6px;color:#de2952;text-transform:uppercase;">PHYSIQUE PILOT</div>
+      <div style="font-size:10px;letter-spacing:3px;color:#9a7f89;margin-top:6px;text-transform:uppercase;">Weekly Check-In Report</div>
+    </div>
+    <div style="padding:32px 40px;">
+      <p style="color:#cfbbc3;font-size:14px;margin:0 0 8px;">Hi ${profile?.full_name || "Athlete"},</p>
+      <p style="color:#9a7f89;font-size:13px;margin:0 0 28px;">Here's your weekly check-in report for the week of <strong style="color:#cfbbc3;">${report.week_start}</strong>.</p>
+      <div style="border-left:3px solid #de2952;padding-left:20px;white-space:pre-wrap;font-size:13px;line-height:1.7;color:#cfbbc3;">${report.report_text}</div>
+      <div style="margin-top:36px;padding-top:24px;border-top:1px solid #2f1a22;">
+        <p style="color:#9a7f89;font-size:12px;margin:0;">This report was automatically generated by The Physique Pilot AI.</p>
+        <p style="color:#9a7f89;font-size:12px;margin:6px 0 0;">Log in to view your progress photos, track metrics, and chat with your coach at <a href="https://physiquepilot.com" style="color:#de2952;">physiquepilot.com</a></p>
+      </div>
+    </div>
+    <div style="background:#150a0f;padding:16px 40px;border-top:1px solid #2f1a22;text-align:center;">
+      <p style="color:#9a7f89;font-size:11px;margin:0;">© Physique Pilot · <a href="mailto:coach@physiquepilot.com" style="color:#9a7f89;">coach@physiquepilot.com</a></p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    await resend.emails.send({
+      from: "Physique Pilot <coach@physiquepilot.com>",
+      to: [userEmail],
+      subject: `Your Weekly Check-In Report — Week of ${report.week_start}`,
+      html: htmlBody
+    });
+
+    await supabase.from("check_in_reports")
+      .update({ email_sent: true, email_sent_at: new Date().toISOString() })
+      .eq("id", reportId);
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("send-email error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ─── Weekly cron: auto-generate reports on check-in day ──────────────────────
+// Runs every day at 08:00 server time; generates reports for users whose check-in day is today
+cron.schedule("0 8 * * *", async () => {
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const todayName = dayNames[new Date().getDay()];
+  const todayIso = isoDate();
+  console.log(`[cron] Weekly report run for ${todayIso} (${todayName})`);
+
+  try {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, check_in_day, email, full_name")
+      .eq("check_in_day", todayName);
+
+    if (!profiles?.length) return;
+
+    for (const profile of profiles) {
+      try {
+        // Determine last week's range (the week that just ended)
+        const dt = new Date(`${todayIso}T00:00:00`);
+        dt.setDate(dt.getDate() - 7);
+        const ws = isoDate(dt);
+        dt.setDate(dt.getDate() + 6);
+        const we = isoDate(dt);
+
+        // Check there's a submitted check-in for that week
+        const { data: ci } = await supabase
+          .from("weekly_check_ins")
+          .select("id")
+          .eq("user_id", profile.user_id)
+          .eq("week_start", ws)
+          .maybeSingle();
+
+        if (!ci) continue;
+
+        // Check report not already generated
+        const { data: existing } = await supabase
+          .from("check_in_reports")
+          .select("id, email_sent")
+          .eq("user_id", profile.user_id)
+          .eq("week_start", ws)
+          .maybeSingle();
+
+        if (!existing) {
+          const reportText = await generateReportText(profile.user_id, ws, we);
+          if (!reportText) continue;
+
+          const { data: saved } = await supabase
+            .from("check_in_reports")
+            .insert({ user_id: profile.user_id, week_start: ws, week_end: we, report_text: reportText })
+            .select()
+            .maybeSingle();
+
+          if (saved && resend && profile.email) {
+            // Send email — reuse the send endpoint logic inline
+            const htmlBody = `<div style="font-family:sans-serif;background:#0a0507;color:#f7edf0;padding:32px;max-width:600px;margin:0 auto;"><h2 style="color:#de2952;letter-spacing:4px;">PHYSIQUE PILOT</h2><p>Hi ${profile.full_name || "Athlete"}, here's your weekly check-in report.</p><pre style="white-space:pre-wrap;color:#cfbbc3;font-size:13px;line-height:1.6;">${reportText}</pre></div>`;
+            await resend.emails.send({
+              from: "Physique Pilot <coach@physiquepilot.com>",
+              to: [profile.email],
+              subject: `Your Weekly Check-In Report — Week of ${ws}`,
+              html: htmlBody
+            }).catch(err => console.error(`[cron] email failed for ${profile.user_id}:`, err));
+
+            await supabase.from("check_in_reports").update({ email_sent: true, email_sent_at: new Date().toISOString() }).eq("id", saved.id);
+          }
+        }
+      } catch (userErr) {
+        console.error(`[cron] error for user ${profile.user_id}:`, userErr);
+      }
+    }
+  } catch (e) {
+    console.error("[cron] weekly report error:", e);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
