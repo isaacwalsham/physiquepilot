@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useProfile } from "../context/ProfileContext";
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 
 const API_URL = (
   String(import.meta.env.VITE_API_URL || "")
@@ -289,6 +290,19 @@ const normalizeSegmentKey = (value) =>
     .replace(/^_+|_+$/g, "")
     .slice(0, 40) || "snacks";
 
+// Auth-aware fetch — automatically attaches the current Supabase Bearer token
+const authFetch = async (url, options = {}) => {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+};
+
 export default function Nutrition() {
   const { profile, todayDayType: contextDayType, updateProfile } = useProfile();
   const [loading, setLoading] = useState(true);
@@ -298,6 +312,7 @@ export default function Nutrition() {
   const [userId, setUserId] = useState(null);
   const [tab, setTab] = useState("log");
   const [showMicronutrientsSection, setShowMicronutrientsSection] = useState(true);
+  const [calorieView, setCalorieView] = useState(0); // 0=consumed, 1=remaining, 2=macro split
 
   // Allergen / dietary preference data from onboarding profile
   const foodAllergies = useMemo(() => {
@@ -667,9 +682,9 @@ export default function Nutrition() {
     const fatsTarget = Number(t.fats_g || 0);
     return [
       { key: "calories", label: "Calories", value: Number(effectiveLogTotals.calories || 0), target: calsTarget, unit: "kcal", color: "#ff6b88" },
-      { key: "protein_g", label: "Protein", value: Number(effectiveLogTotals.protein_g || 0), target: proteinTarget, unit: "g", color: "#ff3e6c" },
-      { key: "carbs_g", label: "Carbs", value: Number(effectiveLogTotals.carbs_g || 0), target: carbsTarget, unit: "g", color: "#d61f52" },
-      { key: "fats_g", label: "Fats", value: Number(effectiveLogTotals.fats_g || 0), target: fatsTarget, unit: "g", color: "#9e1338" }
+      { key: "protein_g", label: "Protein", value: Number(effectiveLogTotals.protein_g || 0), target: proteinTarget, unit: "g", color: "#16a34a" },
+      { key: "carbs_g", label: "Carbs", value: Number(effectiveLogTotals.carbs_g || 0), target: carbsTarget, unit: "g", color: "#1d4ed8" },
+      { key: "fats_g", label: "Fats", value: Number(effectiveLogTotals.fats_g || 0), target: fatsTarget, unit: "g", color: "#dc2626" }
     ];
   }, [effectiveLogTotals, todaysTargets]);
 
@@ -679,10 +694,10 @@ export default function Nutrition() {
     const fatsKcal = Number(effectiveLogTotals.fats_g || 0) * 9;
     const alcoholKcal = Number(effectiveLogTotals.alcohol_g || 0) * 7;
     return [
-      { name: "Protein", value: proteinKcal, grams: Number(effectiveLogTotals.protein_g || 0), color: "#ff3e6c" },
-      { name: "Carbs", value: carbsKcal, grams: Number(effectiveLogTotals.carbs_g || 0), color: "#d61f52" },
-      { name: "Fats", value: fatsKcal, grams: Number(effectiveLogTotals.fats_g || 0), color: "#9e1338" },
-      { name: "Alcohol", value: alcoholKcal, grams: Number(effectiveLogTotals.alcohol_g || 0), color: "#7a102c" }
+      { name: "Protein", value: proteinKcal, grams: Number(effectiveLogTotals.protein_g || 0), color: "#16a34a" },
+      { name: "Carbs",   value: carbsKcal,   grams: Number(effectiveLogTotals.carbs_g   || 0), color: "#1d4ed8" },
+      { name: "Fats",    value: fatsKcal,    grams: Number(effectiveLogTotals.fats_g    || 0), color: "#dc2626" },
+      { name: "Alcohol", value: alcoholKcal, grams: Number(effectiveLogTotals.alcohol_g || 0), color: "#d97706" }
     ].filter((x) => x.value > 0);
   }, [effectiveLogTotals]);
 
@@ -696,7 +711,7 @@ export default function Nutrition() {
         { name: "Alcohol", value: 1, color: "#1f1f1f" }
       ];
 
-  const loadTargets = async (uid) => {
+  const loadTargets = async (uid, token) => {
     const { data: tData, error: tErr } = await supabase
       .from("nutrition_day_targets")
       .select("day_type, calories, protein_g, carbs_g, fats_g")
@@ -704,13 +719,13 @@ export default function Nutrition() {
     if (tErr) throw tErr;
 
     if (!tData || tData.length === 0) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      // Use passed-in token; fall back to a fresh getSession if not provided
+      const authToken = token || (await supabase.auth.getSession().then(r => r.data?.session?.access_token));
       const r = await fetch(`${API_URL}/api/nutrition/init`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ user_id: uid })
       });
@@ -744,7 +759,7 @@ export default function Nutrition() {
   const loadDaySummary = async (uid, dateIso) => {
     setDayNutrientsLoading(true);
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`);
+      const r = await authFetch(`${API_URL}/api/nutrition/day-summary?user_id=${encodeURIComponent(uid)}&log_date=${encodeURIComponent(dateIso)}`);
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load day summary.");
 
@@ -800,7 +815,7 @@ export default function Nutrition() {
   };
 
   const loadMicroTargets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`);
+    const r = await authFetch(`${API_URL}/api/nutrition/micro-targets?user_id=${encodeURIComponent(uid)}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load micronutrient targets.");
 
@@ -815,7 +830,7 @@ export default function Nutrition() {
   };
 
   const loadMealPresets = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/meal-presets?user_id=${encodeURIComponent(uid)}`);
+    const r = await authFetch(`${API_URL}/api/nutrition/meal-presets?user_id=${encodeURIComponent(uid)}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load meal presets.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -839,7 +854,7 @@ export default function Nutrition() {
   };
 
   const loadSavedMeals = async (uid) => {
-    const r = await fetch(`${API_URL}/api/nutrition/saved-meals?user_id=${encodeURIComponent(uid)}`);
+    const r = await authFetch(`${API_URL}/api/nutrition/saved-meals?user_id=${encodeURIComponent(uid)}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || "Failed to load saved meals.");
     const items = Array.isArray(j.items) ? j.items : [];
@@ -896,7 +911,7 @@ export default function Nutrition() {
           position: idx + 1
         }))
         .filter((s) => s.label);
-      const r = await fetch(`${API_URL}/api/nutrition/meal-presets`, {
+      const r = await authFetch(`${API_URL}/api/nutrition/meal-presets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -939,7 +954,7 @@ export default function Nutrition() {
     setSavingPreset(true);
     setError("");
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/meal-presets/${encodeURIComponent(activePresetId)}?user_id=${encodeURIComponent(userId)}`, {
+      const r = await authFetch(`${API_URL}/api/nutrition/meal-presets/${encodeURIComponent(activePresetId)}?user_id=${encodeURIComponent(userId)}`, {
         method: "DELETE"
       });
       const j = await r.json().catch(() => ({}));
@@ -976,7 +991,7 @@ export default function Nutrition() {
     setError("");
     try {
       const mealName = String(savedMealName || "").trim() || defaultName;
-      const r = await fetch(`${API_URL}/api/nutrition/saved-meals`, {
+      const r = await authFetch(`${API_URL}/api/nutrition/saved-meals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1081,7 +1096,7 @@ export default function Nutrition() {
     setSavingSavedMeal(true);
     setError("");
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/saved-meals/${encodeURIComponent(savedMealSelection)}?user_id=${encodeURIComponent(userId)}`, {
+      const r = await authFetch(`${API_URL}/api/nutrition/saved-meals/${encodeURIComponent(savedMealSelection)}?user_id=${encodeURIComponent(userId)}`, {
         method: "DELETE"
       });
       const j = await r.json().catch(() => ({}));
@@ -1100,10 +1115,12 @@ export default function Nutrition() {
       setLoading(true);
       setError("");
       try {
-        const { data: sessionR } = await supabase.auth.getSession(); const userData = { user: sessionR?.session?.user }; const uErr = null;
-        if (uErr) throw uErr;
-        const user = userData?.user;
-        if (!user) throw new Error("Not logged in.");
+        // getSession() reads from storage synchronously; getUser() hits the server
+        // but guarantees a valid, non-null token even after a background refresh.
+        const { data: { user }, error: userErr } = await supabase.auth.getUser();
+        if (userErr || !user) throw new Error("Not logged in.");
+        const { data: sessionR } = await supabase.auth.getSession();
+        const accessToken = sessionR?.session?.access_token;
         setUserId(user.id);
 
         const dateIso = todayIso();
@@ -1111,7 +1128,7 @@ export default function Nutrition() {
         // Day type is computed by ProfileContext via getDayType() — no separate profile fetch needed
         setTodayType(contextDayType || "rest");
 
-        const targetRows = await loadTargets(user.id);
+        const targetRows = await loadTargets(user.id, accessToken);
         const mapped = mapTargets(targetRows);
         setTargets(mapped);
         setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
@@ -1764,7 +1781,7 @@ export default function Nutrition() {
 
     try {
       const dateIso = todayIso();
-      const r = await fetch(`${API_URL}/api/nutrition/log`, {
+      const r = await authFetch(`${API_URL}/api/nutrition/log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1853,7 +1870,7 @@ export default function Nutrition() {
     setSavingMicroTargets(true);
     setError("");
     try {
-      const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
+      const r = await authFetch(`${API_URL}/api/nutrition/micro-targets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1885,7 +1902,7 @@ export default function Nutrition() {
         }))
         .filter((x) => Number.isFinite(x.target_amount) && x.target_amount >= 0);
 
-      const r = await fetch(`${API_URL}/api/nutrition/micro-targets`, {
+      const r = await authFetch(`${API_URL}/api/nutrition/micro-targets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1979,132 +1996,250 @@ export default function Nutrition() {
 
   // ── CSS ────────────────────────────────────────────────────────────────────
   const CSS = `
-    .nt-wrap { display:flex; flex-direction:column; gap:0.7rem; min-height:calc(100vh - 80px); padding-bottom:2rem; box-sizing:border-box; }
-    .nt-header { background:var(--surface-2); border:1px solid var(--line-1); border-left:3px solid var(--accent-3); border-radius:var(--radius-md); padding:0.85rem 1.2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; }
-    .nt-title { font-family:var(--font-display); font-size:0.72rem; color:var(--accent-3); letter-spacing:0.2em; text-transform:uppercase; }
-    .nt-tabs { display:flex; gap:0.35rem; align-items:center; }
-    .nt-tab { padding:0.42rem 0.85rem; border:1px solid var(--line-1); background:transparent; color:var(--text-3); border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; transition:all var(--motion-fast) ease; }
-    .nt-tab:hover { border-color:var(--line-2); color:var(--text-2); }
-    .nt-tab--active { background:var(--accent-1); border-color:var(--accent-2); color:var(--text-1); }
-    .nt-save-status { font-size:0.72rem; color:var(--text-3); font-family:var(--font-display); letter-spacing:0.05em; min-width:80px; text-align:right; }
-    .nt-panel { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); padding:1.1rem 1.3rem; }
-    .nt-section-label { font-family:var(--font-display); font-size:0.62rem; color:var(--accent-3); letter-spacing:0.2em; text-transform:uppercase; margin-bottom:0.85rem; }
-    .nt-day-bar { display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; }
-    .nt-day-date { font-family:var(--font-display); font-size:0.95rem; color:var(--text-1); letter-spacing:0.05em; margin-bottom:0.35rem; }
-    .nt-day-type-badge { font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em; padding:0.18rem 0.55rem; border-radius:999px; text-transform:uppercase; display:inline-block; }
-    .nt-day-type-badge--training { background:rgba(222,41,82,0.1); border:1px solid var(--accent-1); color:var(--accent-3); }
-    .nt-day-type-badge--rest { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
+    /* ── Animations ── */
+    @keyframes nt-pulse      { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    @keyframes nt-glow-ok    { 0%,100%{box-shadow:0 0 5px rgba(40,183,141,0.25)} 50%{box-shadow:0 0 16px rgba(40,183,141,0.75),inset 0 0 6px rgba(40,183,141,0.1)} }
+    @keyframes nt-glow-bad   { 0%,100%{box-shadow:0 0 5px rgba(222,41,82,0.2)} 50%{box-shadow:0 0 18px rgba(222,41,82,0.7)} }
+    @keyframes nt-flash-bad  { 0%,88%,100%{opacity:1} 94%{opacity:0.35} }
+    @keyframes nt-toast-in   { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes nt-sweep      { 0%{background-position:200% center} 100%{background-position:-200% center} }
+
+    /* ── Core layout ── */
+    .nt-wrap { display:flex; flex-direction:column; gap:0.55rem; height:calc(100vh - 80px); overflow:hidden; }
+    .nt-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem; padding:0.65rem 1rem; background:var(--surface-2); border:1px solid var(--line-1); border-bottom:2px solid var(--accent-2); border-radius:var(--radius-md); position:relative; overflow:hidden; }
+    .nt-header::after { content:""; position:absolute; bottom:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent-3) 40%,transparent); opacity:0.7; pointer-events:none; }
+    .nt-title { font-family:var(--font-display); font-size:0.72rem; color:var(--accent-3); letter-spacing:0.26em; text-transform:uppercase; }
+    .nt-tabs { display:flex; gap:0.28rem; }
+    .nt-tab { padding:0.4rem 0.92rem; border:1px solid var(--line-1); background:transparent; color:var(--text-3); border-radius:999px; cursor:pointer; font-family:var(--font-display); font-size:0.65rem; letter-spacing:0.14em; text-transform:uppercase; transition:all var(--motion-fast); white-space:nowrap; }
+    .nt-tab:hover:not(.nt-tab--active) { border-color:var(--line-2); color:var(--text-2); background:rgba(255,255,255,0.03); }
+    .nt-tab--active { background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); border-color:var(--accent-2); color:#fff; box-shadow:0 0 16px rgba(181,21,60,0.45); }
+    .nt-save-status { font-size:0.65rem; color:var(--text-3); font-family:var(--font-display); letter-spacing:0.08em; min-width:90px; text-align:right; }
+
+    /* ── Panel ── */
+    .nt-panel { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); padding:0.9rem 1rem; position:relative; }
+    .nt-section-label { font-family:var(--font-display); font-size:0.65rem; color:var(--accent-3); letter-spacing:0.26em; text-transform:uppercase; margin-bottom:0.72rem; display:flex; align-items:center; gap:0.5rem; }
+    .nt-section-label::after { content:""; flex:1; height:1px; background:linear-gradient(90deg,var(--line-2),transparent); }
+
+    /* ── Log split layout ── */
+    .nt-log-split { display:grid; grid-template-columns:6fr 4fr; gap:0.55rem; align-items:stretch; flex:1; min-height:0; }
+    .nt-hud-col { display:flex; flex-direction:column; gap:0.5rem; height:100%; min-height:0; overflow-y:auto; scrollbar-width:none; padding-right:1px; }
+    .nt-hud-col::-webkit-scrollbar { display:none; }
+    .nt-meals-col { display:flex; flex-direction:column; gap:0.48rem; height:100%; min-height:0; overflow-y:auto; scrollbar-width:none; }
+    .nt-meals-col::-webkit-scrollbar { display:none; }
+
+    /* ── Day bar ── */
+    .nt-day-bar { display:flex; justify-content:space-between; align-items:flex-start; gap:0.65rem; flex-wrap:wrap; }
+    .nt-day-date { font-family:var(--font-display); font-size:0.92rem; color:var(--text-1); letter-spacing:0.06em; margin-bottom:0.28rem; }
+    .nt-day-type-badge { font-family:var(--font-display); font-size:0.64rem; letter-spacing:0.18em; padding:0.18rem 0.58rem; border-radius:999px; text-transform:uppercase; display:inline-block; }
+    .nt-day-type-badge--training { background:rgba(222,41,82,0.1); border:1px solid var(--accent-1); color:var(--accent-3); animation:nt-glow-bad 2.5s ease-in-out infinite; }
+    .nt-day-type-badge--rest { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); animation:nt-glow-ok 3s ease-in-out infinite; }
     .nt-day-type-badge--high { background:rgba(229,161,0,0.1); border:1px solid rgba(229,161,0,0.3); color:var(--warn); }
-    .nt-macro-summary { display:flex; flex-direction:column; gap:0.65rem; }
-    .nt-calorie-row { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; }
-    .nt-calorie-num { font-family:var(--font-display); font-size:1.45rem; color:var(--text-1); letter-spacing:-0.02em; }
-    .nt-calorie-target { font-family:var(--font-display); font-size:0.82rem; color:var(--text-3); }
-    .nt-calorie-track { height:5px; border-radius:999px; background:var(--surface-1); overflow:hidden; margin-bottom:0.4rem; }
-    .nt-calorie-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent-1),var(--accent-3)); transition:width 400ms ease; }
-    .nt-macro-bars { display:grid; gap:0.45rem; }
-    .nt-macro-bar-row { display:grid; grid-template-columns:54px 1fr 76px; align-items:center; gap:0.55rem; }
-    .nt-macro-label { font-size:0.76rem; color:var(--text-3); text-align:right; font-family:var(--font-display); letter-spacing:0.05em; }
-    .nt-macro-track { height:7px; border-radius:999px; background:var(--surface-1); overflow:hidden; }
-    .nt-macro-fill { height:100%; border-radius:999px; transition:width 400ms ease; }
-    .nt-macro-val { font-size:0.75rem; color:var(--text-2); text-align:right; white-space:nowrap; }
-    .nt-macro-over { color:var(--warn); }
-    .nt-segment-pills { display:flex; gap:0.3rem; flex-wrap:wrap; margin-bottom:0.75rem; }
-    .nt-seg-pill { padding:0.28rem 0.65rem; border-radius:999px; border:1px solid var(--line-1); background:transparent; color:var(--text-3); cursor:pointer; font-size:0.75rem; font-family:var(--font-display); letter-spacing:0.05em; transition:all var(--motion-fast) ease; }
-    .nt-seg-pill--active { background:var(--surface-3); border-color:var(--line-2); color:var(--text-1); }
-    .nt-pie-wrap { height:155px; border:1px solid var(--line-1); border-radius:var(--radius-sm); background:var(--surface-1); padding:0.2rem; margin-top:0.7rem; }
-    .nt-meals-grid { display:grid; gap:0.6rem; }
-    .nt-meal-card { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); overflow:hidden; }
-    .nt-meal-header { display:flex; justify-content:space-between; align-items:center; padding:0.7rem 1rem; cursor:pointer; transition:background var(--motion-fast) ease; gap:0.75rem; }
-    .nt-meal-header:hover { background:var(--surface-3); }
-    .nt-meal-header-left { display:flex; align-items:center; gap:0.6rem; min-width:0; }
-    .nt-meal-name { font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-1); }
-    .nt-meal-kcal { font-size:0.75rem; color:var(--text-3); }
-    .nt-meal-chevron { font-size:0.72rem; color:var(--text-3); flex-shrink:0; transition:transform var(--motion-fast) ease; }
+    .nt-day-controls { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; }
+
+    /* ── Calorie HUD ── */
+    .nt-calorie-hud { background:var(--surface-2); border:1px solid rgba(181,21,60,0.32); border-radius:var(--radius-md); overflow:hidden; box-shadow:0 0 24px rgba(181,21,60,0.07); position:relative; display:grid; grid-template-columns:1fr 1px 1fr; }
+    .nt-calorie-hud::before { content:""; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent-3) 50%,transparent); pointer-events:none; z-index:1; }
+    .nt-hud-left { display:flex; flex-direction:column; min-height:0; }
+    .nt-hud-divider { background:var(--line-1); }
+    .nt-hud-right { display:flex; flex-direction:column; }
+    .nt-hud-right-header { padding:0.45rem 0.85rem; border-bottom:1px solid var(--line-1); background:linear-gradient(135deg,rgba(20,20,30,0.5),rgba(30,30,44,0.2)); }
+    .nt-hud-right-body { padding:0.55rem 0.85rem; display:flex; flex-direction:column; gap:0.38rem; flex:1; }
+    .nt-plan-header { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--text-3); }
+    .nt-plan-cals { font-family:var(--font-display); font-size:1.5rem; font-weight:700; color:var(--text-1); line-height:1; letter-spacing:-0.02em; }
+    .nt-plan-cals-unit { font-family:var(--font-display); font-size:0.72rem; color:var(--text-3); margin-left:0.22rem; }
+    .nt-plan-macros { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.28rem; margin-top:0.12rem; }
+    .nt-plan-macro { display:flex; flex-direction:column; gap:0.06rem; }
+    .nt-plan-macro-val { font-family:var(--font-display); font-size:0.88rem; font-weight:600; color:var(--text-1); }
+    .nt-plan-macro-lbl { font-family:var(--font-display); font-size:0.58rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-3); }
+    .nt-hud-header { display:flex; justify-content:space-between; align-items:center; padding:0.45rem 0.85rem; border-bottom:1px solid var(--line-1); background:linear-gradient(135deg,rgba(138,15,46,0.22),rgba(181,21,60,0.06)); }
+    .nt-hud-label { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--accent-3); }
+    .nt-hud-nav { display:flex; align-items:center; gap:0.3rem; }
+    .nt-hud-nav-dot { display:flex; gap:0.28rem; align-items:center; }
+    .nt-hud-dot { width:5px; height:5px; border-radius:50%; background:var(--line-2); transition:all var(--motion-fast); }
+    .nt-hud-dot--active { background:var(--accent-3); box-shadow:0 0 8px rgba(222,41,82,0.9); animation:nt-pulse 2s ease-in-out infinite; }
+    .nt-hud-arrow { background:transparent; border:1px solid var(--line-1); color:var(--text-3); cursor:pointer; width:22px; height:22px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:0.58rem; padding:0; transition:all var(--motion-fast); flex-shrink:0; }
+    .nt-hud-arrow:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.1); box-shadow:0 0 10px rgba(222,41,82,0.25); }
+    .nt-hud-body { padding:0.6rem 0.85rem; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.35rem; flex:1; }
+    .nt-hud-body::before { content:""; position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(222,41,82,0.012) 4px); pointer-events:none; }
+    .nt-calorie-big { font-family:var(--font-display); font-size:3.2rem; font-weight:700; color:var(--text-1); line-height:1; letter-spacing:-0.03em; }
+    .nt-calorie-unit { font-family:var(--font-display); font-size:0.82rem; color:var(--text-3); }
+    .nt-calorie-sub { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-3); }
+    .nt-calorie-meta { display:flex; justify-content:space-between; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.07em; color:var(--text-3); width:100%; }
+    .nt-calorie-meta-val { color:var(--text-2); font-weight:600; }
+    .nt-remaining-big { font-family:var(--font-display); font-size:2.2rem; font-weight:700; line-height:1; letter-spacing:-0.03em; }
+    .nt-remaining-positive { color:var(--text-1); text-shadow:none; }
+    .nt-remaining-negative { color:var(--bad); text-shadow:0 0 28px rgba(255,79,115,0.55); animation:nt-flash-bad 2.5s ease-in-out infinite; }
+    .nt-pie-wrap { height:110px; width:100%; position:relative; }
+    .nt-pie-legend { display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; }
+    .nt-pie-legend-item { display:flex; align-items:center; gap:0.28rem; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.06em; color:var(--text-2); }
+    .nt-pie-legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+    /* ── Macro chart section (inside macro panel) ── */
+    .nt-macro-chart-section { margin-top:0.7rem; padding-top:0.7rem; border-top:1px solid var(--line-1); display:flex; flex:1; min-height:0; gap:0.8rem; align-items:center; }
+    .nt-macro-chart-wrap { width:120px; height:120px; flex-shrink:0; position:relative; }
+    .nt-macro-chart-inner { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.04rem; pointer-events:none; }
+    .nt-macro-chart-total { font-family:var(--font-display); font-size:1.1rem; font-weight:700; color:var(--text-1); line-height:1; letter-spacing:-0.02em; }
+    .nt-macro-chart-unit { font-family:var(--font-display); font-size:0.55rem; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-3); }
+    .nt-macro-chart-legend { flex:1; display:flex; flex-direction:column; justify-content:center; gap:0.5rem; }
+    .nt-macro-legend-row { display:grid; grid-template-columns:8px 1fr 38px 30px; align-items:center; gap:0.4rem; }
+    .nt-macro-legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .nt-macro-legend-name { font-family:var(--font-display); font-size:0.67rem; letter-spacing:0.06em; color:var(--text-2); }
+    .nt-macro-legend-g { font-family:var(--font-display); font-size:0.67rem; color:var(--text-1); font-weight:600; text-align:right; }
+    .nt-macro-legend-pct { font-family:var(--font-display); font-size:0.62rem; color:var(--text-3); text-align:right; }
+
+    /* ── Segment pills ── */
+    .nt-segment-pills { display:flex; gap:0.25rem; flex-wrap:wrap; margin-bottom:0.65rem; }
+    .nt-seg-pill { padding:0.26rem 0.62rem; border-radius:999px; border:1px solid var(--line-1); background:transparent; color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.06em; transition:all var(--motion-fast); }
+    .nt-seg-pill:hover { border-color:var(--line-2); color:var(--text-2); }
+    .nt-seg-pill--active { background:var(--surface-3); border-color:var(--line-2); color:var(--text-1); box-shadow:inset 0 0 8px rgba(222,41,82,0.08); }
+
+    /* ── Macro bars ── */
+    .nt-macro-bars { display:grid; gap:0.42rem; }
+    .nt-macro-bar-row { display:grid; grid-template-columns:54px 1fr auto; align-items:center; gap:0.48rem; }
+    .nt-macro-label { font-size:0.7rem; color:var(--text-2); text-align:right; font-family:var(--font-display); letter-spacing:0.05em; }
+    .nt-macro-track { height:8px; border-radius:999px; background:var(--surface-1); overflow:hidden; border:1px solid rgba(255,255,255,0.04); position:relative; }
+    .nt-macro-fill { height:100%; border-radius:999px; transition:width 600ms cubic-bezier(.22,.68,0,1.2); position:relative; }
+    .nt-macro-fill::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent 55%,rgba(255,255,255,0.18)); border-radius:999px; pointer-events:none; }
+    .nt-macro-val { font-size:0.7rem; color:var(--text-2); text-align:right; white-space:nowrap; font-family:var(--font-display); min-width:68px; }
+    .nt-macro-over { color:var(--warn) !important; animation:nt-flash-bad 2s ease-in-out infinite; }
+
+    /* ── Hydration ── */
+    .nt-hydration-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.65rem; }
+    .nt-hydration-label { font-size:0.72rem; color:var(--text-2); font-family:var(--font-display); letter-spacing:0.06em; text-transform:uppercase; }
+    .nt-hydration-gauge { height:7px; border-radius:999px; background:var(--surface-1); overflow:hidden; margin:0.3rem 0 0.4rem; border:1px solid rgba(255,255,255,0.04); }
+    .nt-hydration-fill-water { height:100%; border-radius:999px; background:linear-gradient(90deg,#4a9eff,#90cdf4); transition:width 500ms ease; }
+    .nt-hydration-fill-salt  { height:100%; border-radius:999px; background:linear-gradient(90deg,#f7c547,#fde68a); transition:width 500ms ease; }
+    .nt-hydration-pct { font-family:var(--font-display); font-size:0.64rem; color:var(--text-3); text-align:right; }
+
+    /* ── Meal cards ── */
+    .nt-meals-grid { display:grid; gap:0.48rem; flex:1; min-height:0; grid-auto-rows:1fr; }
+    .nt-meal-card { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); overflow:hidden; transition:all var(--motion-fast); display:flex; flex-direction:column; min-height:0; }
+    .nt-meal-card:hover { border-color:var(--line-2); transform:translateX(2px); }
+    .nt-meal-card--breakfast { border-top:3px solid rgba(229,161,0,0.75); }
+    .nt-meal-card--breakfast:hover { box-shadow:0 0 14px rgba(229,161,0,0.12); }
+    .nt-meal-card--lunch { border-top:3px solid rgba(74,158,255,0.75); }
+    .nt-meal-card--lunch:hover { box-shadow:0 0 14px rgba(74,158,255,0.12); }
+    .nt-meal-card--dinner { border-top:3px solid rgba(222,41,82,0.85); }
+    .nt-meal-card--dinner:hover { box-shadow:0 0 14px rgba(222,41,82,0.14); }
+    .nt-meal-card--snacks { border-top:3px solid rgba(40,183,141,0.75); }
+    .nt-meal-card--snacks:hover { box-shadow:0 0 14px rgba(40,183,141,0.12); }
+    .nt-meal-card--default { border-top:2px solid var(--line-2); }
+    .nt-meal-header { display:flex; justify-content:space-between; align-items:center; padding:0.68rem 0.9rem; cursor:pointer; transition:background var(--motion-fast); gap:0.6rem; }
+    .nt-meal-header:hover { background:rgba(255,255,255,0.03); }
+    .nt-meal-header-left { display:flex; align-items:center; gap:0.55rem; min-width:0; }
+    .nt-meal-name { font-family:var(--font-display); font-size:0.7rem; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-1); }
+    .nt-meal-kcal { font-size:0.75rem; color:var(--text-3); font-family:var(--font-display); }
+    .nt-meal-chevron { font-size:0.68rem; color:var(--text-3); flex-shrink:0; transition:transform var(--motion-fast); }
     .nt-meal-chevron--open { transform:rotate(180deg); }
-    .nt-meal-body { border-top:1px solid var(--line-1); padding:0.7rem 1rem; display:grid; gap:0.45rem; }
-    .nt-food-row { display:flex; justify-content:space-between; align-items:center; gap:0.65rem; padding:0.4rem 0.55rem; background:var(--surface-3); border-radius:var(--radius-sm); }
-    .nt-food-name { font-size:0.87rem; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .nt-food-meta { font-size:0.74rem; color:var(--text-3); margin-top:0.08rem; }
-    .nt-food-del { background:transparent; border:none; color:var(--text-3); cursor:pointer; padding:0.15rem 0.3rem; border-radius:4px; font-size:0.78rem; flex-shrink:0; transition:color var(--motion-fast) ease; }
-    .nt-food-del:hover { color:var(--bad); }
-    .nt-meal-group-hdr { display:flex; justify-content:space-between; align-items:center; padding:0.32rem 0.55rem; background:var(--surface-1); border-radius:var(--radius-sm); cursor:pointer; transition:background var(--motion-fast) ease; }
+    .nt-meal-body { border-top:1px solid var(--line-1); padding:0.65rem 0.9rem; display:grid; gap:0.38rem; background:rgba(0,0,0,0.14); flex:1; overflow-y:auto; min-height:0; align-content:start; scrollbar-width:none; }
+    .nt-meal-body::-webkit-scrollbar { display:none; }
+    .nt-food-row { display:flex; justify-content:space-between; align-items:center; gap:0.55rem; padding:0.4rem 0.52rem; background:var(--surface-3); border-radius:var(--radius-sm); border:1px solid transparent; transition:all var(--motion-fast); }
+    .nt-food-row:hover { border-color:var(--line-1); background:rgba(255,255,255,0.025); }
+    .nt-food-name { font-size:0.9rem; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nt-food-meta { font-size:0.76rem; color:var(--text-3); margin-top:0.04rem; }
+    .nt-food-del { background:transparent; border:none; color:var(--text-3); cursor:pointer; padding:0.14rem 0.3rem; border-radius:4px; font-size:0.76rem; flex-shrink:0; transition:all var(--motion-fast); }
+    .nt-food-del:hover { color:var(--bad); background:rgba(255,79,115,0.08); }
+    .nt-meal-group-hdr { display:flex; justify-content:space-between; align-items:center; padding:0.3rem 0.5rem; background:var(--surface-1); border-radius:var(--radius-sm); cursor:pointer; transition:background var(--motion-fast); }
     .nt-meal-group-hdr:hover { background:var(--surface-3); }
-    .nt-add-food-btn { display:flex; align-items:center; gap:0.4rem; padding:0.45rem 0.75rem; background:transparent; border:1px dashed var(--line-2); border-radius:var(--radius-sm); color:var(--text-3); cursor:pointer; font-size:0.8rem; width:100%; justify-content:center; transition:all var(--motion-fast) ease; margin-top:0.35rem; box-sizing:border-box; }
-    .nt-add-food-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.05); }
-    .nt-hydration-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; }
-    .nt-hydration-label { font-size:0.76rem; color:var(--text-3); margin-bottom:0.3rem; font-family:var(--font-display); letter-spacing:0.05em; }
-    .nt-micro-toggle { display:flex; justify-content:space-between; align-items:center; padding:0.8rem 1.3rem; background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); cursor:pointer; transition:background var(--motion-fast) ease; }
-    .nt-micro-toggle:hover { background:var(--surface-3); }
-    .nt-micro-toggle-label { font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-2); }
-    .nt-micro-item { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.48rem 0.65rem; }
-    .nt-micro-item-top { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; margin-bottom:0.22rem; }
-    .nt-micro-name { font-size:0.82rem; color:var(--text-1); }
-    .nt-micro-group { font-size:0.71rem; color:var(--text-3); }
-    .nt-micro-amount { font-size:0.82rem; color:var(--text-2); white-space:nowrap; }
+    .nt-add-food-btn { display:flex; align-items:center; gap:0.38rem; padding:0.46rem 0.7rem; background:transparent; border:1px dashed var(--line-2); border-radius:var(--radius-sm); color:var(--text-3); cursor:pointer; font-size:0.8rem; width:100%; justify-content:center; transition:all var(--motion-fast); margin-top:0.32rem; box-sizing:border-box; }
+    .nt-add-food-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.06); box-shadow:0 0 12px rgba(222,41,82,0.1); }
+
+    /* ── Micronutrients ── */
+    .nt-micro-toggle { display:flex; justify-content:space-between; align-items:center; padding:0.74rem 0.9rem; background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); cursor:pointer; transition:all var(--motion-fast); }
+    .nt-micro-toggle:hover { background:rgba(255,255,255,0.025); border-color:var(--line-2); }
+    .nt-micro-toggle-label { font-family:var(--font-display); font-size:0.67rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-2); }
+    .nt-micro-item { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.46rem 0.6rem; transition:border-color var(--motion-fast); }
+    .nt-micro-item:hover { border-color:var(--line-2); }
+    .nt-micro-item-top { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; margin-bottom:0.2rem; }
+    .nt-micro-name { font-size:0.84rem; color:var(--text-1); }
+    .nt-micro-group { font-size:0.72rem; color:var(--text-3); }
+    .nt-micro-amount { font-size:0.82rem; color:var(--text-2); white-space:nowrap; font-family:var(--font-display); }
     .nt-micro-track { height:4px; border-radius:999px; background:var(--surface-1); overflow:hidden; }
-    .nt-micro-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent-1),var(--accent-3)); transition:width 300ms ease; }
+    .nt-micro-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent-1),var(--accent-3)); transition:width 400ms ease; }
+    .nt-micro-fill--ok  { background:linear-gradient(90deg,rgba(40,183,141,0.65),rgba(40,183,141,1)); }
+    .nt-micro-fill--over{ background:linear-gradient(90deg,var(--bad),rgba(255,79,115,0.75)); }
+
+    /* ── Modal ── */
     .nt-modal-overlay { position:fixed; inset:0; background:rgba(9,5,6,0.88); z-index:200; display:flex; align-items:flex-start; justify-content:center; padding:5vh 1rem; backdrop-filter:blur(4px); }
-    .nt-modal { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-lg); width:100%; max-width:540px; max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-soft); }
-    .nt-modal-header { padding:0.9rem 1.2rem; border-bottom:1px solid var(--line-1); display:flex; justify-content:space-between; align-items:center; }
-    .nt-modal-title { font-family:var(--font-display); font-size:0.67rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-2); }
-    .nt-modal-close { background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:1.05rem; padding:0.2rem 0.4rem; border-radius:4px; transition:color var(--motion-fast) ease; }
-    .nt-modal-close:hover { color:var(--text-1); }
-    .nt-modal-search { padding:0.7rem 1rem; border-bottom:1px solid var(--line-1); }
-    .nt-modal-results { flex:1; overflow-y:auto; padding:0.4rem 0; }
-    .nt-modal-result { display:flex; align-items:flex-start; gap:0.7rem; padding:0.6rem 1rem; cursor:pointer; border:none; background:transparent; width:100%; text-align:left; transition:background var(--motion-fast) ease; }
+    .nt-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:540px; max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-soft),0 0 40px rgba(181,21,60,0.1); }
+    .nt-modal-header { padding:0.86rem 1.1rem; border-bottom:1px solid var(--line-1); display:flex; justify-content:space-between; align-items:center; }
+    .nt-modal-title { font-family:var(--font-display); font-size:0.66rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--text-2); }
+    .nt-modal-close { background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:1rem; padding:0.18rem 0.38rem; border-radius:4px; transition:all var(--motion-fast); }
+    .nt-modal-close:hover { color:var(--text-1); background:rgba(255,255,255,0.05); }
+    .nt-modal-search { padding:0.65rem 0.9rem; border-bottom:1px solid var(--line-1); }
+    .nt-modal-results { flex:1; overflow-y:auto; padding:0.3rem 0; }
+    .nt-modal-result { display:flex; align-items:flex-start; gap:0.62rem; padding:0.55rem 0.9rem; cursor:pointer; border:none; background:transparent; width:100%; text-align:left; transition:background var(--motion-fast); }
     .nt-modal-result:hover { background:var(--surface-3); }
     .nt-modal-result-info { flex:1; min-width:0; }
-    .nt-modal-result-name { font-size:0.88rem; color:var(--text-1); margin-bottom:0.08rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nt-modal-result-name { font-size:0.9rem; color:var(--text-1); margin-bottom:0.06rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .nt-modal-result-brand { font-size:0.76rem; color:var(--text-3); }
-    .nt-modal-result-macros { font-size:0.74rem; color:var(--text-2); margin-top:0.12rem; }
-    .nt-source-badge { font-size:0.58rem; font-family:var(--font-display); letter-spacing:0.1em; text-transform:uppercase; padding:0.14rem 0.42rem; border-radius:999px; flex-shrink:0; margin-top:0.2rem; }
+    .nt-modal-result-macros { font-size:0.74rem; color:var(--text-2); margin-top:0.1rem; }
+    .nt-source-badge { font-size:0.56rem; font-family:var(--font-display); letter-spacing:0.1em; text-transform:uppercase; padding:0.1rem 0.38rem; border-radius:999px; flex-shrink:0; margin-top:0.16rem; }
     .nt-source-usda { background:rgba(74,158,255,0.1); border:1px solid rgba(74,158,255,0.3); color:#4a9eff; }
     .nt-source-off { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
     .nt-source-mine { background:rgba(222,41,82,0.1); border:1px solid var(--accent-1); color:var(--accent-3); }
-    .nt-allergen-badge { font-size:0.58rem; font-family:var(--font-display); letter-spacing:0.05em; text-transform:uppercase; padding:0.14rem 0.38rem; border-radius:999px; background:rgba(255,184,107,0.1); border:1px solid rgba(255,184,107,0.3); color:#ffb86b; flex-shrink:0; }
-    .nt-modal-footer { padding:0.85rem 1.1rem; border-top:1px solid var(--line-1); display:grid; gap:0.5rem; }
-    .nt-modal-add-row { display:grid; grid-template-columns:1fr 110px 130px auto; gap:0.5rem; align-items:center; }
-    .nt-btn { padding:0.55rem 0.9rem; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font-display); font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase; transition:all var(--motion-fast) ease; border:1px solid var(--line-1); background:transparent; color:var(--text-2); }
+    .nt-allergen-badge { font-size:0.56rem; font-family:var(--font-display); letter-spacing:0.05em; text-transform:uppercase; padding:0.1rem 0.36rem; border-radius:999px; background:rgba(255,184,107,0.1); border:1px solid rgba(255,184,107,0.3); color:#ffb86b; flex-shrink:0; }
+    .nt-modal-footer { padding:0.78rem 0.95rem; border-top:1px solid var(--line-1); display:grid; gap:0.42rem; }
+    .nt-modal-add-row { display:grid; grid-template-columns:1fr 100px 120px auto; gap:0.42rem; align-items:center; }
+
+    /* ── Buttons ── */
+    .nt-btn { padding:0.48rem 0.88rem; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; transition:all var(--motion-fast); border:1px solid var(--line-1); background:transparent; color:var(--text-2); }
     .nt-btn:hover:not(:disabled) { border-color:var(--line-2); color:var(--text-1); }
-    .nt-btn:disabled { opacity:0.4; cursor:default; }
-    .nt-btn--primary { background:var(--accent-1); border-color:var(--accent-2); color:var(--text-1); }
-    .nt-btn--primary:hover:not(:disabled) { background:var(--accent-2); border-color:var(--accent-3); }
-    .nt-btn--sm { padding:0.32rem 0.6rem; font-size:0.62rem; }
-    .nt-toast { position:fixed; top:1rem; right:1rem; z-index:300; padding:0.65rem 0.95rem; border-radius:var(--radius-sm); border:1px solid var(--line-2); background:var(--surface-2); color:var(--text-1); font-size:0.86rem; max-width:360px; box-shadow:var(--shadow-soft); }
+    .nt-btn:disabled { opacity:0.38; cursor:default; }
+    .nt-btn--primary { background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); border-color:var(--accent-2); color:#fff; }
+    .nt-btn--primary:hover:not(:disabled) { background:linear-gradient(135deg,var(--accent-2),var(--accent-3)); border-color:var(--accent-3); box-shadow:0 0 18px rgba(222,41,82,0.4); }
+    .nt-btn--sm { padding:0.3rem 0.6rem; font-size:0.63rem; }
+    .nt-btn--danger { border-color:rgba(255,79,115,0.25); color:var(--bad); }
+    .nt-btn--danger:hover:not(:disabled) { background:rgba(255,79,115,0.08); border-color:var(--bad); }
+
+    /* ── Toast ── */
+    .nt-toast { position:fixed; top:1rem; right:1rem; z-index:300; padding:0.62rem 0.92rem; border-radius:var(--radius-sm); border:1px solid var(--line-2); background:var(--surface-2); color:var(--text-1); font-size:0.86rem; max-width:360px; box-shadow:var(--shadow-soft); animation:nt-toast-in 180ms ease; }
     .nt-toast--warning { border-color:rgba(229,161,0,0.4); }
+
+    /* ── Meal plan ── */
     .nt-week-nav { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
-    .nt-week-label { font-family:var(--font-display); font-size:0.78rem; color:var(--text-2); letter-spacing:0.08em; }
-    .nt-plan-days { display:grid; gap:0.6rem; }
+    .nt-week-label { font-family:var(--font-display); font-size:0.76rem; color:var(--text-2); letter-spacing:0.08em; }
+    .nt-plan-days { display:grid; gap:0.5rem; }
     .nt-plan-day { background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); overflow:hidden; }
     .nt-plan-day--training { border-left:3px solid var(--accent-1); }
-    .nt-plan-day--rest { border-left:3px solid rgba(40,183,141,0.35); }
-    .nt-plan-day--high { border-left:3px solid rgba(229,161,0,0.4); }
-    .nt-plan-day-header { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 1rem; cursor:pointer; gap:0.65rem; }
+    .nt-plan-day--rest { border-left:3px solid rgba(40,183,141,0.4); }
+    .nt-plan-day--high { border-left:3px solid rgba(229,161,0,0.45); }
+    .nt-plan-day-header { display:flex; justify-content:space-between; align-items:center; padding:0.7rem 0.95rem; cursor:pointer; gap:0.6rem; transition:background var(--motion-fast); }
     .nt-plan-day-header:hover { background:var(--surface-3); }
-    .nt-plan-day-left { display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap; }
-    .nt-plan-day-name { font-family:var(--font-display); font-size:0.75rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-1); }
-    .nt-plan-day-totals { font-size:0.75rem; color:var(--text-3); white-space:nowrap; }
-    .nt-plan-day-body { border-top:1px solid var(--line-1); padding:0.7rem 1rem; display:grid; gap:0.5rem; }
-    .nt-plan-meal { background:var(--surface-3); border-radius:var(--radius-sm); padding:0.6rem 0.75rem; }
+    .nt-plan-day-left { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+    .nt-plan-day-name { font-family:var(--font-display); font-size:0.76rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-1); }
+    .nt-plan-day-totals { font-size:0.74rem; color:var(--text-3); white-space:nowrap; font-family:var(--font-display); }
+    .nt-plan-day-body { border-top:1px solid var(--line-1); padding:0.65rem 0.95rem; display:grid; gap:0.42rem; }
+    .nt-plan-meal { background:var(--surface-3); border-radius:var(--radius-sm); padding:0.55rem 0.7rem; }
     .nt-plan-meal--pre { border-left:3px solid var(--accent-2); }
     .nt-plan-meal--post { border-left:3px solid var(--ok); }
-    .nt-plan-meal-header { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; margin-bottom:0.3rem; }
-    .nt-plan-meal-name { font-family:var(--font-display); font-size:0.65rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-2); }
-    .nt-plan-timing-chip { font-size:0.58rem; font-family:var(--font-display); letter-spacing:0.08em; text-transform:uppercase; padding:0.1rem 0.38rem; border-radius:999px; margin-left:0.35rem; }
+    .nt-plan-meal-header { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; margin-bottom:0.28rem; }
+    .nt-plan-meal-name { font-family:var(--font-display); font-size:0.64rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-2); }
+    .nt-plan-timing-chip { font-size:0.57rem; font-family:var(--font-display); letter-spacing:0.08em; text-transform:uppercase; padding:0.09rem 0.36rem; border-radius:999px; margin-left:0.28rem; }
     .nt-plan-timing-chip--pre { background:rgba(181,21,60,0.12); border:1px solid var(--accent-1); color:var(--accent-3); }
     .nt-plan-timing-chip--post { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
-    .nt-plan-food { font-size:0.8rem; color:var(--text-2); }
-    .nt-plan-meal-macros { font-size:0.71rem; color:var(--text-3); margin-top:0.28rem; }
+    .nt-plan-food { font-size:0.84rem; color:var(--text-2); }
+    .nt-plan-meal-macros { font-size:0.72rem; color:var(--text-3); margin-top:0.24rem; font-family:var(--font-display); }
     .nt-plan-empty { text-align:center; padding:2.5rem 1rem; }
-    .nt-plan-empty-icon { font-size:2rem; opacity:0.35; margin-bottom:0.6rem; }
-    .nt-plan-empty-title { font-family:var(--font-display); font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-2); margin-bottom:0.4rem; }
-    .nt-plan-empty-sub { font-size:0.85rem; color:var(--text-3); margin-bottom:1.2rem; max-width:360px; margin-left:auto; margin-right:auto; line-height:1.5; }
-    .nt-settings-grid { display:grid; gap:0.65rem; }
-    .nt-targets-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:0.65rem; }
-    .nt-target-day { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.8rem; }
-    .nt-target-day-name { font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-3); margin-bottom:0.6rem; }
-    .nt-target-field-label { font-size:0.76rem; color:var(--text-3); margin-bottom:0.18rem; }
-    @media (max-width:540px) { .nt-modal-add-row { grid-template-columns:1fr 1fr; } .nt-targets-grid { grid-template-columns:1fr; } }
+    .nt-plan-empty-icon { font-size:2rem; opacity:0.3; margin-bottom:0.55rem; }
+    .nt-plan-empty-title { font-family:var(--font-display); font-size:0.74rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-2); margin-bottom:0.38rem; }
+    .nt-plan-empty-sub { font-size:0.86rem; color:var(--text-3); margin-bottom:1.2rem; max-width:360px; margin-left:auto; margin-right:auto; line-height:1.5; }
+
+    /* ── Settings ── */
+    .nt-settings-grid { display:grid; gap:0.55rem; grid-template-columns:1fr 1fr; }
+    .nt-settings-full { grid-column:1/-1; }
+    .nt-targets-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0.55rem; }
+    .nt-target-day { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.78rem; }
+    .nt-target-day--training { border-top:3px solid rgba(222,41,82,0.55); }
+    .nt-target-day--rest { border-top:3px solid rgba(40,183,141,0.45); }
+    .nt-target-day--high { border-top:3px solid rgba(229,161,0,0.45); }
+    .nt-target-day-name { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--text-3); margin-bottom:0.55rem; }
+    .nt-target-field-label { font-size:0.76rem; color:var(--text-3); margin-bottom:0.16rem; }
+
+    /* ── Responsive ── */
+    @media (max-width:1100px) { .nt-log-split { grid-template-columns:3fr 2fr; } }
+    @media (max-width:820px)  { .nt-wrap { height:auto; overflow:visible; } .nt-log-split { grid-template-columns:1fr; height:auto; } .nt-hud-col,.nt-meals-col { height:auto; overflow:visible; } .nt-settings-grid,.nt-targets-grid { grid-template-columns:1fr; } }
+    @media (max-width:560px)  { .nt-modal-add-row { grid-template-columns:1fr 1fr; } }
   `;
 
   // ── Shared input style (used for inline inputs) ────────────────────────────
@@ -2112,11 +2247,17 @@ export default function Nutrition() {
   const sel = { ...inp, cursor: "pointer" };
 
 
-  if (loading) return (
-    <div style={{ padding: "1.5rem", color: "var(--text-3)", fontFamily: "var(--font-display)", fontSize: "0.75rem", letterSpacing: "0.15em" }}>
-      LOADING...
-    </div>
-  );
+  if (loading) return <PhysiquePilotLoader />;
+
+  // Helper: meal card colour class by segment key
+  const mealCardColorClass = (key) => {
+    const k = String(key || "").toLowerCase();
+    if (k === "breakfast") return "nt-meal-card--breakfast";
+    if (k === "lunch") return "nt-meal-card--lunch";
+    if (k === "dinner") return "nt-meal-card--dinner";
+    if (k === "snacks") return "nt-meal-card--snacks";
+    return "nt-meal-card--default";
+  };
 
   return (
     <div className="nt-wrap">
@@ -2171,10 +2312,7 @@ export default function Nutrition() {
                       key={`${src}:${r.id}`}
                       className="nt-modal-result"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        selectFoodResult(r);
-                        setFoodDropdownOpen(false);
-                      }}
+                      onClick={() => { selectFoodResult(r); setFoodDropdownOpen(false); }}
                     >
                       <div className="nt-modal-result-info">
                         <div className="nt-modal-result-name">{r.name}{r.brand ? ` — ${r.brand}` : ""}</div>
@@ -2184,7 +2322,7 @@ export default function Nutrition() {
                           </div>
                         )}
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.28rem", alignItems: "flex-end", flexShrink: 0 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.26rem", alignItems: "flex-end", flexShrink: 0 }}>
                         <span className={`nt-source-badge ${srcClass}`}>{srcLabel}</span>
                         {hasAllergen && <span className="nt-allergen-badge">⚠ Allergen</span>}
                       </div>
@@ -2202,13 +2340,7 @@ export default function Nutrition() {
 
             <div className="nt-modal-footer">
               <div className="nt-modal-add-row">
-                <input
-                  value={entryQty}
-                  onChange={(e) => setEntryQty(e.target.value)}
-                  placeholder="Quantity"
-                  inputMode="decimal"
-                  style={inp}
-                />
+                <input value={entryQty} onChange={(e) => setEntryQty(e.target.value)} placeholder="Quantity" inputMode="decimal" style={inp} />
                 <select value={entryUnit} onChange={(e) => setEntryUnit(e.target.value)} style={sel}>
                   {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
@@ -2218,19 +2350,13 @@ export default function Nutrition() {
                 <button
                   className="nt-btn nt-btn--primary"
                   disabled={!String(entryFood || "").trim() || !isPositiveNumber(entryQty) || entryResolving}
-                  onClick={async () => {
-                    await addEntry();
-                    setFoodModalOpen(false);
-                    setEntryFood("");
-                    setEntryQty("");
-                    setFoodResults([]);
-                  }}
+                  onClick={async () => { await addEntry(); setFoodModalOpen(false); setEntryFood(""); setEntryQty(""); setFoodResults([]); }}
                 >
                   {entryResolving ? "…" : "Add"}
                 </button>
               </div>
               {logWarnings.length > 0 && (
-                <div style={{ fontSize: "0.78rem", color: "var(--warn)" }}>{logWarnings[0]}</div>
+                <div style={{ fontSize: "0.76rem", color: "var(--warn)" }}>{logWarnings[0]}</div>
               )}
             </div>
           </div>
@@ -2241,7 +2367,7 @@ export default function Nutrition() {
       <div className="nt-header">
         <span className="nt-title">◈ NUTRITION</span>
         <div className="nt-tabs">
-          {[["log", "LOG TODAY"], ["meal_plan", "MEAL PLAN"], ["settings", "SETTINGS"]].map(([key, label]) => (
+          {[["log", "Log Today"], ["meal_plan", "Meal Plan"], ["settings", "Settings"]].map(([key, label]) => (
             <button key={key} className={`nt-tab${tab === key ? " nt-tab--active" : ""}`} onClick={() => setTab(key)}>
               {label}
             </button>
@@ -2253,77 +2379,211 @@ export default function Nutrition() {
       </div>
 
       {error && (
-        <div style={{ fontSize: "0.84rem", color: "var(--bad)", padding: "0.6rem 1rem", background: "rgba(255,79,115,0.07)", border: "1px solid rgba(255,79,115,0.2)", borderRadius: "var(--radius-sm)" }}>
+        <div style={{ fontSize: "0.82rem", color: "var(--bad)", padding: "0.55rem 0.9rem", background: "rgba(255,79,115,0.07)", border: "1px solid rgba(255,79,115,0.2)", borderRadius: "var(--radius-sm)" }}>
           {error}
         </div>
       )}
 
       {/* ══════════════════ LOG TODAY ══════════════════════════════════════ */}
       {tab === "log" && (
-        <>
-          {/* Day bar */}
-          <div className="nt-panel">
-            <div className="nt-day-bar">
-              <div>
-                <div className="nt-day-date">
-                  {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
-                </div>
-                <span className={`nt-day-type-badge nt-day-type-badge--${todayType}`}>
-                  {dayLabel[todayType] || "Today"}
-                </span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", flexWrap: "wrap" }}>
-                <select
-                  value={todayType}
-                  onChange={(e) => saveTodayType(e.target.value)}
-                  style={{ ...sel, width: "auto", fontSize: "0.75rem", fontFamily: "var(--font-display)", letterSpacing: "0.06em", padding: "0.45rem 0.7rem" }}
-                >
-                  <option value="training">Training Day</option>
-                  <option value="rest">Rest Day</option>
-                  <option value="high">High Day</option>
-                </select>
-                <button className="nt-btn nt-btn--sm nt-btn--primary" onClick={saveLog} disabled={saving}>Save</button>
-                <button className="nt-btn nt-btn--sm" onClick={() => { setEntries([]); setEntryFood(""); setEntryQty(""); setFoodResults([]); }}>Clear</button>
-              </div>
-            </div>
-          </div>
+        <div className="nt-log-split">
 
-          {/* Macro summary */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ MACRO OVERVIEW</div>
-            <div className="nt-segment-pills">
-              {summarySegments.map((seg) => (
-                <button
-                  key={seg.key}
-                  className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`}
-                  onClick={() => setSummarySegment(seg.key)}
-                >
-                  {seg.label}
-                </button>
-              ))}
+          {/* ── LEFT: HUD column ── */}
+          <div className="nt-hud-col">
+
+            {/* Day bar */}
+            <div className="nt-panel">
+              <div className="nt-day-bar">
+                <div>
+                  <div className="nt-day-date">
+                    {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
+                  </div>
+                  <span className={`nt-day-type-badge nt-day-type-badge--${todayType}`}>
+                    {dayLabel[todayType] || "Today"}
+                  </span>
+                </div>
+                <div className="nt-day-controls">
+                  <select
+                    value={todayType}
+                    onChange={(e) => saveTodayType(e.target.value)}
+                    style={{ ...sel, width: "auto", fontSize: "0.72rem", fontFamily: "var(--font-display)", letterSpacing: "0.05em", padding: "0.38rem 0.62rem" }}
+                  >
+                    <option value="training">Training</option>
+                    <option value="rest">Rest</option>
+                    <option value="high">High</option>
+                  </select>
+                  <button className="nt-btn nt-btn--sm nt-btn--primary" onClick={saveLog} disabled={saving}>Save</button>
+                  <button className="nt-btn nt-btn--sm" onClick={() => { setEntries([]); setEntryFood(""); setEntryQty(""); setFoodResults([]); }}>Clear</button>
+                </div>
+              </div>
             </div>
-            <div className="nt-macro-summary">
-              {(() => {
-                const cals = Number(effectiveLogTotals.calories || 0);
-                const target = Number(todaysTargets?.calories || 0);
-                const fillPct = target > 0 ? Math.min(100, (cals / target) * 100) : 0;
-                return (
-                  <>
-                    <div className="nt-calorie-row">
-                      <span className="nt-calorie-num">{Math.round(cals)}</span>
-                      <span className="nt-calorie-target">/ {target} kcal</span>
+
+            {/* Calorie HUD — split: left toggleable, right static plan */}
+            <div className="nt-calorie-hud">
+
+              {/* Left: toggleable 2-slide panel */}
+              <div className="nt-hud-left" onWheel={(e) => { e.preventDefault(); setCalorieView((v) => e.deltaY > 0 ? (v + 1) % 2 : (v + 1) % 2); }}>
+                <div className="nt-hud-header">
+                  <span className="nt-hud-label">
+                    {calorieView === 0 ? "◈ REMAINING" : "◈ CONSUMED"}
+                  </span>
+                  <div className="nt-hud-nav">
+                    <div className="nt-hud-nav-dot">
+                      {[0, 1].map((i) => (
+                        <span key={i} className={`nt-hud-dot${calorieView === i ? " nt-hud-dot--active" : ""}`} />
+                      ))}
                     </div>
-                    <div className="nt-calorie-track">
-                      <div className="nt-calorie-fill" style={{ width: `${fillPct}%` }} />
-                    </div>
-                  </>
-                );
-              })()}
+                    <button className="nt-hud-arrow" onClick={() => setCalorieView((v) => (v + 1) % 2)}>◀</button>
+                    <button className="nt-hud-arrow" onClick={() => setCalorieView((v) => (v + 1) % 2)}>▶</button>
+                  </div>
+                </div>
+                <div className="nt-hud-body">
+
+                  {/* Slide 0: remaining cals + macros remaining */}
+                  {calorieView === 0 && (() => {
+                    const cals = Math.round(Number(effectiveLogTotals.calories || 0));
+                    const target = Number(todaysTargets?.calories || 0);
+                    const remaining = target - cals;
+                    const isOver = remaining < 0;
+                    const pConsumed = effectiveLogTotals.protein_g || 0;
+                    const cConsumed = effectiveLogTotals.carbs_g || 0;
+                    const fConsumed = effectiveLogTotals.fats_g || 0;
+                    const pTarget = todaysTargets?.protein_g || 0;
+                    const cTarget = todaysTargets?.carbs_g || 0;
+                    const fTarget = todaysTargets?.fats_g || 0;
+                    const pRem = Math.max(0, pTarget - pConsumed);
+                    const cRem = Math.max(0, cTarget - cConsumed);
+                    const fRem = Math.max(0, fTarget - fConsumed);
+                    const pPct = pTarget > 0 ? Math.min(100, (pConsumed / pTarget) * 100) : 0;
+                    const cPct = cTarget > 0 ? Math.min(100, (cConsumed / cTarget) * 100) : 0;
+                    const fPct = fTarget > 0 ? Math.min(100, (fConsumed / fTarget) * 100) : 0;
+                    return (
+                      <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:"0.38rem" }}>
+                        <div style={{ display:"flex", alignItems:"baseline", gap:"0.3rem" }}>
+                          <span className={`nt-remaining-big ${isOver ? "nt-remaining-negative" : "nt-remaining-positive"}`}>
+                            {isOver ? "+" : ""}{Math.abs(remaining).toLocaleString()}
+                          </span>
+                          <span className="nt-calorie-unit">{isOver ? "over" : "kcal left"}</span>
+                        </div>
+                        {[
+                          { label:"P", pct: pPct, rem: Math.round(pRem), color:"#16a34a" },
+                          { label:"C", pct: cPct, rem: Math.round(cRem), color:"#1d4ed8" },
+                          { label:"F", pct: fPct, rem: Math.round(fRem), color:"#dc2626" },
+                        ].map(({ label, pct, rem, color }) => (
+                          <div key={label} style={{ display:"grid", gridTemplateColumns:"14px 1fr 34px", alignItems:"center", gap:"0.38rem" }}>
+                            <span style={{ fontFamily:"var(--font-display)", fontSize:"0.6rem", letterSpacing:"0.1em", color:"var(--text-3)" }}>{label}</span>
+                            <div style={{ height:5, borderRadius:999, background:"var(--surface-1)", overflow:"hidden" }}>
+                              <div style={{ height:"100%", borderRadius:999, background:color, width:`${pct}%`, transition:"width 600ms cubic-bezier(.22,.68,0,1.2)" }} />
+                            </div>
+                            <span style={{ fontFamily:"var(--font-display)", fontSize:"0.6rem", color:"var(--text-2)", textAlign:"right" }}>{rem}g</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Slide 1: consumed ring (smaller) */}
+                  {calorieView === 1 && (() => {
+                    const cals = Math.round(Number(effectiveLogTotals.calories || 0));
+                    const target = Number(todaysTargets?.calories || 0);
+                    const fillPct = target > 0 ? Math.min(100, (cals / target) * 100) : 0;
+                    const isOver = cals > target && target > 0;
+                    const R = 42; const C = 2 * Math.PI * R;
+                    return (
+                      <div style={{ display:"flex", alignItems:"center", gap:"0.65rem", width:"100%" }}>
+                        <div style={{ position:"relative", width:104, height:104, flexShrink:0 }}>
+                          <svg width="104" height="104" viewBox="0 0 104 104" style={{ transform:"rotate(-90deg)" }}>
+                            <defs>
+                              <linearGradient id="calGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor={isOver ? "#ff3a5c" : "var(--accent-1)"} />
+                                <stop offset="100%" stopColor={isOver ? "#ff7c96" : "var(--accent-3)"} />
+                              </linearGradient>
+                            </defs>
+                            <circle cx="52" cy="52" r="48" fill="none" stroke="rgba(222,41,82,0.06)" strokeWidth="1" />
+                            <circle cx="52" cy="52" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
+                            <circle cx="52" cy="52" r={R} fill="none"
+                              stroke="url(#calGrad2)" strokeWidth="10" strokeLinecap="round"
+                              strokeDasharray={C} strokeDashoffset={C * (1 - fillPct / 100)}
+                              style={{ transition:"stroke-dashoffset 700ms cubic-bezier(.22,.68,0,1.2)", filter:`drop-shadow(0 0 ${isOver?'8px rgba(255,58,92,0.85)':'5px rgba(222,41,82,0.65)'})` }}
+                            />
+                            {[0,45,90,135,180,225,270,315].map(a => {
+                              const r1=(a*Math.PI)/180, x1=52+(R-6)*Math.cos(r1), y1=52+(R-6)*Math.sin(r1), x2=52+(R+6)*Math.cos(r1), y2=52+(R+6)*Math.sin(r1);
+                              return <line key={a} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.07)" strokeWidth="1.5" />;
+                            })}
+                          </svg>
+                          <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"0.04rem" }}>
+                            <span className="nt-calorie-big" style={{ fontSize:"1.4rem", color:isOver?"var(--bad)":"var(--text-1)", textShadow:isOver?"0 0 18px rgba(255,58,92,0.55)":"0 0 18px rgba(222,41,82,0.25)" }}>{cals.toLocaleString()}</span>
+                            <span className="nt-calorie-unit" style={{ fontSize:"0.56rem" }}>kcal</span>
+                          </div>
+                        </div>
+                        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:"0.22rem" }}>
+                          <span className="nt-calorie-sub">consumed</span>
+                          <div style={{ display:"flex", flexDirection:"column", gap:"0.1rem" }}>
+                            <span className="nt-calorie-meta" style={{ flexDirection:"column" }}>
+                              <span>TARGET <span className="nt-calorie-meta-val">{target.toLocaleString()}</span></span>
+                              <span><span className="nt-calorie-meta-val" style={{ color:isOver?"var(--bad)":fillPct>=90?"var(--warn)":"var(--text-2)" }}>{Math.round(fillPct)}%</span> of goal</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                </div>
+              </div>
+
+              {/* Vertical divider */}
+              <div className="nt-hud-divider" />
+
+              {/* Right: static today's plan */}
+              <div className="nt-hud-right">
+                <div className="nt-hud-right-header">
+                  <span className="nt-plan-header">◈ TODAY'S PLAN</span>
+                </div>
+                <div className="nt-hud-right-body">
+                  <div style={{ display:"flex", alignItems:"baseline", gap:"0" }}>
+                    <span className="nt-plan-cals">{Math.round(todaysTargets?.calories || 0).toLocaleString()}</span>
+                    <span className="nt-plan-cals-unit">kcal</span>
+                  </div>
+                  <span className={`nt-day-type-badge nt-day-type-badge--${todayType}`} style={{ alignSelf:"flex-start" }}>
+                    {dayLabel[todayType] || todayType}
+                  </span>
+                  <div className="nt-plan-macros">
+                    {[
+                      { label:"Protein", val: todaysTargets?.protein_g || 0, color:"#16a34a" },
+                      { label:"Carbs",   val: todaysTargets?.carbs_g   || 0, color:"#1d4ed8" },
+                      { label:"Fats",    val: todaysTargets?.fats_g    || 0, color:"#dc2626" },
+                    ].map(({ label, val, color }) => (
+                      <div key={label} className="nt-plan-macro">
+                        <span className="nt-plan-macro-val" style={{ color }}>{Math.round(val)}g</span>
+                        <span className="nt-plan-macro-lbl">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Macro bars + pie chart */}
+            <div className="nt-panel" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <div className="nt-section-label">◈ MACROS</div>
+              <div className="nt-segment-pills">
+                {summarySegments.map((seg) => (
+                  <button
+                    key={seg.key}
+                    className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`}
+                    onClick={() => setSummarySegment(seg.key)}
+                  >
+                    {seg.label}
+                  </button>
+                ))}
+              </div>
               <div className="nt-macro-bars">
                 {[
-                  { key: "protein_g", label: "Protein", val: effectiveLogTotals.protein_g, target: todaysTargets?.protein_g, color: "var(--accent-3)" },
-                  { key: "carbs_g",   label: "Carbs",   val: effectiveLogTotals.carbs_g,   target: todaysTargets?.carbs_g,   color: "#4a9eff" },
-                  { key: "fats_g",    label: "Fats",    val: effectiveLogTotals.fats_g,    target: todaysTargets?.fats_g,    color: "#e5a100" }
+                  { key: "protein_g", label: "Protein", val: effectiveLogTotals.protein_g, target: todaysTargets?.protein_g, color: "#16a34a" },
+                  { key: "carbs_g",   label: "Carbs",   val: effectiveLogTotals.carbs_g,   target: todaysTargets?.carbs_g,   color: "#1d4ed8" },
+                  { key: "fats_g",    label: "Fats",    val: effectiveLogTotals.fats_g,    target: todaysTargets?.fats_g,    color: "#dc2626" }
                 ].map((m) => {
                   const val = round1(m.val || 0);
                   const tgt = Number(m.target || 0);
@@ -2340,211 +2600,271 @@ export default function Nutrition() {
                   );
                 })}
               </div>
-              {hasMacroPieData && (
-                <div className="nt-pie-wrap">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={macroPieDisplayData} dataKey="value" nameKey="name" innerRadius={36} outerRadius={58} paddingAngle={2}>
-                        {macroPieDisplayData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value, name, ctx) => [`${Math.round(Number(value || 0))} kcal · ${round1(ctx?.payload?.grams || 0)}g`, String(name || "")]}
-                        contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--line-1)", borderRadius: "8px", color: "var(--text-1)" }}
-                        itemStyle={{ color: "var(--text-1)" }}
-                        cursor={false}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Hydration */}
-          <div className="nt-panel">
-            <div className="nt-section-label">◈ HYDRATION</div>
-            <div className="nt-hydration-grid">
-              <div>
-                <div className="nt-hydration-label">Water (ml)</div>
-                <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={inp} />
-              </div>
-              <div>
-                <div className="nt-hydration-label">Salt (g)</div>
-                <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={inp} />
-              </div>
-            </div>
-          </div>
-
-          {/* Meal segments */}
-          <div className="nt-meals-grid">
-            {displaySegments.map((seg) => {
-              const rows = groupedRowsBySegment.get(seg.key) || [];
-              const segTotals = segmentTotalsByKey?.[seg.key];
-              const expanded = !isCollapsed(`seg_${seg.key}`);
-              return (
-                <div className="nt-meal-card" key={seg.key}>
-                  <div className="nt-meal-header" onClick={() => toggleSection(`seg_${seg.key}`)}>
-                    <div className="nt-meal-header-left">
-                      <span className="nt-meal-name">{seg.label}</span>
-                      {segTotals && segTotals.calories > 0 && (
-                        <span className="nt-meal-kcal">{Math.round(segTotals.calories)} kcal</span>
-                      )}
+              {/* Macro split pie chart — fills remaining space */}
+              {(() => {
+                const totalKcal = Math.round(macroPieDisplayData.reduce((s, d) => s + (d.value || 0), 0));
+                return (
+                  <div className="nt-macro-chart-section">
+                    <div className="nt-macro-chart-wrap">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={macroPieDisplayData}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={34}
+                            outerRadius={52}
+                            paddingAngle={hasMacroPieData ? 3 : 0}
+                            startAngle={90}
+                            endAngle={-270}
+                          >
+                            {macroPieDisplayData.map((entry) => (
+                              <Cell
+                                key={entry.name}
+                                fill={entry.color}
+                                stroke="#000"
+                                strokeWidth={2}
+                                style={{ filter: hasMacroPieData ? `drop-shadow(0 0 5px ${entry.color}66)` : "none", outline: "none" }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value, name, ctx) => [`${Math.round(Number(value || 0))} kcal · ${round1(ctx?.payload?.grams || 0)}g`, String(name || "")]}
+                            contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--line-1)", borderRadius: "8px", color: "var(--text-1)", fontSize: "0.78rem", padding: "0.35rem 0.6rem" }}
+                            itemStyle={{ color: "var(--text-1)" }}
+                            cursor={false}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="nt-macro-chart-inner">
+                        <span className="nt-macro-chart-total">{hasMacroPieData ? totalKcal.toLocaleString() : "—"}</span>
+                        <span className="nt-macro-chart-unit">kcal</span>
+                      </div>
                     </div>
-                    <span className={`nt-meal-chevron${expanded ? " nt-meal-chevron--open" : ""}`}>▼</span>
-                  </div>
-
-                  {expanded && (
-                    <div className="nt-meal-body">
-                      {rows.length === 0 && (
-                        <div style={{ fontSize: "0.82rem", color: "var(--text-3)", textAlign: "center", padding: "0.2rem 0" }}>
-                          Nothing logged yet
-                        </div>
-                      )}
-                      {rows.map((row, rowIdx) => {
-                        if (row.kind === "item") {
-                          const it = row.item;
-                          return (
-                            <div className="nt-food-row" key={it.id || rowIdx}>
-                              <div style={{ minWidth: 0 }}>
-                                <div className="nt-food-name">{it.food}</div>
-                                <div className="nt-food-meta">{it.qty}{it.unit} · {it.state}</div>
-                              </div>
-                              <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
-                            </div>
-                          );
-                        }
+                    <div className="nt-macro-chart-legend">
+                      {[
+                        { name: "Protein", grams: effectiveLogTotals.protein_g || 0, color: "#16a34a" },
+                        { name: "Carbs",   grams: effectiveLogTotals.carbs_g   || 0, color: "#1d4ed8" },
+                        { name: "Fats",    grams: effectiveLogTotals.fats_g    || 0, color: "#dc2626" },
+                        ...(Number(effectiveLogTotals.alcohol_g || 0) > 0 ? [{ name: "Alcohol", grams: effectiveLogTotals.alcohol_g, color: "#d97706" }] : []),
+                      ].map(({ name, grams, color }) => {
+                        const kcal = name === "Protein" ? grams * 4 : name === "Carbs" ? grams * 4 : name === "Fats" ? grams * 9 : grams * 7;
+                        const pct = totalKcal > 0 ? Math.round((kcal / totalKcal) * 100) : 0;
                         return (
-                          <div key={row.mealId}>
-                            <div
-                              className="nt-meal-group-hdr"
-                              onClick={() => setExpandedSavedMealRows((prev) => ({ ...prev, [row.mealId]: !prev[row.mealId] }))}
-                            >
-                              <span style={{ fontSize: "0.82rem", color: "var(--text-2)", fontWeight: 600 }}>{row.mealName}</span>
-                              <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{row.items.length} foods {expandedSavedMealRows[row.mealId] ? "▲" : "▼"}</span>
-                            </div>
-                            {expandedSavedMealRows[row.mealId] && (
-                              <div style={{ display: "grid", gap: "0.28rem", marginTop: "0.28rem" }}>
-                                {row.items.map((it, iti) => (
-                                  <div className="nt-food-row" key={it.id || iti}>
-                                    <div style={{ minWidth: 0 }}>
-                                      <div className="nt-food-name">{it.food}</div>
-                                      <div className="nt-food-meta">{it.qty}{it.unit}</div>
-                                    </div>
-                                    <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                          <div key={name} className="nt-macro-legend-row">
+                            <span className="nt-macro-legend-dot" style={{ background: color, boxShadow: hasMacroPieData ? `0 0 6px ${color}99` : "none" }} />
+                            <span className="nt-macro-legend-name">{name}</span>
+                            <span className="nt-macro-legend-g">{Math.round(grams)}g</span>
+                            <span className="nt-macro-legend-pct">{pct}%</span>
                           </div>
                         );
                       })}
-
-                      <button
-                        className="nt-add-food-btn"
-                        onClick={() => {
-                          setEntrySegment(seg.key);
-                          setEntryFood("");
-                          setEntryQty("");
-                          setEntryFoodId(null);
-                          setEntryUserFoodId(null);
-                          setEntryFoodLocked(false);
-                          setFoodResults([]);
-                          setFoodModalOpen(true);
-                        }}
-                      >
-                        + Add Food
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Micronutrients */}
-          {showMicronutrientsSection && (
-            <>
-              <div className="nt-micro-toggle" onClick={() => toggleSection("micros")}>
-                <span className="nt-micro-toggle-label">
-                  ◈ MICRONUTRIENTS{visibleMicroRows.length > 0 ? ` (${visibleMicroRows.length})` : ""}
-                </span>
-                <span style={{ color: "var(--text-3)", fontSize: "0.78rem" }}>{isCollapsed("micros") ? "Expand ▼" : "Collapse ▲"}</span>
-              </div>
-
-              {!isCollapsed("micros") && (
-                <div className="nt-panel">
-                  <div style={{ display: "flex", gap: "0.55rem", flexWrap: "wrap", marginBottom: "0.8rem", alignItems: "center" }}>
-                    <div className="nt-segment-pills" style={{ margin: 0, flex: 1 }}>
-                      {summarySegments.map((seg) => (
-                        <button key={`mi-${seg.key}`} className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`} onClick={() => setSummarySegment(seg.key)}>
-                          {seg.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                      <select value={microGroupFilter} onChange={(e) => setMicroGroupFilter(e.target.value)} style={{ ...sel, width: "auto", fontSize: "0.78rem", padding: "0.35rem 0.6rem" }}>
-                        <option value="all">All groups</option>
-                        {microGroups.map((g) => <option key={g} value={g}>{g}</option>)}
-                      </select>
-                      <select value={microTargetMode} onChange={(e) => saveMicroMode(e.target.value)} disabled={savingMicroTargets} style={{ ...sel, width: "auto", fontSize: "0.78rem", padding: "0.35rem 0.6rem" }}>
-                        <option value="rdi">RDI</option>
-                        <option value="bodyweight">Bodyweight</option>
-                        <option value="custom">Custom</option>
-                      </select>
                     </div>
                   </div>
+                );
+              })()}
+            </div>
 
-                  {dayNutrientsLoading ? (
-                    <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>Loading micronutrients...</div>
-                  ) : visibleMicroRows.length === 0 ? (
-                    <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.75rem 0" }}>
-                      {summarySegment === "all" ? "Log some food to see micronutrients." : `No micronutrient data in ${selectedSummaryLabel.toLowerCase()} yet.`}
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: "0.4rem", maxHeight: "420px", overflowY: "auto", paddingRight: "0.15rem" }}>
-                      {visibleMicroRows.map((n) => (
-                        <div className="nt-micro-item" key={n.code}>
-                          <div className="nt-micro-item-top">
-                            <div>
-                              <span className="nt-micro-name">{displayNutrientLabel(n.code, n.label)}</span>
-                              <span className="nt-micro-group"> · {displayNutrientGroup(n.code, n.sort_group)}</span>
-                            </div>
-                            <span className="nt-micro-amount">
-                              {formatNutrientAmount(n.amount)} {formatNutrientUnit(n.unit)}
-                              {" / "}
-                              {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${formatNutrientUnit(n.unit)}` : "N/T"}
-                            </span>
-                          </div>
-                          {microTargetMode === "custom" && (
-                            <div style={{ marginTop: "0.28rem", display: "flex", justifyContent: "flex-end" }}>
-                              <input
-                                type="number"
-                                value={microTargetDrafts[n.code] ?? 0}
-                                onChange={(e) => setMicroTargetDrafts((prev) => ({ ...prev, [n.code]: Math.max(0, Number(e.target.value || 0)) }))}
-                                style={{ ...inp, width: "110px", fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
-                              />
-                            </div>
-                          )}
-                          <div className="nt-micro-track" style={{ marginTop: "0.22rem" }}>
-                            <div className="nt-micro-fill" style={{ width: `${n.amount <= 0 ? 0 : Math.max(2, n.sliderPct)}%` }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {microTargetMode === "custom" && (
-                    <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end" }}>
-                      <button className="nt-btn nt-btn--primary nt-btn--sm" onClick={saveCustomMicroTargets} disabled={savingMicroTargets}>
-                        Save Targets
-                      </button>
-                    </div>
-                  )}
+            {/* Micronutrients — moved to analytics column */}
+            {showMicronutrientsSection && (
+              <>
+                <div className="nt-micro-toggle" onClick={() => toggleSection("micros")}>
+                  <span className="nt-micro-toggle-label">
+                    ◈ MICRONUTRIENTS{visibleMicroRows.length > 0 ? ` (${visibleMicroRows.length})` : ""}
+                  </span>
+                  <span style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>{isCollapsed("micros") ? "Expand ▼" : "Collapse ▲"}</span>
                 </div>
-              )}
-            </>
-          )}
-        </>
+                {!isCollapsed("micros") && (
+                  <div className="nt-panel" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem", alignItems: "center" }}>
+                      <div className="nt-segment-pills" style={{ margin: 0, flex: 1 }}>
+                        {summarySegments.map((seg) => (
+                          <button key={`mi-${seg.key}`} className={`nt-seg-pill${summarySegment === seg.key ? " nt-seg-pill--active" : ""}`} onClick={() => setSummarySegment(seg.key)}>
+                            {seg.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: "0.35rem", flexShrink: 0 }}>
+                        <select value={microGroupFilter} onChange={(e) => setMicroGroupFilter(e.target.value)} style={{ ...sel, width: "auto", fontSize: "0.78rem", padding: "0.32rem 0.55rem" }}>
+                          <option value="all">All groups</option>
+                          {microGroups.map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                        <select value={microTargetMode} onChange={(e) => saveMicroMode(e.target.value)} disabled={savingMicroTargets} style={{ ...sel, width: "auto", fontSize: "0.78rem", padding: "0.32rem 0.55rem" }}>
+                          <option value="rdi">RDI</option>
+                          <option value="bodyweight">Bodyweight</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                    </div>
+                    {dayNutrientsLoading ? (
+                      <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.7rem 0" }}>Loading micronutrients...</div>
+                    ) : visibleMicroRows.length === 0 ? (
+                      <div style={{ color: "var(--text-3)", fontSize: "0.8rem", textAlign: "center", padding: "0.7rem 0" }}>
+                        {summarySegment === "all" ? "Log some food to see micronutrients." : `No data in ${selectedSummaryLabel.toLowerCase()} yet.`}
+                      </div>
+                    ) : (
+                      <div style={{ display: "grid", gap: "0.36rem", flex: 1, minHeight: 0, overflowY: "auto", paddingRight: "0.1rem" }}>
+                        {visibleMicroRows.map((n) => {
+                          const pct = n.amount <= 0 ? 0 : Math.max(2, n.sliderPct);
+                          const fillClass = n.sliderPct > 105 ? "nt-micro-fill--over" : n.sliderPct >= 80 ? "nt-micro-fill--ok" : "nt-micro-fill";
+                          return (
+                            <div className="nt-micro-item" key={n.code}>
+                              <div className="nt-micro-item-top">
+                                <div>
+                                  <span className="nt-micro-name">{displayNutrientLabel(n.code, n.label)}</span>
+                                  <span className="nt-micro-group"> · {displayNutrientGroup(n.code, n.sort_group)}</span>
+                                </div>
+                                <span className="nt-micro-amount">
+                                  {formatNutrientAmount(n.amount)} {formatNutrientUnit(n.unit)}
+                                  {" / "}
+                                  {Number(n.target_amount || 0) > 0 ? `${formatNutrientAmount(n.target_amount)} ${formatNutrientUnit(n.unit)}` : "N/T"}
+                                </span>
+                              </div>
+                              {microTargetMode === "custom" && (
+                                <div style={{ marginTop: "0.24rem", display: "flex", justifyContent: "flex-end" }}>
+                                  <input type="number" value={microTargetDrafts[n.code] ?? 0}
+                                    onChange={(e) => setMicroTargetDrafts((prev) => ({ ...prev, [n.code]: Math.max(0, Number(e.target.value || 0)) }))}
+                                    style={{ ...inp, width: "106px", fontSize: "0.8rem", padding: "0.28rem 0.45rem" }} />
+                                </div>
+                              )}
+                              <div className="nt-micro-track" style={{ marginTop: "0.18rem" }}>
+                                <div className={fillClass} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {microTargetMode === "custom" && (
+                      <div style={{ marginTop: "0.65rem", display: "flex", justifyContent: "flex-end" }}>
+                        <button className="nt-btn nt-btn--primary nt-btn--sm" onClick={saveCustomMicroTargets} disabled={savingMicroTargets}>Save Targets</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+          </div>{/* end .nt-hud-col */}
+
+          {/* ── RIGHT: Meals column ── */}
+          <div className="nt-meals-col">
+
+            {/* Hydration — moved to food log column */}
+            <div className="nt-panel">
+              <div className="nt-section-label">◈ HYDRATION</div>
+              <div className="nt-hydration-grid">
+                <div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+                    <div className="nt-hydration-label">Water</div>
+                    <div className="nt-hydration-pct">{waterMl} / 2500 ml</div>
+                  </div>
+                  <div className="nt-hydration-gauge">
+                    <div className="nt-hydration-fill-water" style={{ width:`${Math.min(100,(waterMl/2500)*100)}%` }} />
+                  </div>
+                  <input type="number" value={waterMl} onChange={(e) => setWaterMl(clampInt(e.target.value, 0, 10000))} style={inp} />
+                </div>
+                <div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+                    <div className="nt-hydration-label">Salt</div>
+                    <div className="nt-hydration-pct">{saltG} / 5 g</div>
+                  </div>
+                  <div className="nt-hydration-gauge">
+                    <div className="nt-hydration-fill-salt" style={{ width:`${Math.min(100,(saltG/5)*100)}%` }} />
+                  </div>
+                  <input type="number" value={saltG} onChange={(e) => setSaltG(clampNumber(e.target.value, 0, 50, 2))} style={inp} />
+                </div>
+              </div>
+            </div>
+
+            <div className="nt-meals-grid">
+              {displaySegments.map((seg) => {
+                const rows = groupedRowsBySegment.get(seg.key) || [];
+                const segTotals = segmentTotalsByKey?.[seg.key];
+                const expanded = !isCollapsed(`seg_${seg.key}`);
+                return (
+                  <div className={`nt-meal-card ${mealCardColorClass(seg.key)}`} key={seg.key}>
+                    <div className="nt-meal-header" onClick={() => toggleSection(`seg_${seg.key}`)}>
+                      <div className="nt-meal-header-left">
+                        <span className="nt-meal-name">{seg.label}</span>
+                        {segTotals && segTotals.calories > 0 && (
+                          <span className="nt-meal-kcal">{Math.round(segTotals.calories)} kcal</span>
+                        )}
+                      </div>
+                      <span className={`nt-meal-chevron${expanded ? " nt-meal-chevron--open" : ""}`}>▼</span>
+                    </div>
+
+                    {expanded && (
+                      <div className="nt-meal-body">
+                        {rows.length === 0 && (
+                          <div style={{ fontSize: "0.8rem", color: "var(--text-3)", textAlign: "center", padding: "0.2rem 0" }}>
+                            Nothing logged yet
+                          </div>
+                        )}
+                        {rows.map((row, rowIdx) => {
+                          if (row.kind === "item") {
+                            const it = row.item;
+                            return (
+                              <div className="nt-food-row" key={it.id || rowIdx}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="nt-food-name">{it.food}</div>
+                                  <div className="nt-food-meta">{it.qty}{it.unit} · {it.state}</div>
+                                </div>
+                                <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div key={row.mealId}>
+                              <div
+                                className="nt-meal-group-hdr"
+                                onClick={() => setExpandedSavedMealRows((prev) => ({ ...prev, [row.mealId]: !prev[row.mealId] }))}
+                              >
+                                <span style={{ fontSize: "0.8rem", color: "var(--text-2)", fontWeight: 600 }}>{row.mealName}</span>
+                                <span style={{ fontSize: "0.7rem", color: "var(--text-3)" }}>{row.items.length} foods {expandedSavedMealRows[row.mealId] ? "▲" : "▼"}</span>
+                              </div>
+                              {expandedSavedMealRows[row.mealId] && (
+                                <div style={{ display: "grid", gap: "0.26rem", marginTop: "0.26rem" }}>
+                                  {row.items.map((it, iti) => (
+                                    <div className="nt-food-row" key={it.id || iti}>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div className="nt-food-name">{it.food}</div>
+                                        <div className="nt-food-meta">{it.qty}{it.unit}</div>
+                                      </div>
+                                      <button className="nt-food-del" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== it.id))}>✕</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <button
+                          className="nt-add-food-btn"
+                          onClick={() => {
+                            setEntrySegment(seg.key);
+                            setEntryFood("");
+                            setEntryQty("");
+                            setEntryFoodId(null);
+                            setEntryUserFoodId(null);
+                            setEntryFoodLocked(false);
+                            setFoodResults([]);
+                            setFoodModalOpen(true);
+                          }}
+                        >
+                          + Add Food
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+          </div>{/* end .nt-meals-col */}
+
+        </div>
       )}
 
       {/* ══════════════════ MEAL PLAN ════════════════════════════════════════ */}
@@ -2556,7 +2876,7 @@ export default function Nutrition() {
                 <div className="nt-section-label">◈ WEEKLY MEAL PLAN</div>
                 <div className="nt-week-label">{formatWeekRange(currentWeekStart)}</div>
               </div>
-              <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", flexWrap: "wrap" }}>
                 <button className="nt-btn nt-btn--sm" onClick={() => shiftWeek(-1)}>← Prev</button>
                 <button className="nt-btn nt-btn--sm" onClick={() => shiftWeek(1)}>Next →</button>
                 <button className="nt-btn nt-btn--primary" onClick={generateMealPlan} disabled={mealPlanGenerating}>
@@ -2565,14 +2885,14 @@ export default function Nutrition() {
               </div>
             </div>
             {mealPlanError && (
-              <div style={{ marginTop: "0.7rem", fontSize: "0.82rem", color: "var(--bad)", padding: "0.5rem 0.75rem", background: "rgba(255,79,115,0.07)", border: "1px solid rgba(255,79,115,0.2)", borderRadius: "var(--radius-sm)" }}>
+              <div style={{ marginTop: "0.65rem", fontSize: "0.8rem", color: "var(--bad)", padding: "0.45rem 0.7rem", background: "rgba(255,79,115,0.07)", border: "1px solid rgba(255,79,115,0.2)", borderRadius: "var(--radius-sm)" }}>
                 {mealPlanError}
               </div>
             )}
           </div>
 
           {mealPlanLoading ? (
-            <div className="nt-panel" style={{ textAlign: "center", color: "var(--text-3)", padding: "2rem", fontSize: "0.82rem" }}>Loading plan...</div>
+            <div className="nt-panel" style={{ textAlign: "center", color: "var(--text-3)", padding: "2rem", fontSize: "0.8rem" }}>Loading plan...</div>
           ) : !mealPlanData ? (
             <div className="nt-panel">
               <div className="nt-plan-empty">
@@ -2601,20 +2921,20 @@ export default function Nutrition() {
                     <div className="nt-plan-day-header" onClick={() => toggleSection(`plan_${day.date}`)}>
                       <div className="nt-plan-day-left">
                         <span className="nt-plan-day-name">{dayName.toUpperCase()} {dateStr}</span>
-                        <span className={`nt-day-type-badge nt-day-type-badge--${dt}`} style={{ fontSize: "0.57rem" }}>{dt.toUpperCase()}</span>
+                        <span className={`nt-day-type-badge nt-day-type-badge--${dt}`} style={{ fontSize: "0.54rem" }}>{dt.toUpperCase()}</span>
                         {isToday && (
-                          <span style={{ fontSize: "0.58rem", fontFamily: "var(--font-display)", letterSpacing: "0.1em", padding: "0.1rem 0.42rem", borderRadius: "999px", background: "rgba(222,41,82,0.14)", border: "1px solid var(--accent-2)", color: "var(--accent-3)" }}>
+                          <span style={{ fontSize: "0.54rem", fontFamily: "var(--font-display)", letterSpacing: "0.1em", padding: "0.08rem 0.4rem", borderRadius: "999px", background: "rgba(222,41,82,0.14)", border: "1px solid var(--accent-2)", color: "var(--accent-3)" }}>
                             TODAY
                           </span>
                         )}
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                         {day.totals && (
                           <span className="nt-plan-day-totals">
                             {day.totals.calories} kcal · P{day.totals.protein_g}g C{day.totals.carbs_g}g F{day.totals.fat_g}g
                           </span>
                         )}
-                        <span style={{ color: "var(--text-3)", fontSize: "0.72rem" }}>{expanded ? "▲" : "▼"}</span>
+                        <span style={{ color: "var(--text-3)", fontSize: "0.7rem" }}>{expanded ? "▲" : "▼"}</span>
                       </div>
                     </div>
 
@@ -2631,9 +2951,9 @@ export default function Nutrition() {
                                   {isPre && <span className="nt-plan-timing-chip nt-plan-timing-chip--pre">PRE-WORKOUT</span>}
                                   {isPost && <span className="nt-plan-timing-chip nt-plan-timing-chip--post">POST-WORKOUT</span>}
                                 </div>
-                                <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{meal.approximate_time || ""}</span>
+                                <span style={{ fontSize: "0.7rem", color: "var(--text-3)" }}>{meal.approximate_time || ""}</span>
                               </div>
-                              <div style={{ display: "grid", gap: "0.16rem" }}>
+                              <div style={{ display: "grid", gap: "0.14rem" }}>
                                 {(meal.foods || []).map((f, fi) => (
                                   <div className="nt-plan-food" key={fi}>
                                     · {f.name} <span style={{ color: "var(--text-3)" }}>{f.amount}</span>
@@ -2662,26 +2982,21 @@ export default function Nutrition() {
       {tab === "settings" && (
         <div className="nt-settings-grid">
 
-          {/* Macro targets */}
-          <div className="nt-panel">
+          {/* Macro targets — full width */}
+          <div className="nt-panel nt-settings-full">
             <div className="nt-section-label">◈ MACRO TARGETS</div>
             <div className="nt-targets-grid">
               {["training", "rest", "high"].map((dayType) => {
                 const t = editTargets?.[dayType];
                 if (!t) return null;
                 return (
-                  <div key={dayType} className="nt-target-day">
+                  <div key={dayType} className={`nt-target-day nt-target-day--${dayType}`}>
                     <div className="nt-target-day-name">{dayLabel[dayType]}</div>
-                    <div style={{ display: "grid", gap: "0.45rem" }}>
+                    <div style={{ display: "grid", gap: "0.42rem" }}>
                       {[["calories", "Calories"], ["protein_g", "Protein (g)"], ["carbs_g", "Carbs (g)"], ["fats_g", "Fats (g)"]].map(([f, lbl]) => (
                         <div key={f}>
                           <div className="nt-target-field-label">{lbl}</div>
-                          <input
-                            type="number"
-                            value={t[f]}
-                            onChange={(e) => updateEditField(dayType, f, e.target.value)}
-                            style={inp}
-                          />
+                          <input type="number" value={t[f]} onChange={(e) => updateEditField(dayType, f, e.target.value)} style={inp} />
                         </div>
                       ))}
                     </div>
@@ -2689,15 +3004,15 @@ export default function Nutrition() {
                 );
               })}
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.85rem" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.75rem" }}>
               <button className="nt-btn nt-btn--primary" onClick={saveTargets}>Save Targets</button>
             </div>
           </div>
 
           {/* Meal plan preferences */}
           <div className="nt-panel">
-            <div className="nt-section-label">◈ MEAL PLAN PREFERENCES</div>
-            <div style={{ display: "grid", gap: "0.7rem" }}>
+            <div className="nt-section-label">◈ MEAL PLAN PREFS</div>
+            <div style={{ display: "grid", gap: "0.62rem" }}>
               <div>
                 <div className="nt-target-field-label">Meals per day</div>
                 <select
@@ -2726,37 +3041,37 @@ export default function Nutrition() {
           {/* Meal presets */}
           <div className="nt-panel">
             <div className="nt-section-label">◈ MEAL PRESETS</div>
-            <div style={{ display: "grid", gap: "0.6rem" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.5rem" }}>
+            <div style={{ display: "grid", gap: "0.55rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.45rem" }}>
                 <select value={activePresetId} onChange={(e) => setActivePresetId(e.target.value)} style={sel}>
                   {mealPresets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
                 <button className="nt-btn nt-btn--sm" onClick={resetPresetDraftToCurrent}>Reset</button>
               </div>
-              <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
                 <button className="nt-btn nt-btn--sm" onClick={() => { setPresetNameDraft(DEFAULT_PRESET_NAME); setPresetSegmentsDraft(DEFAULT_MEAL_SEGMENTS.map((s) => ({ ...s }))); }}>Standard</button>
                 <button className="nt-btn nt-btn--sm" onClick={() => { setPresetNameDraft(DEFAULT_CUSTOM_PRESET_NAME); setPresetSegmentsDraft(DEFAULT_CUSTOM_MEAL_SEGMENTS.map((s) => ({ ...s }))); }}>Custom</button>
               </div>
               <input value={presetNameDraft} onChange={(e) => setPresetNameDraft(e.target.value)} placeholder="Preset name" style={inp} />
-              <div style={{ display: "grid", gap: "0.38rem" }}>
+              <div style={{ display: "grid", gap: "0.35rem" }}>
                 {presetSegmentsDraft.map((seg, idx) => (
-                  <div key={`${seg.key}-${idx}`} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.45rem" }}>
+                  <div key={`${seg.key}-${idx}`} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.4rem" }}>
                     <input
                       value={seg.label}
                       onChange={(e) => setPresetSegmentsDraft((prev) => prev.map((row, i) => i === idx ? { ...row, label: e.target.value } : row))}
                       placeholder={`Segment ${idx + 1}`}
-                      style={{ ...inp, fontSize: "0.88rem" }}
+                      style={{ ...inp, fontSize: "0.86rem" }}
                     />
                     <button className="nt-btn nt-btn--sm" onClick={() => setPresetSegmentsDraft((prev) => prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx))}>✕</button>
                   </div>
                 ))}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.45rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.4rem" }}>
                 <input
                   value={newSegmentLabel}
                   onChange={(e) => setNewSegmentLabel(e.target.value)}
                   placeholder="Add segment..."
-                  style={{ ...inp, fontSize: "0.88rem" }}
+                  style={{ ...inp, fontSize: "0.86rem" }}
                 />
                 <button className="nt-btn nt-btn--sm" onClick={() => {
                   const label = String(newSegmentLabel || "").trim();
@@ -2767,9 +3082,9 @@ export default function Nutrition() {
                   setNewSegmentLabel("");
                 }}>+ Add</button>
               </div>
-              <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "0.35rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <button className="nt-btn nt-btn--sm" disabled={savingPreset} onClick={() => upsertPreset({ createNew: true })}>Create New</button>
-                <button className="nt-btn nt-btn--sm" disabled={savingPreset || !activePresetId} onClick={deleteActivePreset}>Delete</button>
+                <button className="nt-btn nt-btn--sm nt-btn--danger" disabled={savingPreset || !activePresetId} onClick={deleteActivePreset}>Delete</button>
                 <button className="nt-btn nt-btn--primary nt-btn--sm" disabled={savingPreset} onClick={() => upsertPreset({ createNew: false })}>Save Preset</button>
               </div>
             </div>
@@ -2779,16 +3094,16 @@ export default function Nutrition() {
           <div className="nt-panel">
             <div className="nt-section-label">◈ SAVED MEALS</div>
             {savedMeals.length === 0 ? (
-              <div style={{ fontSize: "0.84rem", color: "var(--text-3)" }}>No saved meals yet. Log meals and save them for quick re-use.</div>
+              <div style={{ fontSize: "0.82rem", color: "var(--text-3)", lineHeight: 1.5 }}>No saved meals yet. Log meals and save them for quick re-use.</div>
             ) : (
-              <div style={{ display: "grid", gap: "0.5rem" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "0.5rem", alignItems: "center" }}>
+              <div style={{ display: "grid", gap: "0.45rem" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "0.45rem", alignItems: "center" }}>
                   <select value={savedMealSelection} onChange={(e) => setSavedMealSelection(e.target.value)} style={sel}>
                     <option value="">Select saved meal</option>
                     {savedMeals.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                   <button className="nt-btn nt-btn--sm nt-btn--primary" onClick={addSavedMealToLog}>Add to Log</button>
-                  <button className="nt-btn nt-btn--sm" disabled={savingSavedMeal || !savedMealSelection} onClick={deleteSavedMeal}>Delete</button>
+                  <button className="nt-btn nt-btn--sm nt-btn--danger" disabled={savingSavedMeal || !savedMealSelection} onClick={deleteSavedMeal}>Delete</button>
                 </div>
               </div>
             )}
@@ -2797,8 +3112,8 @@ export default function Nutrition() {
           {/* Micro panel toggle */}
           <div className="nt-panel" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
             <div>
-              <div className="nt-section-label" style={{ marginBottom: "0.2rem" }}>◈ MICRONUTRIENT PANEL</div>
-              <div style={{ fontSize: "0.84rem", color: "var(--text-3)" }}>Show micronutrient tracking in the Log Today view.</div>
+              <div className="nt-section-label" style={{ marginBottom: "0.18rem" }}>◈ MICRONUTRIENT PANEL</div>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-3)" }}>Show micronutrient tracking in Log Today.</div>
             </div>
             <button
               className={`nt-btn nt-btn--sm${showMicronutrientsSection ? " nt-btn--primary" : ""}`}
@@ -2808,6 +3123,7 @@ export default function Nutrition() {
               {showMicronutrientsSection ? "On" : "Off"}
             </button>
           </div>
+
         </div>
       )}
     </div>

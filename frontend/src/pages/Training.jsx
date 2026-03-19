@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { useProfile } from "../context/ProfileContext";
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 import TrainingSetup from "./training/TrainingSetup";
 import TrainingCalendar from "./training/TrainingCalendar";
 import SplitBuilder from "./training/SplitBuilder";
@@ -44,7 +45,7 @@ const TRAINING_CSS = `
   color: var(--text-2);
 }
 
-/* ── Programme sub-tabs ── */
+/* ── Program sub-tabs ── */
 .tr-prog-tabs {
   display: flex;
   gap: 0;
@@ -73,7 +74,7 @@ const TRAINING_CSS = `
 `;
 
 const TABS = [
-  { id: 'programme', label: 'Programme' },
+  { id: 'programme', label: 'Program' },
   { id: 'log', label: 'Log' },
   { id: 'history', label: 'History' },
 ];
@@ -81,8 +82,9 @@ const TABS = [
 export default function Training() {
   const { profile } = useProfile();
   const [activeTab, setActiveTab] = useState('programme');
+  const [logDate, setLogDate] = useState(null);
 
-  // Programme sub-state
+  // Program sub-state
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState(null);
   const [programDays, setProgramDays] = useState([]);
@@ -124,13 +126,9 @@ export default function Training() {
     fetchProgram();
   }, [fetchProgram]);
 
-  function renderProgramme() {
+  function renderProgram() {
     if (loading) {
-      return (
-        <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-3)', fontFamily: 'var(--font-body)' }}>
-          Loading…
-        </div>
-      );
+      return <PhysiquePilotLoader />;
     }
 
     if (!program) {
@@ -144,7 +142,7 @@ export default function Training() {
 
     return (
       <>
-        {/* Programme sub-tabs */}
+        {/* Program sub-tabs */}
         <div className="tr-prog-tabs">
           <button
             className={`tr-prog-tab${progView === 'calendar' ? ' active' : ''}`}
@@ -156,7 +154,7 @@ export default function Training() {
             className={`tr-prog-tab${progView === 'builder' ? ' active' : ''}`}
             onClick={() => setProgView('builder')}
           >
-            Programme Builder
+            Program Builder
           </button>
         </div>
 
@@ -165,6 +163,8 @@ export default function Training() {
             program={program}
             programDays={programDays}
             onProgramUpdated={fetchProgram}
+            onDayClick={(date) => { setLogDate(date); setActiveTab('log'); }}
+            onSessionClick={() => { setActiveTab('history'); }}
           />
         )}
 
@@ -206,8 +206,8 @@ export default function Training() {
         </div>
 
         {/* Tab content */}
-        {activeTab === 'programme' && renderProgramme()}
-        {activeTab === 'log' && <SessionLog />}
+        {activeTab === 'programme' && renderProgram()}
+        {activeTab === 'log' && <SessionLog initialDate={logDate} />}
         {activeTab === 'history' && <SessionHistory />}
 
       </div>

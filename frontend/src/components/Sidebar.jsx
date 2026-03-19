@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: "/app/nutrition",    label: "NUTRITION"  },
   { to: "/app/training",     label: "TRAINING"   },
   { to: "/app/cardio-steps", label: "ACTIVITY"   },
+  { to: "/app/habits",       label: "HABITS"     },
   { to: "/app/check-ins",    label: "CHECK-INS"  },
   { to: "/app/coach",        label: "AI COACH"   },
 ];

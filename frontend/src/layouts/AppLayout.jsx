@@ -5,129 +5,7 @@ import Sidebar from "../components/Sidebar";
 import { useProfile } from "../context/ProfileContext";
 import { useTour } from "../components/Tour/useTour";
 import { TourOverlay } from "../components/Tour/TourOverlay";
-
-/* ─── Cockpit boot loader ─────────────────────────────────────────────────── */
-function CockpitLoader() {
-  return (
-    <div
-      role="status"
-      aria-label="Initialising systems"
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--bg-0)",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* Faint radial glow behind the text */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(600px 320px at 50% 50%, rgba(181,21,60,0.13), transparent 70%)",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* Brand wordmark */}
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "clamp(1.6rem, 4vw, 2.8rem)",
-          fontWeight: 700,
-          letterSpacing: "0.2em",
-          textTransform: "uppercase",
-          color: "var(--text-1)",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.7rem",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        {/* Blinking status dot */}
-        <span
-          aria-hidden="true"
-          style={{
-            display: "inline-block",
-            width: "9px",
-            height: "9px",
-            borderRadius: "50%",
-            background: "var(--accent-3)",
-            boxShadow: "0 0 8px var(--accent-2)",
-            flexShrink: 0,
-            animation: "pp-loader-blink 1.4s step-start infinite",
-          }}
-        />
-        PHYSIQUE PILOT
-      </div>
-
-      {/* Sub-label */}
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "0.7rem",
-          letterSpacing: "0.22em",
-          color: "var(--text-3)",
-          marginTop: "0.9rem",
-          textTransform: "uppercase",
-          position: "relative",
-          zIndex: 1,
-          animation: "pp-loader-fade 0.6s ease forwards",
-        }}
-      >
-        Loading...
-      </div>
-
-      {/* Red progress bar at the bottom of the viewport */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: "2px",
-          background: "var(--bg-1)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            background:
-              "linear-gradient(90deg, var(--accent-1), var(--accent-3) 60%, var(--accent-2))",
-            boxShadow: "0 0 10px var(--accent-2)",
-            animation: "pp-loader-bar 1.8s cubic-bezier(0.4,0,0.2,1) infinite",
-            transformOrigin: "left",
-          }}
-        />
-      </div>
-
-      <style>{`
-        @keyframes pp-loader-blink {
-          0%, 100% { opacity: 1; }
-          50%       { opacity: 0.1; }
-        }
-        @keyframes pp-loader-fade {
-          from { opacity: 0; transform: translateY(6px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pp-loader-bar {
-          0%   { transform: scaleX(0)   translateX(0); opacity: 1; }
-          60%  { transform: scaleX(0.7) translateX(0); opacity: 1; }
-          100% { transform: scaleX(1)   translateX(0); opacity: 0; }
-        }
-      `}</style>
-    </div>
-  );
-}
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 
 /* ─── AppLayout ───────────────────────────────────────────────────────────── */
 function AppLayout() {
@@ -238,7 +116,7 @@ function AppLayout() {
   }, [navigate]);
 
   if (loading) {
-    return <CockpitLoader />;
+    return <PhysiquePilotLoader fullscreen />;
   }
 
   return (

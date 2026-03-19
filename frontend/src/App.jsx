@@ -2,8 +2,10 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { ProfileProvider, useProfile } from "./context/ProfileContext";
+import PhysiquePilotLoader from "./components/PhysiquePilotLoader";
 
 import MaintenancePage from "./pages/MaintenancePage";
+import HabitsTracker from "./pages/HabitsTracker";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -69,7 +71,7 @@ function RequireAuth({ children }) {
     };
   }, []);
 
-  if (!ready) return <div style={{ padding: "2rem" }}>Loading…</div>;
+  if (!ready) return <PhysiquePilotLoader fullscreen />;
   if (!hasSession) return <Navigate to="/login" replace />;
   return children;
 }
@@ -79,7 +81,7 @@ function RequireAuth({ children }) {
 function RequireOnboardingComplete({ children }) {
   const { profile, loading } = useProfile();
 
-  if (loading) return <div style={{ padding: "2rem" }}>Loading…</div>;
+  if (loading) return <PhysiquePilotLoader fullscreen />;
 
   const complete =
     profile?.onboarding_complete === true || profile?.onboarding_completed === true;
@@ -123,6 +125,7 @@ function AppRoutes() {
         <Route path="nutrition" element={<Nutrition />} />
         <Route path="training" element={<Training />} />
         <Route path="cardio-steps" element={<CardioSteps />} />
+        <Route path="habits" element={<HabitsTracker />} />
         <Route path="check-ins" element={<CheckIns />} />
         <Route path="coach" element={<Coach />} />
         <Route path="settings" element={<Settings />} />

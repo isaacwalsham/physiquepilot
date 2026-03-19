@@ -30,6 +30,7 @@ import {
   YAxis,
 } from "recharts";
 import { supabase } from "../supabaseClient";
+import PhysiquePilotLoader from "../components/PhysiquePilotLoader";
 import {
   addDays,
   bmiCategory,
@@ -2162,7 +2163,7 @@ export default function WeightTracking() {
       </div>
 
       {loading ? (
-        <div className="wt-loading">Loading…</div>
+        <PhysiquePilotLoader />
       ) : (
         <>
           {activeTab === "summary" && (
