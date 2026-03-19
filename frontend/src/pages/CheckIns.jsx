@@ -34,7 +34,7 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 };
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+const BACKEND = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
 
 const authFetch = async (path, opts = {}) => {
   const { data } = await supabase.auth.getSession();
