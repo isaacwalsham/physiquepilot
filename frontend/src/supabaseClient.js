@@ -11,4 +11,10 @@ if (!supabaseAnonKey) {
   console.error("Missing VITE_SUPABASE_ANON_KEY in frontend .env");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});

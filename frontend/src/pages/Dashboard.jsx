@@ -874,8 +874,13 @@ export default function Dashboard() {
         event: "*",
         schema: "public",
         table: "daily_nutrition_items",
-      }, refetchNutrition)
-      .subscribe();
+      }, (payload) => {
+        console.log("[Realtime] nutrition change:", payload);
+        refetchNutrition();
+      })
+      .subscribe((status, err) => {
+        console.log("[Realtime] nutrition status:", status, err ?? "");
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
