@@ -861,6 +861,8 @@ function useWeightData() {
         },
         { onConflict: "user_id,log_date" }
       );
+      // Notify HabitsTracker to re-sync inherited habits
+      window.dispatchEvent(new CustomEvent('pp_habits_sync'));
       await fetchData();
     },
     [userId, fetchData]

@@ -649,6 +649,9 @@ export default function ActiveSession({ programDay, sessionDate, program, onExit
         })
         .eq('id', sessionId);
 
+      // Notify HabitsTracker to re-sync inherited habits
+      window.dispatchEvent(new CustomEvent('pp_habits_sync'));
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;

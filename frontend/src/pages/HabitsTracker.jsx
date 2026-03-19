@@ -58,6 +58,7 @@ const TEMPLATES = [
   { area:"Recovery",  name:"Supplements Taken",              habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"morning",   inherit_source:null },
   { area:"Recovery",  name:"Morning Sunlight Exposure",      habit_type:"quantified", target_value:10,   target_unit:"min",    time_of_day:"morning",   inherit_source:null },
   { area:"Recovery",  name:"Additional Recovery Protocols",  habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:null },
+  { area:"Recovery",  name:"Log Weight",                     habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"morning",   inherit_source:"weight_logged" },
 ];
 
 const TIME_GROUPS = ["morning", "afternoon", "evening", "anytime"];
@@ -220,17 +221,37 @@ export default function HabitsTracker() {
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible" && profile?.user_id) {
-        loadInheritData(profile.user_id);
+        loadInheritData(profile.user_id).then(iData => {
+          if (iData) {
+            setInheritData(iData);
+            applyInheritedLogs(profile.user_id, habits, iData, todayLogs);
+          }
+        });
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [profile?.user_id]);
+  }, [profile?.user_id, habits, todayLogs, loadInheritData, applyInheritedLogs]);
+
+  // Also re-sync immediately when Training or Weight pages fire a save event
+  useEffect(() => {
+    const onHabitsSync = () => {
+      if (!profile?.user_id) return;
+      loadInheritData(profile.user_id).then(iData => {
+        if (iData) {
+          setInheritData(iData);
+          applyInheritedLogs(profile.user_id, habits, iData, todayLogs);
+        }
+      });
+    };
+    window.addEventListener("pp_habits_sync", onHabitsSync);
+    return () => window.removeEventListener("pp_habits_sync", onHabitsSync);
+  }, [profile?.user_id, habits, todayLogs, loadInheritData, applyInheritedLogs]);
 
   const loadInheritData = useCallback(async (uid) => {
     if (!uid) return;
     try {
-      const [workoutRes, stepsRes, cardioRes, nutritionRes, targetsRes] = await Promise.all([
+      const [workoutRes, stepsRes, cardioRes, nutritionRes, targetsRes, weightRes] = await Promise.all([
         supabase.from("workout_sessions").select("session_date,completed_at,program_day_id")
           .eq("user_id", uid).eq("session_date", TODAY),
         supabase.from("steps_logs").select("log_date,steps")
@@ -241,6 +262,8 @@ export default function HabitsTracker() {
           .eq("user_id", uid).eq("log_date", TODAY),
         supabase.from("nutrition_day_targets").select("day_type,protein_g,carbs_g,fats_g,calories")
           .eq("user_id", uid),
+        supabase.from("weight_logs").select("log_date")
+          .eq("user_id", uid).eq("log_date", TODAY).limit(1),
       ]);
       return {
         workout:          workoutRes.data?.[0] ?? null,
@@ -248,6 +271,7 @@ export default function HabitsTracker() {
         cardio:           (cardioRes.data?.length ?? 0) > 0 ? cardioRes.data[0] : null,
         nutrition:        nutritionRes.data || [],
         nutritionTargets: targetsRes.data || [],
+        weight:           (weightRes.data?.length ?? 0) > 0 ? weightRes.data[0] : null,
       };
     } catch (e) {
       console.error("loadInheritData error:", e);
@@ -347,14 +371,17 @@ export default function HabitsTracker() {
           break;
         }
         case "micros_hit": {
-          // Simplified: if any nutrition logged today, mark complete (detailed micro check is complex)
-          status = iData.nutrition.length > 0 ? "incomplete" : "incomplete";
-          // We'll check via daily_nutrition_item_nutrients for key nutrients
-          // For now, if calories >= 80% of target → assume micros tracked
+          // If calories >= 70% of target, assume food has been properly logged for the day
           if (iData.nutrition.length > 0 && macroTarget?.calories) {
             const totalCal = iData.nutrition.reduce((s, n) => s + (n.calories || 0), 0);
             status = totalCal >= macroTarget.calories * 0.7 ? "complete" : "incomplete";
+          } else {
+            status = "incomplete";
           }
+          break;
+        }
+        case "weight_logged": {
+          status = iData.weight ? "complete" : "incomplete";
           break;
         }
         default:
@@ -877,6 +904,7 @@ const INHERIT_LABELS = {
   cardio_logged:    "Synced from Cardio",
   macros_hit:       "Synced from Nutrition",
   micros_hit:       "Synced from Nutrition",
+  weight_logged:    "Synced from Weight",
 };
 
 /* ── Sync icon SVG ──────────────────────────────────────────────────────────── */

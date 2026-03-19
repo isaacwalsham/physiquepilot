@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS public.habits (
                CHECK (time_of_day IN ('morning', 'afternoon', 'evening', 'anytime')),
   inherit_source TEXT
                CHECK (inherit_source IN (
-                 'steps_goal','workout_session','cardio_logged','macros_hit','micros_hit'
+                 'steps_goal','workout_session','cardio_logged','macros_hit','micros_hit','weight_logged'
                )),
   is_archived  BOOLEAN NOT NULL DEFAULT FALSE,
   sort_order   INT     NOT NULL DEFAULT 0,
@@ -67,5 +67,5 @@ CREATE POLICY "owner" ON public.habit_logs
 ALTER TABLE public.habits
   ADD COLUMN IF NOT EXISTS inherit_source TEXT
   CHECK (inherit_source IN (
-    'steps_goal','workout_session','cardio_logged','macros_hit','micros_hit'
+    'steps_goal','workout_session','cardio_logged','macros_hit','micros_hit','weight_logged'
   ));
