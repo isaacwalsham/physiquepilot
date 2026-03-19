@@ -416,6 +416,41 @@ const CSS = `
     font-family: var(--font-display); font-size: 0.78rem; color: var(--text-3); margin-top: 0.25rem;
   }
 
+  /* ── Nutrition carousel ── */
+  .db-nut-carousel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .db-nut-slide { flex: 1; display: flex; flex-direction: column; min-height: 0; animation: bioFadeIn 0.25s ease; }
+  .db-nut-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 0.5rem; border-top: 1px solid var(--line-1); flex-shrink: 0; margin-top: 0.4rem;
+  }
+  .db-macro-detail {
+    display: flex; flex-direction: column; align-items: center; flex: 1; min-height: 0; padding: 0.2rem 0;
+  }
+  .db-macro-detail-stats {
+    width: 100%; display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-height: 0; overflow: hidden;
+  }
+  .db-macro-remaining {
+    font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.1em;
+    padding: 0.35rem 0.7rem; border-radius: var(--radius-sm); text-align: center;
+    margin-bottom: 0.5rem; flex-shrink: 0;
+  }
+  .db-sources-label {
+    font-family: var(--font-display); font-size: 0.62rem; letter-spacing: 0.16em;
+    color: var(--text-3); text-transform: uppercase; margin-bottom: 0.35rem; flex-shrink: 0;
+  }
+  .db-gpkg {
+    display: flex; align-items: baseline; gap: 0.4rem; margin-bottom: 0.4rem;
+    font-family: var(--font-display);
+  }
+  .db-gpkg-val { font-size: 1.4rem; font-weight: 700; color: var(--text-1); line-height: 1; }
+  .db-gpkg-unit { font-size: 0.72rem; color: var(--text-3); }
+  .db-gpkg-target { font-size: 0.72rem; color: var(--text-3); }
+  .db-day-context {
+    font-family: var(--font-display); font-size: 0.68rem; letter-spacing: 0.08em;
+    padding: 0.3rem 0.6rem; border-radius: var(--radius-sm); margin-bottom: 0.45rem;
+    flex-shrink: 0; display: inline-block; align-self: flex-start;
+  }
+
   /* ── Responsive ── */
   @media (max-width: 1100px) {
     .db-grid {
@@ -579,6 +614,54 @@ function SparkLine({ logs }) {
   );
 }
 
+// ─── FoodRow ──────────────────────────────────────────────────────────────────
+function FoodRow({ name, value, unit, totalVal, color }) {
+  const pct = totalVal > 0 ? Math.min((value / totalVal) * 100, 100) : 0;
+  return (
+    <div style={{ marginBottom: "0.45rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.18rem" }}>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "72%", letterSpacing: "0.04em" }}>
+          {name || "Unknown"}
+        </span>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", color, flexShrink: 0, letterSpacing: "0.06em" }}>
+          {Math.round(value)}{unit}
+        </span>
+      </div>
+      <div style={{ height: "3px", background: "var(--line-1)", borderRadius: "2px", overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: "2px",
+          boxShadow: `0 0 4px ${color}`, transition: "width 0.9s cubic-bezier(0.4,0,0.2,1)" }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── MacroSourceBar ───────────────────────────────────────────────────────────
+function MacroSourceBar({ proteinKcal, carbsKcal, fatKcal }) {
+  const total = proteinKcal + carbsKcal + fatKcal || 1;
+  const pP = (proteinKcal / total) * 100;
+  const pC = (carbsKcal  / total) * 100;
+  const pF = (fatKcal    / total) * 100;
+  return (
+    <div style={{ width: "100%" }}>
+      <div style={{ height: "10px", borderRadius: "5px", overflow: "hidden", display: "flex", gap: "2px", marginBottom: "0.4rem" }}>
+        <div style={{ width: `${pP}%`, background: "#22c55e", boxShadow: "0 0 6px #22c55e55", transition: "width 0.9s ease" }} />
+        <div style={{ width: `${pC}%`, background: "#4d8eff", boxShadow: "0 0 6px #4d8eff55", transition: "width 0.9s ease" }} />
+        <div style={{ width: `${pF}%`, background: "#f59e0b", boxShadow: "0 0 6px #f59e0b55", transition: "width 0.9s ease" }} />
+      </div>
+      <div style={{ display: "flex", gap: "0.8rem", justifyContent: "center" }}>
+        {[["P", pP, "#22c55e"], ["C", pC, "#4d8eff"], ["F", pF, "#f59e0b"]].map(([l, p, c]) => (
+          <div key={l} style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: c }} />
+            <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: "var(--text-3)", letterSpacing: "0.08em" }}>
+              {l} {Math.round(p)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -598,6 +681,8 @@ export default function Dashboard() {
   const [trainSession,     setTrainSession]     = useState(null);
   const [todayTargets,     setTodayTargets]     = useState(null);
   const [nutLogged,        setNutLogged]        = useState({ calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 });
+  const [nutItems,         setNutItems]         = useState([]);
+  const [nutSlide,         setNutSlide]         = useState(0);
   const [habits,           setHabits]           = useState({ total: 0, done: 0, list: [], loggedIds: new Set() });
   const [todayProgramDay,  setTodayProgramDay]  = useState(null);
 
@@ -687,15 +772,18 @@ export default function Dashboard() {
 
       // Nutrition logged today
       const { data: items } = await supabase
-        .from("daily_nutrition_items").select("calories, protein_g, carbs_g, fats_g")
+        .from("daily_nutrition_items").select("food_name, meal_name, calories, protein_g, carbs_g, fats_g")
         .eq("user_id", user.id).eq("log_date", today);
       if (items?.length) {
+        setNutItems(items);
         setNutLogged({
           calories:  items.reduce((s, i) => s + Number(i.calories  || 0), 0),
           protein_g: items.reduce((s, i) => s + Number(i.protein_g || 0), 0),
           carbs_g:   items.reduce((s, i) => s + Number(i.carbs_g   || 0), 0),
           fats_g:    items.reduce((s, i) => s + Number(i.fats_g    || 0), 0),
         });
+      } else {
+        setNutItems([]);
       }
 
       // Habits completion today
@@ -987,77 +1075,176 @@ export default function Dashboard() {
             })()}
           </div>
 
-          {/* ── COL 2 ROWS 1-2: MACRO GAUGES ── */}
+          {/* ── COL 2 ROWS 1-2: NUTRITION CAROUSEL ── */}
           <div className="db-panel db-macro-panel" onClick={nav("/app/nutrition")} role="button"
             tabIndex={0} onKeyDown={onKey("/app/nutrition")} aria-label="Open nutrition">
 
-            <div className="db-mfd">
-              <span className={`db-dot ${calRemaining !== null && calRemaining < 0 ? "db-dot-red" : "db-dot-green"}`} />
-              ◈ NUTRITION
-            </div>
+            {(() => {
+              const NUT_SLIDES = 5;
+              const slideLabels = ["OVERVIEW", "CALORIES", "PROTEIN", "CARBS", "FATS"];
+              const slideColors = ["var(--accent-3)", "var(--accent-3)", "#22c55e", "#4d8eff", "#f59e0b"];
+              const dotColor = slideColors[nutSlide];
 
-            <div className="db-gauge-grid">
-              <ArcGauge
-                value={calLogged}
-                max={todayTargets?.calories || 2000}
-                label="CALORIES"
-                color="var(--accent-3)"
-                unit="kcal"
-                size={200}
-              />
-              <ArcGauge
-                value={Math.round(nutLogged.protein_g)}
-                max={todayTargets?.protein_g || 150}
-                label="PROTEIN"
-                color="#22c55e"
-                unit="g"
-                size={200}
-              />
-              <ArcGauge
-                value={Math.round(nutLogged.carbs_g)}
-                max={todayTargets?.carbs_g || 200}
-                label="CARBS"
-                color="#4d8eff"
-                unit="g"
-                size={200}
-              />
-              <ArcGauge
-                value={Math.round(nutLogged.fats_g)}
-                max={todayTargets?.fats_g || 60}
-                label="FATS"
-                color="#f59e0b"
-                unit="g"
-                size={200}
-              />
-            </div>
+              // Derived values
+              const calTarget  = todayTargets?.calories  || 2000;
+              const proTarget  = todayTargets?.protein_g || 150;
+              const carbTarget = todayTargets?.carbs_g   || 200;
+              const fatTarget  = todayTargets?.fats_g    || 60;
+              const calLog     = Math.round(nutLogged.calories);
+              const proLog     = Math.round(nutLogged.protein_g);
+              const carbLog    = Math.round(nutLogged.carbs_g);
+              const fatLog     = Math.round(nutLogged.fats_g);
+              const proteinKcal = proLog * 4;
+              const carbsKcal   = carbLog * 4;
+              const fatKcal     = fatLog * 9;
+              const weightKg    = latest ? Number(latest.weight_kg) : null;
+              const gpkg        = weightKg && weightKg > 0 ? (proLog / weightKg).toFixed(1) : null;
+              const gpkgTarget  = weightKg && weightKg > 0 ? (proTarget / weightKg).toFixed(1) : null;
 
-            {calRemaining !== null && (
-              <div className="db-cal-status" style={{
-                background: calRemaining >= 0 ? "rgba(26,74,54,0.25)" : "rgba(138,15,46,0.2)",
-                border: `1px solid ${calRemaining >= 0 ? "#1a4a36" : "var(--accent-1)"}`,
-                color: calRemaining >= 0 ? "var(--ok)" : "var(--bad)",
-              }}>
-                {calRemaining >= 0
-                  ? `${calRemaining} KCAL REMAINING`
-                  : `${Math.abs(calRemaining)} KCAL OVER TARGET`}
-              </div>
-            )}
+              // Top food sources helpers
+              const topSources = (macro) => [...nutItems]
+                .filter(i => Number(i[macro] || 0) > 0)
+                .sort((a, b) => Number(b[macro]) - Number(a[macro]))
+                .slice(0, 4)
+                .map(i => ({ name: i.food_name || i.meal_name || "Food item", value: Number(i[macro] || 0) }));
 
-            <div style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "0.85rem",
-              letterSpacing: "0.14em",
-              color: "var(--text-3)",
-              textAlign: "center",
-              marginTop: "0.4rem",
-              flexShrink: 0,
-            }}>
-              {todayDayType === "training" ? "TRAINING DAY TARGETS"
-               : todayDayType === "high"   ? "HIGH DAY TARGETS"
-               :                             "REST DAY TARGETS"}
-            </div>
+              const dayContextLabel = todayDayType === "training"
+                ? { text: "Training day — higher carbs recommended", bg: "rgba(138,15,46,0.15)", col: "var(--accent-3)" }
+                : todayDayType === "high"
+                  ? { text: "High day — surplus carbs", bg: "rgba(120,69,15,0.15)", col: "#fbbf24" }
+                  : { text: "Rest day — reduced carbs", bg: "rgba(30,58,95,0.15)", col: "#60a5fa" };
 
-            <div className="db-nav-hint">OPEN NUTRITION →</div>
+              const RemBadge = ({ remaining, unit, color }) => (
+                <div className="db-macro-remaining" style={{
+                  background: remaining >= 0 ? "rgba(26,74,54,0.2)" : "rgba(138,15,46,0.15)",
+                  border: `1px solid ${remaining >= 0 ? "#1a4a36" : "var(--accent-1)"}`,
+                  color: remaining >= 0 ? "var(--ok)" : "var(--bad)",
+                }}>
+                  {remaining >= 0 ? `${remaining}${unit} remaining` : `${Math.abs(remaining)}${unit} over target`}
+                </div>
+              );
+
+              const SourceList = ({ macro, unit, color }) => {
+                const sources = topSources(macro);
+                const total = sources.reduce((s, f) => s + f.value, 0) || 1;
+                return sources.length > 0
+                  ? sources.map((f, i) => <FoodRow key={i} name={f.name} value={f.value} unit={unit} totalVal={total} color={color} />)
+                  : <div className="db-slide-sub">Nothing logged yet today.</div>;
+              };
+
+              const slides = [
+                // 0: Overview — 4 gauges
+                <div key="overview" className="db-nut-slide">
+                  <div className="db-gauge-grid" style={{ flex: 1 }}>
+                    <ArcGauge value={calLog}  max={calTarget}  label="CALORIES" color="var(--accent-3)" unit="kcal" size={200} />
+                    <ArcGauge value={proLog}  max={proTarget}  label="PROTEIN"  color="#22c55e"         unit="g"    size={200} />
+                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS"    color="#4d8eff"         unit="g"    size={200} />
+                    <ArcGauge value={fatLog}  max={fatTarget}  label="FATS"     color="#f59e0b"         unit="g"    size={200} />
+                  </div>
+                  {calRemaining !== null && (
+                    <div className="db-cal-status" style={{
+                      background: calRemaining >= 0 ? "rgba(26,74,54,0.25)" : "rgba(138,15,46,0.2)",
+                      border: `1px solid ${calRemaining >= 0 ? "#1a4a36" : "var(--accent-1)"}`,
+                      color: calRemaining >= 0 ? "var(--ok)" : "var(--bad)",
+                    }}>
+                      {calRemaining >= 0 ? `${calRemaining} kcal remaining` : `${Math.abs(calRemaining)} kcal over target`}
+                    </div>
+                  )}
+                  <div style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", letterSpacing: "0.14em", color: "var(--text-3)", textAlign: "center", marginTop: "0.3rem", flexShrink: 0 }}>
+                    {todayDayType === "training" ? "TRAINING DAY" : todayDayType === "high" ? "HIGH DAY" : "REST DAY"} TARGETS
+                  </div>
+                </div>,
+
+                // 1: Calories detail
+                <div key="cal" className="db-nut-slide">
+                  <div className="db-macro-detail">
+                    <ArcGauge value={calLog} max={calTarget} label="CALORIES" color="var(--accent-3)" unit="kcal" size={180} />
+                  </div>
+                  <div className="db-macro-detail-stats">
+                    <RemBadge remaining={calRemaining ?? (calTarget - calLog)} unit=" kcal" color="var(--accent-3)" />
+                    <div className="db-sources-label">Macro source split</div>
+                    <MacroSourceBar proteinKcal={proteinKcal} carbsKcal={carbsKcal} fatKcal={fatKcal} />
+                    <div className="db-sources-label" style={{ marginTop: "0.6rem" }}>Top contributors</div>
+                    <SourceList macro="calories" unit=" kcal" color="var(--accent-3)" />
+                  </div>
+                </div>,
+
+                // 2: Protein detail
+                <div key="pro" className="db-nut-slide">
+                  <div className="db-macro-detail">
+                    <ArcGauge value={proLog} max={proTarget} label="PROTEIN" color="#22c55e" unit="g" size={180} />
+                  </div>
+                  <div className="db-macro-detail-stats">
+                    <RemBadge remaining={proTarget - proLog} unit="g" color="#22c55e" />
+                    {gpkg && <div className="db-gpkg">
+                      <span className="db-gpkg-val" style={{ color: "#22c55e" }}>{gpkg}</span>
+                      <span className="db-gpkg-unit">g/kg</span>
+                      <span className="db-gpkg-target">of {gpkgTarget}g/kg target</span>
+                    </div>}
+                    <div className="db-sources-label">Top sources</div>
+                    <SourceList macro="protein_g" unit="g" color="#22c55e" />
+                  </div>
+                </div>,
+
+                // 3: Carbs detail
+                <div key="carb" className="db-nut-slide">
+                  <div className="db-macro-detail">
+                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS" color="#4d8eff" unit="g" size={180} />
+                  </div>
+                  <div className="db-macro-detail-stats">
+                    <RemBadge remaining={carbTarget - carbLog} unit="g" color="#4d8eff" />
+                    <div className="db-day-context" style={{ background: dayContextLabel.bg, color: dayContextLabel.col, border: `1px solid ${dayContextLabel.col}33` }}>
+                      {dayContextLabel.text}
+                    </div>
+                    <div className="db-sources-label">Top sources</div>
+                    <SourceList macro="carbs_g" unit="g" color="#4d8eff" />
+                  </div>
+                </div>,
+
+                // 4: Fats detail
+                <div key="fat" className="db-nut-slide">
+                  <div className="db-macro-detail">
+                    <ArcGauge value={fatLog} max={fatTarget} label="FATS" color="#f59e0b" unit="g" size={180} />
+                  </div>
+                  <div className="db-macro-detail-stats">
+                    <RemBadge remaining={fatTarget - fatLog} unit="g" color="#f59e0b" />
+                    <div className="db-sources-label">Top sources</div>
+                    <SourceList macro="fats_g" unit="g" color="#f59e0b" />
+                  </div>
+                </div>,
+              ];
+
+              return (
+                <>
+                  <div className="db-mfd">
+                    <span className={`db-dot ${calRemaining !== null && calRemaining < 0 ? "db-dot-red" : "db-dot-green"}`} />
+                    <span style={{ color: nutSlide === 0 ? "var(--accent-3)" : slideColors[nutSlide] }}>
+                      ◈ {slideLabels[nutSlide]}
+                    </span>
+                  </div>
+                  <div className="db-nut-carousel">
+                    {slides[nutSlide]}
+                    <div className="db-nut-nav">
+                      <button className="db-bio-arrow"
+                        onClick={(e) => { e.stopPropagation(); setNutSlide(s => (s - 1 + NUT_SLIDES) % NUT_SLIDES); }}
+                        aria-label="Previous">‹</button>
+                      <div className="db-bio-dots">
+                        {Array.from({ length: NUT_SLIDES }).map((_, i) => (
+                          <div key={i}
+                            className={`db-bio-dot${nutSlide === i ? " active" : ""}`}
+                            style={nutSlide === i ? { background: dotColor, boxShadow: `0 0 6px ${dotColor}` } : {}}
+                            onClick={(e) => { e.stopPropagation(); setNutSlide(i); }} />
+                        ))}
+                      </div>
+                      <button className="db-bio-arrow"
+                        onClick={(e) => { e.stopPropagation(); setNutSlide(s => (s + 1) % NUT_SLIDES); }}
+                        aria-label="Next">›</button>
+                    </div>
+                  </div>
+                  <div className="db-nav-hint">OPEN NUTRITION →</div>
+                </>
+              );
+            })()}
           </div>
 
           {/* ── COL 3 ROW 1: TRAINING TODAY ── */}
