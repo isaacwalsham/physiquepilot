@@ -969,7 +969,7 @@ function MilestoneArc({ progress = 0, size = 120 }) {
         fontFamily="var(--font-display)"
         fontSize={size * 0.085}
         letterSpacing="0.06em"
-        textTransform="uppercase"
+        style={{ textTransform: "uppercase" }}
       >
         DONE
       </text>

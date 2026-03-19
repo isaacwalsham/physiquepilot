@@ -4619,7 +4619,7 @@ app.get("/api/user/export", authenticate, async (req, res) => {
       supabase.from("workout_sessions").select("*").eq("user_id", user_id),
       supabase.from("cardio_logs").select("*").eq("user_id", user_id),
       supabase.from("steps_logs").select("*").eq("user_id", user_id),
-      supabase.from("daily_nutrition").select("*").eq("user_id", user_id),
+      supabase.from("daily_nutrition_items").select("*").eq("user_id", user_id),
       supabase.from("weekly_check_ins").select("*").eq("user_id", user_id),
       supabase.from("check_in_reports").select("*").eq("user_id", user_id),
       supabase.from("progress_photos").select("*").eq("user_id", user_id),

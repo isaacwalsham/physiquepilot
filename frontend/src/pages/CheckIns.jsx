@@ -1267,8 +1267,8 @@ export default function CheckIns() {
 
   const computeMacrosAvg = async (uid, ws, we) => {
     const { data } = await supabase
-      .from("daily_nutrition")
-      .select("log_date, calories, protein_g, carbs_g, fat_g")
+      .from("daily_nutrition_items")
+      .select("log_date, calories, protein_g, carbs_g, fats_g")
       .eq("user_id", uid)
       .gte("log_date", ws)
       .lte("log_date", we);
@@ -1280,7 +1280,7 @@ export default function CheckIns() {
       avgCalories: Math.round(sum("calories") / n) || null,
       avgProteinG: Math.round(sum("protein_g") / n) || null,
       avgCarbsG:   Math.round(sum("carbs_g")   / n) || null,
-      avgFatG:     Math.round(sum("fat_g")      / n) || null
+      avgFatG:     Math.round(sum("fats_g")     / n) || null
     };
   };
 
