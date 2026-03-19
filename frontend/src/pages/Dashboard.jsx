@@ -372,7 +372,7 @@ const CSS = `
   }
   .db-bio-slide {
     flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding: 0.5rem 0 0 0;
-    animation: bioFadeIn 0.25s ease;
+    animation: bioFadeIn 0.25s ease; min-height: 0; overflow: hidden;
   }
   @keyframes bioFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   .db-bio-nav {
@@ -418,37 +418,43 @@ const CSS = `
 
   /* ── Nutrition carousel ── */
   .db-nut-carousel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .db-nut-slide { flex: 1; display: flex; flex-direction: column; min-height: 0; animation: bioFadeIn 0.25s ease; }
+  .db-nut-slide { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; animation: bioFadeIn 0.25s ease; }
   .db-nut-nav {
     display: flex; align-items: center; justify-content: space-between;
     padding-top: 0.5rem; border-top: 1px solid var(--line-1); flex-shrink: 0; margin-top: 0.4rem;
   }
-  .db-macro-detail {
-    display: flex; flex-direction: column; align-items: center; flex: 1; min-height: 0; padding: 0.2rem 0;
+  /* detail slide: gauge left, stats right */
+  .db-nut-detail-row {
+    display: flex; gap: 0.85rem; align-items: flex-start;
+    flex: 1; min-height: 0; overflow: hidden; padding-top: 0.15rem;
   }
-  .db-macro-detail-stats {
-    width: 100%; display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-height: 0; overflow: hidden;
+  .db-nut-detail-left {
+    display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+    flex-shrink: 0;
+  }
+  .db-nut-detail-right {
+    flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   }
   .db-macro-remaining {
-    font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.1em;
-    padding: 0.35rem 0.7rem; border-radius: var(--radius-sm); text-align: center;
-    margin-bottom: 0.5rem; flex-shrink: 0;
+    font-family: var(--font-display); font-size: 0.72rem; letter-spacing: 0.08em;
+    padding: 0.28rem 0.6rem; border-radius: var(--radius-sm); text-align: center;
+    flex-shrink: 0; width: 100%; box-sizing: border-box;
   }
   .db-sources-label {
     font-family: var(--font-display); font-size: 0.62rem; letter-spacing: 0.16em;
-    color: var(--text-3); text-transform: uppercase; margin-bottom: 0.35rem; flex-shrink: 0;
+    color: var(--text-3); text-transform: uppercase; margin-bottom: 0.3rem; flex-shrink: 0;
   }
   .db-gpkg {
-    display: flex; align-items: baseline; gap: 0.4rem; margin-bottom: 0.4rem;
-    font-family: var(--font-display);
+    display: flex; flex-direction: column; align-items: center; gap: 0.05rem;
+    font-family: var(--font-display); flex-shrink: 0;
   }
-  .db-gpkg-val { font-size: 1.4rem; font-weight: 700; color: var(--text-1); line-height: 1; }
-  .db-gpkg-unit { font-size: 0.72rem; color: var(--text-3); }
-  .db-gpkg-target { font-size: 0.72rem; color: var(--text-3); }
-  .db-day-context {
-    font-family: var(--font-display); font-size: 0.68rem; letter-spacing: 0.08em;
-    padding: 0.3rem 0.6rem; border-radius: var(--radius-sm); margin-bottom: 0.45rem;
-    flex-shrink: 0; display: inline-block; align-self: flex-start;
+  .db-gpkg-val { font-size: 1.2rem; font-weight: 700; color: var(--text-1); line-height: 1; }
+  .db-gpkg-unit { font-size: 0.62rem; color: var(--text-3); }
+  .db-gpkg-target { font-size: 0.6rem; color: var(--text-3); }
+  .db-day-badge {
+    font-family: var(--font-display); font-size: 0.58rem; letter-spacing: 0.1em;
+    padding: 0.22rem 0.5rem; border-radius: var(--radius-sm);
+    flex-shrink: 0; text-align: center; width: 100%; box-sizing: border-box;
   }
 
   /* ── Responsive ── */
@@ -1133,13 +1139,13 @@ export default function Dashboard() {
               };
 
               const slides = [
-                // 0: Overview — 4 gauges
+                // 0: Overview — 4 gauges 2×2
                 <div key="overview" className="db-nut-slide">
-                  <div className="db-gauge-grid" style={{ flex: 1 }}>
-                    <ArcGauge value={calLog}  max={calTarget}  label="CALORIES" color="var(--accent-3)" unit="kcal" size={200} />
-                    <ArcGauge value={proLog}  max={proTarget}  label="PROTEIN"  color="#22c55e"         unit="g"    size={200} />
-                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS"    color="#4d8eff"         unit="g"    size={200} />
-                    <ArcGauge value={fatLog}  max={fatTarget}  label="FATS"     color="#f59e0b"         unit="g"    size={200} />
+                  <div className="db-gauge-grid" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                    <ArcGauge value={calLog}  max={calTarget}  label="CALORIES" color="var(--accent-3)" unit="kcal" size={148} />
+                    <ArcGauge value={proLog}  max={proTarget}  label="PROTEIN"  color="#22c55e"         unit="g"    size={148} />
+                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS"    color="#4d8eff"         unit="g"    size={148} />
+                    <ArcGauge value={fatLog}  max={fatTarget}  label="FATS"     color="#f59e0b"         unit="g"    size={148} />
                   </div>
                   {calRemaining !== null && (
                     <div className="db-cal-status" style={{
@@ -1155,61 +1161,71 @@ export default function Dashboard() {
                   </div>
                 </div>,
 
-                // 1: Calories detail
+                // 1: Calories detail — gauge left, stats right
                 <div key="cal" className="db-nut-slide">
-                  <div className="db-macro-detail">
-                    <ArcGauge value={calLog} max={calTarget} label="CALORIES" color="var(--accent-3)" unit="kcal" size={180} />
-                  </div>
-                  <div className="db-macro-detail-stats">
-                    <RemBadge remaining={calRemaining ?? (calTarget - calLog)} unit=" kcal" color="var(--accent-3)" />
-                    <div className="db-sources-label">Macro source split</div>
-                    <MacroSourceBar proteinKcal={proteinKcal} carbsKcal={carbsKcal} fatKcal={fatKcal} />
-                    <div className="db-sources-label" style={{ marginTop: "0.6rem" }}>Top contributors</div>
-                    <SourceList macro="calories" unit=" kcal" color="var(--accent-3)" />
-                  </div>
-                </div>,
-
-                // 2: Protein detail
-                <div key="pro" className="db-nut-slide">
-                  <div className="db-macro-detail">
-                    <ArcGauge value={proLog} max={proTarget} label="PROTEIN" color="#22c55e" unit="g" size={180} />
-                  </div>
-                  <div className="db-macro-detail-stats">
-                    <RemBadge remaining={proTarget - proLog} unit="g" color="#22c55e" />
-                    {gpkg && <div className="db-gpkg">
-                      <span className="db-gpkg-val" style={{ color: "#22c55e" }}>{gpkg}</span>
-                      <span className="db-gpkg-unit">g/kg</span>
-                      <span className="db-gpkg-target">of {gpkgTarget}g/kg target</span>
-                    </div>}
-                    <div className="db-sources-label">Top sources</div>
-                    <SourceList macro="protein_g" unit="g" color="#22c55e" />
-                  </div>
-                </div>,
-
-                // 3: Carbs detail
-                <div key="carb" className="db-nut-slide">
-                  <div className="db-macro-detail">
-                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS" color="#4d8eff" unit="g" size={180} />
-                  </div>
-                  <div className="db-macro-detail-stats">
-                    <RemBadge remaining={carbTarget - carbLog} unit="g" color="#4d8eff" />
-                    <div className="db-day-context" style={{ background: dayContextLabel.bg, color: dayContextLabel.col, border: `1px solid ${dayContextLabel.col}33` }}>
-                      {dayContextLabel.text}
+                  <div className="db-nut-detail-row">
+                    <div className="db-nut-detail-left">
+                      <ArcGauge value={calLog} max={calTarget} label="CALORIES" color="var(--accent-3)" unit="kcal" size={118} />
+                      <RemBadge remaining={calRemaining ?? (calTarget - calLog)} unit=" kcal" color="var(--accent-3)" />
                     </div>
-                    <div className="db-sources-label">Top sources</div>
-                    <SourceList macro="carbs_g" unit="g" color="#4d8eff" />
+                    <div className="db-nut-detail-right">
+                      <div className="db-sources-label">Macro split</div>
+                      <MacroSourceBar proteinKcal={proteinKcal} carbsKcal={carbsKcal} fatKcal={fatKcal} />
+                      <div className="db-sources-label" style={{ marginTop: "0.55rem" }}>Top contributors</div>
+                      <SourceList macro="calories" unit=" kcal" color="var(--accent-3)" />
+                    </div>
                   </div>
                 </div>,
 
-                // 4: Fats detail
-                <div key="fat" className="db-nut-slide">
-                  <div className="db-macro-detail">
-                    <ArcGauge value={fatLog} max={fatTarget} label="FATS" color="#f59e0b" unit="g" size={180} />
+                // 2: Protein detail — gauge left, stats right
+                <div key="pro" className="db-nut-slide">
+                  <div className="db-nut-detail-row">
+                    <div className="db-nut-detail-left">
+                      <ArcGauge value={proLog} max={proTarget} label="PROTEIN" color="#22c55e" unit="g" size={118} />
+                      <RemBadge remaining={proTarget - proLog} unit="g" color="#22c55e" />
+                      {gpkg && (
+                        <div className="db-gpkg">
+                          <span className="db-gpkg-val" style={{ color: "#22c55e" }}>{gpkg}</span>
+                          <span className="db-gpkg-unit">g / kg bw</span>
+                          <span className="db-gpkg-target">target {gpkgTarget}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="db-nut-detail-right">
+                      <div className="db-sources-label">Top sources</div>
+                      <SourceList macro="protein_g" unit="g" color="#22c55e" />
+                    </div>
                   </div>
-                  <div className="db-macro-detail-stats">
-                    <RemBadge remaining={fatTarget - fatLog} unit="g" color="#f59e0b" />
-                    <div className="db-sources-label">Top sources</div>
-                    <SourceList macro="fats_g" unit="g" color="#f59e0b" />
+                </div>,
+
+                // 3: Carbs detail — gauge left, stats right
+                <div key="carb" className="db-nut-slide">
+                  <div className="db-nut-detail-row">
+                    <div className="db-nut-detail-left">
+                      <ArcGauge value={carbLog} max={carbTarget} label="CARBS" color="#4d8eff" unit="g" size={118} />
+                      <RemBadge remaining={carbTarget - carbLog} unit="g" color="#4d8eff" />
+                      <div className="db-day-badge" style={{ background: dayContextLabel.bg, color: dayContextLabel.col, border: `1px solid ${dayContextLabel.col}33` }}>
+                        {todayDayType === "training" ? "TRAIN" : todayDayType === "high" ? "HIGH" : "REST"} DAY
+                      </div>
+                    </div>
+                    <div className="db-nut-detail-right">
+                      <div className="db-sources-label">Top sources</div>
+                      <SourceList macro="carbs_g" unit="g" color="#4d8eff" />
+                    </div>
+                  </div>
+                </div>,
+
+                // 4: Fats detail — gauge left, stats right
+                <div key="fat" className="db-nut-slide">
+                  <div className="db-nut-detail-row">
+                    <div className="db-nut-detail-left">
+                      <ArcGauge value={fatLog} max={fatTarget} label="FATS" color="#f59e0b" unit="g" size={118} />
+                      <RemBadge remaining={fatTarget - fatLog} unit="g" color="#f59e0b" />
+                    </div>
+                    <div className="db-nut-detail-right">
+                      <div className="db-sources-label">Top sources</div>
+                      <SourceList macro="fats_g" unit="g" color="#f59e0b" />
+                    </div>
                   </div>
                 </div>,
               ];
