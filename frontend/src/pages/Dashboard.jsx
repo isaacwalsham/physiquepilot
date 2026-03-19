@@ -792,7 +792,7 @@ export default function Dashboard() {
 
       // Nutrition logged today
       const { data: items } = await supabase
-        .from("daily_nutrition_items").select("food_name, meal_name, calories, protein_g, carbs_g, fats_g")
+        .from("daily_nutrition_items").select("food_name, calories, protein_g, carbs_g, fats_g")
         .eq("user_id", user.id).eq("log_date", today);
       if (items?.length) {
         setNutItems(items);
@@ -829,8 +829,8 @@ export default function Dashboard() {
       if (programs?.length) {
         const prog = programs[0];
         const { data: days } = await supabase
-          .from("training_program_days").select("id, day_name, is_rest, sort_order")
-          .eq("program_id", prog.id).order("sort_order");
+          .from("training_program_days").select("id, day_name, is_rest, day_order")
+          .eq("program_id", prog.id).order("day_order");
         const dayOfWeek = new Date().getDay(); // 0=Sun
         const fixedIdx   = Math.min(dayOfWeek === 0 ? 6 : dayOfWeek - 1, (days?.length || 1) - 1);
         const rollingIdx = Math.floor(Date.now() / 86400000) % (days?.length || 1);
@@ -851,7 +851,7 @@ export default function Dashboard() {
       const today = todayLocalISO();
       const { data: items } = await supabase
         .from("daily_nutrition_items")
-        .select("food_name, meal_name, calories, protein_g, carbs_g, fats_g")
+        .select("food_name, calories, protein_g, carbs_g, fats_g")
         .eq("user_id", userId)
         .eq("log_date", today);
       if (items?.length) {
@@ -1177,7 +1177,7 @@ export default function Dashboard() {
                 .filter(i => Number(i[macro] || 0) > 0)
                 .sort((a, b) => Number(b[macro]) - Number(a[macro]))
                 .slice(0, 6)
-                .map(i => ({ name: i.food_name || i.meal_name || "Food item", value: Number(i[macro] || 0) }));
+                .map(i => ({ name: i.food_name || "Food item", value: Number(i[macro] || 0) }));
 
               const dayContextLabel = todayDayType === "training"
                 ? { text: "Training day — higher carbs recommended", bg: "rgba(138,15,46,0.15)", col: "var(--accent-3)" }
