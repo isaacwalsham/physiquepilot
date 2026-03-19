@@ -53,6 +53,8 @@ const FREQ_OPTIONS = [
   { value: "7",   label: "7 days/week" },
 ];
 
+const DEFAULT_DAYS = ["mon", "wed", "fri"];
+
 export default function Step10_TrainingSchedule({ form, setField, error }) {
   const splitMode = form.splitMode || "fixed";
   const selectedDays = form.trainingDaysSelected || [];
@@ -62,6 +64,10 @@ export default function Step10_TrainingSchedule({ form, setField, error }) {
       ? selectedDays.filter((d) => d !== key)
       : [...selectedDays, key];
     setField("trainingDaysSelected", next);
+  }
+
+  function handlePickForMe() {
+    setField("trainingDaysSelected", DEFAULT_DAYS);
   }
 
   const tabBase = {
@@ -96,7 +102,7 @@ export default function Step10_TrainingSchedule({ form, setField, error }) {
     <div>
       <h1 style={titleStyle}>How do you structure your training?</h1>
 
-      {/* Mode toggle */}
+      {/* Mode toggle — 3 options */}
       <div
         style={{
           display: "flex",
@@ -120,7 +126,31 @@ export default function Step10_TrainingSchedule({ form, setField, error }) {
         >
           Rolling split
         </button>
+        <button
+          type="button"
+          style={splitMode === "not_sure" ? tabActive : tabInactive}
+          onClick={() => setField("splitMode", "not_sure")}
+        >
+          Not sure
+        </button>
       </div>
+
+      {/* Not sure — friendly note, hide day/frequency sections */}
+      {splitMode === "not_sure" && (
+        <div
+          style={{
+            background: "var(--surface-2)",
+            border: "1.5px solid var(--line-1)",
+            borderRadius: "var(--radius-md)",
+            padding: "1.25rem 1.5rem",
+            color: "var(--text-2)",
+            fontSize: "0.95rem",
+            lineHeight: 1.6,
+          }}
+        >
+          No problem — you can set this up fully when you build your training program.
+        </div>
+      )}
 
       {splitMode === "fixed" && (
         <div>
@@ -160,6 +190,32 @@ export default function Step10_TrainingSchedule({ form, setField, error }) {
             })}
           </div>
           {daysError && <p style={errorStyle}>{error.message}</p>}
+
+          {/* Pick for me */}
+          <div style={{ marginTop: "0.75rem", display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handlePickForMe}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--accent-2)",
+                borderRadius: "var(--radius-sm)",
+                color: "var(--accent-3)",
+                fontFamily: "var(--font-body)",
+                fontSize: "0.82rem",
+                padding: "0.35rem 0.85rem",
+                cursor: "pointer",
+                transition: "background var(--motion-fast) ease",
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.background = "rgba(222,41,82,0.1)"; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              Pick for me
+            </button>
+            <span style={{ fontSize: "0.78rem", color: "var(--text-3)", fontStyle: "italic" }}>
+              Not sure which days? Tap 'Pick for me' above.
+            </span>
+          </div>
         </div>
       )}
 

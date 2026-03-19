@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
+import { MOVEMENT_PATTERNS, DAY_PATTERNS, getDayType } from './movementPatterns';
 
 const STYLE = `
 .sb-shell {
@@ -237,6 +238,90 @@ const STYLE = `
   color: #fff;
 }
 
+.sb-rest-toggle {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  color: var(--text-3);
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.sb-rest-toggle.active {
+  background: rgba(220,20,60,0.15);
+  border-color: #dc143c;
+  color: #dc143c;
+}
+
+.sb-rest-toggle:hover:not(.active) {
+  border-color: var(--text-2);
+  color: var(--text-2);
+}
+
+.sb-assign-prompt {
+  padding: 20px 14px;
+  background: var(--surface-3);
+  border-top: 1px solid var(--line-1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sb-assign-label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 0;
+}
+
+.sb-assign-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.sb-assign-btn {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 20px;
+  cursor: pointer;
+  color: var(--text-1);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sb-assign-btn:hover {
+  border-color: var(--accent-2);
+  background: rgba(220,20,60,0.08);
+}
+
+.sb-day-card.rest {
+  opacity: 0.55;
+}
+
+.sb-day-chip {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent-3);
+  background: rgba(220,20,60,0.12);
+  border: 1px solid rgba(220,20,60,0.3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ── Day body ── */
 .sb-day-body {
   padding: 0 14px 14px 14px;
@@ -267,13 +352,62 @@ const STYLE = `
 /* ── Exercise row ── */
 .sb-ex-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   background: var(--surface-2);
   border: 1px solid var(--line-1);
   border-radius: var(--radius-sm);
   padding: 7px 10px;
   flex-wrap: wrap;
+}
+
+.sb-set-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+.sb-set-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.sb-set-label {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 34px;
+  flex-shrink: 0;
+}
+.sb-set-static {
+  font-size: 0.78rem;
+  color: var(--text-3);
+}
+.sb-rep-input {
+  width: 38px;
+  padding: 2px 4px;
+  text-align: center;
+  background: var(--surface-3);
+  border: 1px solid var(--line-1);
+  border-radius: 4px;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+}
+.sb-rep-input:focus {
+  outline: none;
+  border-color: var(--accent-2);
+}
+.sb-set-sep {
+  font-size: 0.78rem;
+  color: var(--text-3);
+}
+.sb-set-unit {
+  font-size: 0.72rem;
+  color: var(--text-3);
 }
 
 .sb-ex-name {
@@ -629,6 +763,68 @@ const STYLE = `
   padding: 8px;
   text-align: center;
 }
+.sb-pattern-slot {
+  background: var(--surface-3);
+  border: 1.5px dashed var(--line-1);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.sb-pattern-slot-label {
+  font-size: 0.82rem;
+  color: var(--text-3);
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.sb-pattern-choose-btn {
+  font-size: 0.78rem;
+  color: var(--accent-3);
+  background: transparent;
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: background var(--motion-fast);
+  white-space: nowrap;
+}
+.sb-pattern-choose-btn:hover {
+  background: rgba(222,41,82,0.1);
+}
+.sb-pattern-exercises {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sb-pattern-ex-btn {
+  font-size: 0.78rem;
+  color: var(--text-1);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: border-color var(--motion-fast), background var(--motion-fast);
+}
+.sb-pattern-ex-btn:hover {
+  border-color: var(--accent-2);
+  background: rgba(222,41,82,0.08);
+}
+.sb-pattern-cancel {
+  font-size: 0.75rem;
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-family: var(--font-body);
+}
 `;
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -708,30 +904,50 @@ function ExerciseRow({ pde, index, total, dayId, onReorder, onRemove, onChange }
     <div style={{ background: 'var(--surface-2)', border: '1px solid var(--line-1)', borderRadius: 'var(--radius-sm)', marginBottom: 2 }}>
       {/* Main row */}
       <div className="sb-ex-row" style={{ borderRadius: 0, border: 'none', marginBottom: 0 }}>
-        <span className="sb-ex-name" title={name}>{name}</span>
-        <div className="sb-ex-targets">
-          <input
-            className="sb-ex-input"
-            type="number"
-            min={1}
-            max={20}
-            value={sets}
-            onChange={e => setSets(Number(e.target.value))}
-            onBlur={() => save()}
-            title="Sets"
-          />
-          <span className="sb-ex-targets-label">sets</span>
-          <span className="sb-ex-targets-label" style={{ marginLeft: 4 }}>RIR</span>
-          <input
-            className="sb-ex-input"
-            type="number"
-            min={0}
-            max={5}
-            value={rir}
-            onChange={e => setRir(Number(e.target.value))}
-            onBlur={() => save()}
-            title="RIR"
-          />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span className="sb-ex-name" title={name}>{name}</span>
+          <div className="sb-set-rows">
+            <div className="sb-set-row">
+              <span className="sb-set-label">Set 1</span>
+              <span className="sb-set-static">1 ×</span>
+              <input
+                className="sb-rep-input"
+                type="number" min="1" max="30"
+                value={repsMin}
+                onChange={e => setRepsMin(+e.target.value)}
+                onBlur={() => save()}
+              />
+              <span className="sb-set-sep">–</span>
+              <input
+                className="sb-rep-input"
+                type="number" min="1" max="30"
+                value={repsMax}
+                onChange={e => setRepsMax(+e.target.value)}
+                onBlur={() => save()}
+              />
+              <span className="sb-set-unit">reps</span>
+            </div>
+            <div className="sb-set-row">
+              <span className="sb-set-label">Set 2</span>
+              <span className="sb-set-static">1 ×</span>
+              <input
+                className="sb-rep-input"
+                type="number" min="1" max="30"
+                value={set2Min}
+                onChange={e => setSet2Min(+e.target.value)}
+                onBlur={() => save()}
+              />
+              <span className="sb-set-sep">–</span>
+              <input
+                className="sb-rep-input"
+                type="number" min="1" max="30"
+                value={set2Max}
+                onChange={e => setSet2Max(+e.target.value)}
+                onBlur={() => save()}
+              />
+              <span className="sb-set-unit">reps</span>
+            </div>
+          </div>
         </div>
         <div className="sb-ex-row-actions">
           <button
@@ -763,6 +979,21 @@ function ExerciseRow({ pde, index, total, dayId, onReorder, onRemove, onChange }
       {/* Expanded detail panel */}
       {expanded && (
         <div style={{ padding: '8px 10px 10px', borderTop: '1px solid var(--line-1)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* RIR row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>RIR</span>
+            <input
+              className="sb-ex-input"
+              type="number"
+              min={0}
+              max={5}
+              value={rir}
+              onChange={e => setRir(Number(e.target.value))}
+              onBlur={() => save()}
+              title="RIR"
+            />
+          </div>
+
           {/* Rep ranges row */}
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -959,7 +1190,62 @@ function AddExercisePanel({ dayId, currentCount, onClose, onAdded }) {
   );
 }
 
-function DayCard({ day, expanded, onToggle, dayExercises, loadingExercises, onLoadExercises, onExercisesChanged, onDeleteDay, onDayNameSaved }) {
+function PatternSlot({ pattern, programDayId, onFilled }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function choose(exerciseName) {
+    setSaving(true);
+    const { count } = await supabase
+      .from('program_day_exercises')
+      .select('id', { count: 'exact', head: true })
+      .eq('program_day_id', programDayId);
+
+    await supabase.from('program_day_exercises').insert({
+      program_day_id: programDayId,
+      exercise_id: null,
+      custom_name: exerciseName,
+      movement_pattern_id: pattern.id,
+      order_index: count ?? 0,
+      target_sets: 2,
+      target_reps_min: 6,
+      target_reps_max: 9,
+      set_2_reps_min: 9,
+      set_2_reps_max: 12,
+      target_rir: 2,
+    });
+    setSaving(false);
+    setOpen(false);
+    onFilled();
+  }
+
+  return (
+    <div className="sb-pattern-slot">
+      <div className="sb-pattern-slot-label">{pattern.label}</div>
+      {open ? (
+        <div className="sb-pattern-exercises">
+          {pattern.exercises.map(ex => (
+            <button
+              key={ex}
+              className="sb-pattern-ex-btn"
+              onClick={() => choose(ex)}
+              disabled={saving}
+            >
+              {ex}
+            </button>
+          ))}
+          <button className="sb-pattern-cancel" onClick={() => setOpen(false)}>Cancel</button>
+        </div>
+      ) : (
+        <button className="sb-pattern-choose-btn" onClick={() => setOpen(true)}>
+          Choose exercise ▾
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DayCard({ day, expanded, onToggle, dayExercises, loadingExercises, onLoadExercises, onExercisesChanged, onDeleteDay, onDayNameSaved, onToggleRest, onAssignDay, dayLabel }) {
   const [editingName, setEditingName] = useState(false);
   const [dayName, setDayName] = useState(day.day_name);
   const [addingExercise, setAddingExercise] = useState(false);
@@ -1032,14 +1318,30 @@ function DayCard({ day, expanded, onToggle, dayExercises, loadingExercises, onLo
   const exercises = dayExercises || [];
   const borderColor = day.color || '#b5153c';
 
+  const dayType = getDayType(day.day_name);
+  const patternIds = dayType ? (DAY_PATTERNS[dayType] ?? []) : [];
+
+  const patternMap = {};
+  const freeFormExercises = [];
+  for (const ex of exercises) {
+    if (ex.movement_pattern_id && patternIds.includes(ex.movement_pattern_id)) {
+      patternMap[ex.movement_pattern_id] = ex;
+    } else {
+      freeFormExercises.push(ex);
+    }
+  }
+
+  const allRendered = [...patternIds.map(pid => patternMap[pid]).filter(Boolean), ...freeFormExercises];
+
   return (
-    <div className="sb-day-card" style={{ borderLeftColor: borderColor }}>
+    <div className={`sb-day-card${day.is_rest ? ' rest' : ''}`} style={{ borderLeftColor: borderColor }}>
       <div
         className="sb-day-header"
         onClick={handleHeaderClick}
         style={{ paddingBottom: expanded ? 10 : 12 }}
       >
         <div className="sb-day-name-wrap">
+          {dayLabel && <span className="sb-day-chip">{dayLabel}</span>}
           {editingName ? (
             <input
               ref={nameInputRef}
@@ -1060,23 +1362,15 @@ function DayCard({ day, expanded, onToggle, dayExercises, loadingExercises, onLo
               {dayName}
             </button>
           )}
-          {day.is_rest && (
-            <span className="sb-badge" style={{ fontSize: '0.6rem' }}>Rest</span>
-          )}
-        </div>
-
-        <div className="sb-muscle-pills">
-          {(day.muscle_focus || []).map(m => (
-            <span key={m} className="sb-muscle-pill">{m}</span>
-          ))}
         </div>
 
         <div className="sb-day-header-actions" onClick={e => e.stopPropagation()}>
           <button
-            className="sb-delete-day-btn"
-            onClick={handleDeleteDay}
+            className={`sb-rest-toggle${day.is_rest ? ' active' : ''}`}
+            onClick={e => { e.stopPropagation(); onToggleRest(day.id, !day.is_rest); }}
+            title={day.is_rest ? 'Mark as training day' : 'Mark as rest day'}
           >
-            Delete
+            Rest Day
           </button>
           <button
             className="sb-expand-btn"
@@ -1088,7 +1382,23 @@ function DayCard({ day, expanded, onToggle, dayExercises, loadingExercises, onLo
         </div>
       </div>
 
-      {expanded && (
+      {/* Assignment prompt for unassigned days */}
+      {day.day_name === 'Assign Day' && !day.is_rest && (
+        <div className="sb-assign-prompt">
+          <p className="sb-assign-label">What is this day?</p>
+          <div className="sb-assign-btns">
+            <button className="sb-assign-btn" onClick={() => onAssignDay(day.id, false)}>
+              Training Day
+            </button>
+            <button className="sb-assign-btn" onClick={() => onAssignDay(day.id, true)}>
+              Rest Day
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Exercise slots for training days that have been assigned */}
+      {expanded && !day.is_rest && day.day_name !== 'Assign Day' && (
         <div className="sb-day-body">
           <p className="sb-ex-subheading">Exercises</p>
 
@@ -1096,15 +1406,42 @@ function DayCard({ day, expanded, onToggle, dayExercises, loadingExercises, onLo
             <div className="sb-loading-ex">Loading…</div>
           ) : (
             <div className="sb-ex-list">
-              {exercises.length === 0 && !addingExercise && (
+              {patternIds.length === 0 && freeFormExercises.length === 0 && !addingExercise && (
                 <div className="sb-empty-ex">No exercises yet. Add one below.</div>
               )}
-              {exercises.map((pde, i) => (
+              {patternIds.map(pid => {
+                const filled = patternMap[pid];
+                const pattern = MOVEMENT_PATTERNS[pid];
+                if (!pattern) return null;
+                if (filled) {
+                  return (
+                    <ExerciseRow
+                      key={pid}
+                      pde={filled}
+                      index={allRendered.indexOf(filled)}
+                      total={allRendered.length}
+                      dayId={day.id}
+                      onReorder={handleReorder}
+                      onRemove={handleRemoveExercise}
+                      onChange={() => onExercisesChanged(day.id)}
+                    />
+                  );
+                }
+                return (
+                  <PatternSlot
+                    key={pid}
+                    pattern={pattern}
+                    programDayId={day.id}
+                    onFilled={() => onExercisesChanged(day.id)}
+                  />
+                );
+              })}
+              {patternIds.length === 0 && freeFormExercises.map(ex => (
                 <ExerciseRow
-                  key={pde.id}
-                  pde={pde}
-                  index={i}
-                  total={exercises.length}
+                  key={ex.id}
+                  pde={ex}
+                  index={allRendered.indexOf(ex)}
+                  total={allRendered.length}
                   dayId={day.id}
                   onReorder={handleReorder}
                   onRemove={handleRemoveExercise}
@@ -1169,7 +1506,7 @@ export default function SplitBuilder({ program, programDays, profile, onUpdated 
     setLoadingDays(prev => new Set(prev).add(dayId));
     const { data } = await supabase
       .from('program_day_exercises')
-      .select('*, exercises(id, name, is_compound, equipment)')
+      .select('*, exercises(id, name, is_compound, equipment), movement_pattern_id')
       .eq('program_day_id', dayId)
       .order('order_index');
     setDayExercises(prev => ({ ...prev, [dayId]: data || [] }));
@@ -1228,6 +1565,22 @@ export default function SplitBuilder({ program, programDays, profile, onUpdated 
     onUpdated();
   }
 
+  async function handleToggleRestDay(dayId, newIsRest) {
+    await supabase
+      .from('training_program_days')
+      .update({ is_rest: newIsRest })
+      .eq('id', dayId);
+    onUpdated();
+  }
+
+  async function handleAssignDay(dayId, isRest) {
+    await supabase
+      .from('training_program_days')
+      .update({ day_name: isRest ? 'Rest Day' : 'Training Day', is_rest: isRest })
+      .eq('id', dayId);
+    onUpdated();
+  }
+
   async function handleAddDay() {
     const newOrder = programDays.length;
     await supabase.from('training_program_days').insert({
@@ -1281,6 +1634,19 @@ export default function SplitBuilder({ program, programDays, profile, onUpdated 
   const splitLabel = program.split_type
     ? program.split_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     : null;
+
+  // Day-of-week labels for fixed programs
+  const DAY_ABBREV = { mon: 'MON', tue: 'TUE', wed: 'WED', thu: 'THU', fri: 'FRI', sat: 'SAT', sun: 'SUN' };
+  const fixedDays = program.training_days || [];
+  const dayLabelMap = {};
+  if (fixedDays.length > 0) {
+    const nonRestSorted = [...programDays]
+      .filter(d => !d.is_rest)
+      .sort((a, b) => a.day_order - b.day_order);
+    nonRestSorted.forEach((pd, i) => {
+      if (fixedDays[i]) dayLabelMap[pd.id] = DAY_ABBREV[fixedDays[i]] || fixedDays[i].toUpperCase().slice(0, 3);
+    });
+  }
 
   return (
     <>
@@ -1339,52 +1705,14 @@ export default function SplitBuilder({ program, programDays, profile, onUpdated 
                 onExercisesChanged={handleExercisesChanged}
                 onDeleteDay={handleDeleteDay}
                 onDayNameSaved={onUpdated}
+                onToggleRest={handleToggleRestDay}
+                onAssignDay={handleAssignDay}
+                dayLabel={dayLabelMap[day.id] || null}
               />
             ))}
             <button className="sb-add-day-btn" onClick={handleAddDay}>
               ＋ Add Training Day
             </button>
-          </div>
-        </div>
-
-        {/* ── Program Settings Section ── */}
-        <div>
-          <p className="sb-section-label">◈ PROGRAM SETTINGS</p>
-          <div className="sb-settings-grid">
-
-            <div className="sb-settings-field">
-              <span className="sb-settings-field-label">Training Days</span>
-              <div className="sb-day-toggles">
-                {WEEK_DAYS.map(d => (
-                  <button
-                    key={d}
-                    className={`sb-day-toggle${trainingDays.includes(d) ? ' active' : ''}`}
-                    onClick={() => toggleTrainingDay(d)}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="sb-settings-field">
-              <span className="sb-settings-field-label">Start Date</span>
-              <input
-                className="sb-date-input"
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-              />
-            </div>
-
-            <button
-              className="sb-save-btn"
-              onClick={handleSaveSettings}
-              disabled={saving}
-            >
-              {saving ? 'Saving…' : 'Save Changes'}
-            </button>
-
           </div>
         </div>
 

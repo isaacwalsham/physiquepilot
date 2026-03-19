@@ -39,7 +39,7 @@ export default function Step15_Safety({ form, setField, error }) {
         >
           This app provides general fitness and nutrition guidance. It is not
           medical advice. Consult a qualified healthcare professional before
-          making significant changes to your diet or exercise programme,
+          making significant changes to your diet or exercise program,
           particularly if you have any medical conditions.
         </p>
       </div>

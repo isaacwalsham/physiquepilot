@@ -151,6 +151,9 @@ export function validateActivityLevel({ activityLevel }) {
 
 /** Step 10: Training schedule */
 export function validateTrainingSchedule({ splitMode, trainingDaysSelected, trainingFrequencyRange, rollingStartDate }) {
+  // "not_sure" is a valid selection — no further validation required
+  if (splitMode === "not_sure") return ok();
+
   if (splitMode === "fixed") {
     if (!trainingDaysSelected || trainingDaysSelected.length === 0) {
       return fail("trainingDays", "Select at least one training day.");

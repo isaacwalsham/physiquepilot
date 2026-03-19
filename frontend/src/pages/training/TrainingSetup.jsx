@@ -4,26 +4,29 @@ import {
   ORDERED_SPLITS, DAY_KEYS, DAY_SHORT,
   suggestTrainingDays, autoAssignExercises,
   MUSCLE_COLORS, MUSCLE_DISPLAY, formatLocalDate,
+  hasConsecutiveTriple,
 } from "./trainingUtils";
 
 // Experience level mapping for each split
 const SPLIT_LEVEL_MAP = {
-  fullbody_3: 'beginner',
   fullbody_2x: 'beginner',
+  fullbody_3: 'beginner',
   upper_lower_3: 'beginner',
-  upper_lower_4: 'intermediate',
-  upper_lower_5: 'intermediate',
   ppl_3: 'intermediate',
-  ppl_6: 'intermediate',
-  arnold: 'intermediate',
-  phul: 'intermediate',
-  push_pull_4: 'intermediate',
-  torso_limbs: 'intermediate',
   chest_back_arms_legs: 'intermediate',
-  phat: 'advanced',
+  upper_lower_4: 'intermediate',
+  anterior_posterior: 'intermediate',
+  upper_lower_rolling: 'intermediate',
+  ppl_rolling: 'intermediate',
+  ppl_rest_rolling: 'intermediate',
+  anterior_posterior_rolling: 'intermediate',
+  fullbody_abcd_rolling: 'intermediate',
+  arnold_5: 'advanced',
   bro_5: 'advanced',
   custom: 'advanced',
 };
+
+const PAIRED_SPLITS = ['upper_lower_4', 'anterior_posterior'];
 
 const STYLES = `
 .ts-shell {
@@ -68,41 +71,7 @@ const STYLES = `
   margin: 0 0 1.75rem;
 }
 
-/* ── Step 0: experience cards ─────────────────────────── */
-.ts-exp-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 2rem;
-}
-.ts-exp-card {
-  background: var(--surface-3);
-  border: 1.5px solid var(--line-1);
-  border-radius: var(--radius-md);
-  padding: 1rem 1.25rem;
-  cursor: pointer;
-  transition: border-color var(--motion-fast), background var(--motion-fast);
-}
-.ts-exp-card:hover {
-  border-color: var(--line-2);
-}
-.ts-exp-card.selected {
-  border-color: var(--accent-2);
-  background: rgba(181,21,60,0.1);
-}
-.ts-exp-label {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 3px;
-}
-.ts-exp-desc {
-  font-size: 0.85rem;
-  color: var(--text-3);
-}
-
-/* ── Step 1: split template cards ─────────────────────── */
+/* ── Step 0: split template cards ─────────────────────── */
 .ts-template-grid {
   display: flex;
   flex-direction: column;
@@ -116,14 +85,24 @@ const STYLES = `
   border-radius: var(--radius-md);
   padding: 1.1rem 1.25rem 1rem;
   cursor: pointer;
-  transition: border-color var(--motion-fast), background var(--motion-fast);
+  box-shadow: none;
+  outline: 2px solid transparent;
+  transition: border-color var(--motion-fast), background var(--motion-fast), box-shadow var(--motion-fast), outline-color var(--motion-fast);
 }
-.ts-template-card:hover {
+.ts-template-card:hover:not(.selected) {
   border-color: var(--line-2);
 }
 .ts-template-card.selected {
-  border-color: var(--accent-2);
-  background: rgba(181,21,60,0.08);
+  border-color: #dc143c;
+  background: rgba(220,20,60,0.12);
+  outline: 2px solid #dc143c;
+  outline-offset: 0px;
+  box-shadow: 0 0 28px rgba(220,20,60,0.6);
+}
+.ts-template-card.locked {
+  pointer-events: none;
+  opacity: 0.45;
+  cursor: default;
 }
 .ts-badge-rec {
   position: absolute;
@@ -137,6 +116,32 @@ const STYLES = `
   letter-spacing: 0.06em;
   padding: 2px 7px;
   border-radius: 4px;
+}
+.ts-badge-lock {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  border: 1px solid var(--line-2);
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.ts-badge-rolling {
+  display: inline-block;
+  background: var(--surface-2);
+  color: var(--text-3);
+  border: 1px solid var(--line-1);
+  font-size: 0.65rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-bottom: 6px;
 }
 .ts-template-name {
   font-family: var(--font-display);
@@ -181,39 +186,69 @@ const STYLES = `
   white-space: nowrap;
 }
 
-/* ── Experience filter pills ──────────────────────────── */
-.ts-filter-pills {
+/* ── Section headers ──────────────────────────────────── */
+.ts-section-header {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.ts-section-header-label {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.ts-section-header-sub {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+/* ── Filter pill row ──────────────────────────────────── */
+.ts-filter-row {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 .ts-filter-pill {
   font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--line-1);
-  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   color: var(--text-3);
+  background: var(--surface-3);
+  border: 1.5px solid var(--line-1);
+  border-radius: 999px;
+  padding: 4px 12px;
   cursor: pointer;
   transition: all var(--motion-fast);
-  white-space: nowrap;
 }
-.ts-filter-pill.active {
-  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
-  border-color: var(--accent-2);
-  color: #fff;
-  box-shadow: 0 0 10px rgba(181,21,60,0.35);
-}
-.ts-filter-pill:hover:not(.active) {
+.ts-filter-pill:hover {
   border-color: var(--line-2);
   color: var(--text-2);
 }
+.ts-filter-pill.active {
+  background: rgba(222,41,82,0.15);
+  border-color: var(--accent-2);
+  color: var(--text-1);
+}
 
-/* ── Step 2: schedule ──────────────────────────────────── */
+/* ── Rest-day constraint note ─────────────────────────── */
+.ts-rest-constraint-note {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  background: rgba(249,115,22,0.08);
+  border: 1px solid rgba(249,115,22,0.3);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+
+/* ── Step 1: schedule ──────────────────────────────────── */
 .ts-schedule-tabs {
   display: flex;
   gap: 0;
@@ -395,17 +430,13 @@ const STYLES = `
 export default function TrainingSetup({ profile, onComplete }) {
   const [step, setStep] = useState(0);
 
-  // Step 0
-  const [experience, setExperience] = useState(
-    profile?.training_experience || "beginner"
-  );
+  // Experience comes from profile — not a local editable state
+  const experience = profile?.experience_level || profile?.training_experience || 'beginner';
 
-  // Step 1
-  const templates = ORDERED_SPLITS;
+  // Step 0: template picker
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
-  const [templateFilter, setTemplateFilter] = useState(null); // null = auto (based on experience)
 
-  // Step 2
+  // Step 1: schedule
   const [scheduleMode, setScheduleMode] = useState("fixed");
   const [selectedDays, setSelectedDays] = useState([]);
   const [startDate, setStartDate] = useState(formatLocalDate(new Date()));
@@ -413,54 +444,38 @@ export default function TrainingSetup({ profile, onComplete }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // Step 0: filter pills
+  const [activeFilter, setActiveFilter] = useState(3); // default to 3 Day
+
   // Resolve the actual selected template object
   const selectedTemplate = selectedTemplateId === 'custom'
-    ? { id: 'custom', name: 'Build My Own', type: 'custom', days_per_week: null, days: [] }
+    ? { id: 'custom', name: 'Build My Own', type: 'custom', days_per_week: null, days: [], is_rolling: false }
     : ORDERED_SPLITS.find((t) => t.id === selectedTemplateId) || null;
 
   // ── navigation helpers ───────────────────────────────────────────────────
 
-  function handleNextFromStep0() {
-    // Reset template selection when experience changes, set filter to match experience
-    setSelectedTemplateId(null);
-    setTemplateFilter(null); // reset to auto
-    setStep(1);
-  }
-
-  async function handleNextFromStep1() {
+  async function handleNextFromStep0() {
     if (!selectedTemplate) return;
     if (selectedTemplateId === 'custom') {
-      // Custom path: create blank program and navigate to SplitBuilder
-      setSaving(true);
-      setError(null);
-      try {
-        const { data: sessionR } = await supabase.auth.getSession();
-        const user = sessionR?.session?.user;
-        if (!user) throw new Error('Not authenticated');
-        await supabase.from('profiles').update({ training_experience: experience }).eq('user_id', user.id);
-        await supabase.from('training_programs').update({ is_active: false }).eq('user_id', user.id).eq('is_active', true);
-        const { error: progErr } = await supabase.from('training_programs').insert({
-          user_id: user.id,
-          name: 'My Custom Program',
-          split_type: 'custom',
-          is_active: true,
-          start_date: formatLocalDate(new Date()),
-          training_days: [],
-          experience_level: experience,
-        });
-        if (progErr) throw new Error(progErr.message);
-        onComplete();
-      } catch (err) {
-        setError(err.message || 'Something went wrong.');
-        setSaving(false);
-      }
+      // Custom path: advance to step 1 so user picks Fixed or Rolling schedule
+      setScheduleMode('fixed');
+      setSelectedDays([]);
+      setStep(1);
       return;
     }
-    // Pre-populate suggested days
-    if (selectedTemplate.days_per_week) {
-      setSelectedDays(suggestTrainingDays(selectedTemplate.days_per_week));
+    // Rolling splits → auto-set rolling mode
+    if (selectedTemplate.is_rolling) {
+      setScheduleMode('rolling');
+    } else {
+      setScheduleMode('fixed');
+      // For splits that enforce rest between pairs, suggest Mon/Tue/Thu/Fri
+      if (PAIRED_SPLITS.includes(selectedTemplateId)) {
+        setSelectedDays(['mon', 'tue', 'thu', 'fri']);
+      } else if (selectedTemplate.days_per_week) {
+        setSelectedDays(suggestTrainingDays(selectedTemplate.days_per_week));
+      }
     }
-    setStep(2);
+    setStep(1);
   }
 
   function toggleDay(key) {
@@ -482,6 +497,15 @@ export default function TrainingSetup({ profile, onComplete }) {
     setSaving(true);
     setError(null);
 
+    // Validate rest-day constraint for paired splits
+    if (PAIRED_SPLITS.includes(selectedTemplateId) && scheduleMode === 'fixed') {
+      if (hasConsecutiveTriple(selectedDays)) {
+        setError('This split needs at least one rest day between your sessions — try Mon, Tue, Thu, Fri.');
+        setSaving(false);
+        return;
+      }
+    }
+
     try {
       // 1. Get current user
       const { data: sessionR } = await supabase.auth.getSession(); const user = sessionR?.session?.user; const authErr = null;
@@ -500,6 +524,35 @@ export default function TrainingSetup({ profile, onComplete }) {
         .eq("user_id", user.id)
         .eq("is_active", true);
 
+      // Custom program path — blank days, no auto-assign
+      if (selectedTemplateId === 'custom') {
+        const { data: progRows, error: progErr } = await supabase.from('training_programs').insert({
+          user_id: user.id,
+          name: 'My Custom Program',
+          split_type: 'custom',
+          is_active: true,
+          start_date: startDate,
+          training_days: scheduleMode === 'fixed' ? selectedDays : [],
+          experience_level: experience,
+        }).select();
+        if (progErr) throw new Error(progErr.message);
+        const prog = progRows?.[0];
+        if (prog) {
+          const blankDays = scheduleMode === 'rolling'
+            ? Array.from({ length: 4 }, (_, i) => ({
+                program_id: prog.id, day_name: 'Assign Day', day_order: i,
+                is_rest: false, muscle_focus: [], color: '#b5153c',
+              }))
+            : selectedDays.map((_, i) => ({
+                program_id: prog.id, day_name: 'Training Day', day_order: i,
+                is_rest: false, muscle_focus: [], color: '#b5153c',
+              }));
+          await supabase.from('training_program_days').insert(blankDays);
+        }
+        onComplete();
+        return;
+      }
+
       // 4. Insert new program
       const { data: progRows, error: progErr } = await supabase
         .from("training_programs")
@@ -516,12 +569,13 @@ export default function TrainingSetup({ profile, onComplete }) {
       if (progErr) throw new Error(progErr.message);
       const prog = progRows[0];
 
-      // 5. Insert program days
+      // 5. Insert program days (exclude rest slots from DB inserts for exercises,
+      //    but include them as day rows with is_rest: true)
       const dayInserts = selectedTemplate.days.map((d, i) => ({
         program_id: prog.id,
         day_name: d.name,
         day_order: i,
-        is_rest: false,
+        is_rest: d.is_rest || false,
         muscle_focus: d.muscle_focus,
         color: d.color,
       }));
@@ -542,15 +596,17 @@ export default function TrainingSetup({ profile, onComplete }) {
         primary_group_name: e.exercise_muscle_groups?.name ?? "",
       }));
 
-      // 7. Auto-assign exercises for each day
+      // 7. Auto-assign exercises for each non-rest day
       const exerciseInserts = [];
       for (let i = 0; i < insertedDays.length; i++) {
         const templateDay = selectedTemplate.days[i];
+        if (templateDay.is_rest) continue;
         const programDayId = insertedDays[i].id;
         const assignments = autoAssignExercises(
           templateDay.muscle_focus,
           experience,
-          allExercises
+          allExercises,
+          templateDay.name,
         );
         for (const a of assignments) {
           exerciseInserts.push({ ...a, program_day_id: programDayId });
@@ -578,75 +634,20 @@ export default function TrainingSetup({ profile, onComplete }) {
   function ProgressDots() {
     return (
       <div className="ts-progress">
-        {[0, 1, 2].map((i) => (
+        {[0, 1].map((i) => (
           <div key={i} className={`ts-dot${step === i ? " active" : ""}`} />
         ))}
       </div>
     );
   }
 
-  // ── Step 0 ───────────────────────────────────────────────────────────────
+  // ── Step 0: template picker ───────────────────────────────────────────────
 
   function renderStep0() {
-    const levels = [
-      {
-        id: "beginner",
-        label: "Beginner",
-        desc: "New to structured weight training",
-      },
-      {
-        id: "intermediate",
-        label: "Intermediate",
-        desc: "1–3 years of consistent training",
-      },
-      {
-        id: "advanced",
-        label: "Advanced",
-        desc: "3+ years, solid technique & periodisation",
-      },
-    ];
-    return (
-      <div className="ts-step">
-        <h2 className="ts-title">What's your training experience?</h2>
-        <div className="ts-exp-grid">
-          {levels.map((lv) => (
-            <div
-              key={lv.id}
-              className={`ts-exp-card${experience === lv.id ? " selected" : ""}`}
-              onClick={() => setExperience(lv.id)}
-            >
-              <div className="ts-exp-label">{lv.label}</div>
-              <div className="ts-exp-desc">{lv.desc}</div>
-            </div>
-          ))}
-        </div>
-        <div className="ts-nav" style={{ justifyContent: "flex-end" }}>
-          <button className="ts-btn ts-btn-primary" onClick={handleNextFromStep0}>
-            Continue →
-          </button>
-        </div>
-      </div>
-    );
-  }
+    const filterOptions = [2, 3, 4, 5, 'rolling'];
+    const filterLabels  = ['2 Day', '3 Day', '4 Day', '5 Day', 'Rolling'];
 
-  // ── Step 1 ───────────────────────────────────────────────────────────────
-
-  function renderStep1() {
-    // Determine active filter — if templateFilter is explicitly set use it, else default to experience level
-    const activeFilter = templateFilter !== null ? templateFilter : experience;
-
-    const filterLevels = [
-      { id: 'all', label: 'All' },
-      { id: 'beginner', label: 'Beginner' },
-      { id: 'intermediate', label: 'Intermediate' },
-      { id: 'advanced', label: 'Advanced' },
-    ];
-
-    const visibleTemplates = activeFilter === 'all'
-      ? ORDERED_SPLITS
-      : ORDERED_SPLITS.filter(t => SPLIT_LEVEL_MAP[t.id] === activeFilter);
-
-    // Build My Own card (always shown at end)
+    // Build My Own card
     const buildMyOwnCard = {
       id: 'custom',
       name: 'Build My Own',
@@ -659,72 +660,95 @@ export default function TrainingSetup({ profile, onComplete }) {
       isCustomCard: true,
     };
 
+    // Filtered splits (excluding custom)
+    const visibleSplits = ORDERED_SPLITS.filter(t => {
+      if (t.id === 'custom') return false;
+      if (activeFilter === null) return true;
+      if (activeFilter === 'rolling') return t.is_rolling === true;
+      return t.days_per_week === activeFilter && !t.is_rolling;
+    });
+
+    function isLocked(splitId) {
+      // Only beginners are locked out of non-beginner splits
+      if (experience !== 'beginner') return false;
+      return SPLIT_LEVEL_MAP[splitId] !== 'beginner';
+    }
+
+    function renderCard(t) {
+      const locked = isLocked(t.id);
+      // Training day pills — filter out rest slots
+      const trainingDays = t.days.filter(d => !d.is_rest);
+
+      return (
+        <div
+          key={t.id}
+          className={`ts-template-card${selectedTemplateId === t.id ? " selected" : ""}${locked ? " locked" : ""}`}
+          onClick={locked ? undefined : () => setSelectedTemplateId(t.id)}
+        >
+          {locked ? (
+            <span className="ts-badge-lock">🔒 Unlock as you progress</span>
+          ) : t.recommended ? (
+            <span className="ts-badge-rec">RECOMMENDED</span>
+          ) : null}
+
+          {t.is_rolling && (
+            <span className="ts-badge-rolling">Rolling cycle</span>
+          )}
+
+          <div className="ts-template-name">{t.name}</div>
+          <div className="ts-template-meta">
+            {t.is_rolling
+              ? t.days.filter(d => !d.is_rest).length + '-session cycle'
+              : t.days_per_week != null
+                ? `${t.days_per_week} days`
+                : 'Custom'
+            }{' '}
+            · {t.type.replace(/_/g, ' ')}
+          </div>
+          <div className="ts-template-desc">{t.description}</div>
+          <div className="ts-template-who">{t.who}</div>
+          {trainingDays.length > 0 && (
+            <div className="ts-day-pills">
+              {trainingDays.map((d, i) => (
+                <span key={i} className="ts-day-pill" style={{ background: d.color }}>
+                  {d.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="ts-step">
         <h2 className="ts-title">Choose your training split</h2>
 
-        {/* Filter pills */}
-        <div className="ts-filter-pills">
-          {filterLevels.map(f => (
+        {/* Filter pill row */}
+        <div className="ts-filter-row">
+          {filterOptions.map((opt, i) => (
             <button
-              key={f.id}
-              className={`ts-filter-pill${activeFilter === f.id ? ' active' : ''}`}
-              onClick={() => setTemplateFilter(f.id)}
+              key={i}
+              className={`ts-filter-pill${activeFilter === opt ? ' active' : ''}`}
+              onClick={() => setActiveFilter(opt)}
             >
-              {f.label}
+              {filterLabels[i]}
             </button>
           ))}
         </div>
 
         <div className="ts-template-grid">
-          {[...visibleTemplates, buildMyOwnCard].map((t) => (
-            <div
-              key={t.id}
-              className={`ts-template-card${selectedTemplateId === t.id ? " selected" : ""}`}
-              onClick={() => setSelectedTemplateId(t.id)}
-            >
-              {t.recommended && (
-                <span className="ts-badge-rec">RECOMMENDED</span>
-              )}
-              {t.isCustomCard && (
-                <span className="ts-badge-rec" style={{ background: 'var(--surface-2)', color: 'var(--text-3)', border: '1px solid var(--line-2)' }}>
-                  INTERMEDIATE / ADVANCED
-                </span>
-              )}
-              <div className="ts-template-name">{t.name}</div>
-              <div className="ts-template-meta">
-                {t.days_per_week != null ? `${t.days_per_week} days` : "Custom"}{" "}
-                · {t.type.replace(/_/g, " ")}
-              </div>
-              <div className="ts-template-desc">{t.description}</div>
-              <div className="ts-template-who">{t.who}</div>
-              {t.days.length > 0 && (
-                <div className="ts-day-pills">
-                  {t.days.map((d, i) => (
-                    <span
-                      key={i}
-                      className="ts-day-pill"
-                      style={{ background: d.color }}
-                    >
-                      {d.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+          {visibleSplits.map(renderCard)}
+
+          {/* Build My Own — always shown */}
+          {renderCard(buildMyOwnCard)}
         </div>
-        <div className="ts-nav">
-          <button
-            className="ts-btn ts-btn-ghost"
-            onClick={() => setStep(0)}
-          >
-            ← Back
-          </button>
+
+        <div className="ts-nav" style={{ justifyContent: 'flex-end' }}>
           <button
             className="ts-btn ts-btn-primary"
             disabled={!selectedTemplateId || saving}
-            onClick={handleNextFromStep1}
+            onClick={handleNextFromStep0}
           >
             {saving && <span className="ts-spinner" />}
             {saving ? 'Creating…' : 'Continue →'}
@@ -735,31 +759,46 @@ export default function TrainingSetup({ profile, onComplete }) {
     );
   }
 
-  // ── Step 2 ───────────────────────────────────────────────────────────────
+  // ── Step 1: schedule ──────────────────────────────────────────────────────
 
-  function renderStep2() {
+  function renderStep1() {
+    const isRollingTemplate = selectedTemplate?.is_rolling === true;
+
     return (
       <div className="ts-step">
         <h2 className="ts-title">When do you train?</h2>
 
-        {/* Tabs */}
-        <div className="ts-schedule-tabs">
-          <button
-            className={`ts-tab${scheduleMode === "fixed" ? " active" : ""}`}
-            onClick={() => setScheduleMode("fixed")}
-          >
-            Fixed days
-          </button>
-          <button
-            className={`ts-tab${scheduleMode === "rolling" ? " active" : ""}`}
-            onClick={() => setScheduleMode("rolling")}
-          >
-            Rolling split
-          </button>
-        </div>
+        {/* Tabs — only shown for non-rolling templates */}
+        {!isRollingTemplate && (
+          <div className="ts-schedule-tabs">
+            <button
+              className={`ts-tab${scheduleMode === "fixed" ? " active" : ""}`}
+              onClick={() => setScheduleMode("fixed")}
+            >
+              Fixed days
+            </button>
+            <button
+              className={`ts-tab${scheduleMode === "rolling" ? " active" : ""}`}
+              onClick={() => setScheduleMode("rolling")}
+            >
+              Rolling split
+            </button>
+          </div>
+        )}
 
-        {scheduleMode === "fixed" ? (
+        {(isRollingTemplate || scheduleMode === "rolling") ? (
+          <div className="ts-rolling-note">
+            Your split cycles automatically regardless of which day you start.
+            Each session follows the next in sequence — no fixed weekly pattern
+            needed.
+          </div>
+        ) : (
           <>
+            {PAIRED_SPLITS.includes(selectedTemplateId) && (
+              <div className="ts-rest-constraint-note">
+                This split requires a rest day between each pair of sessions. We've pre-selected the optimal days — adjust if needed.
+              </div>
+            )}
             <div className="ts-days-grid">
               {DAY_KEYS.map((key, i) => (
                 <button
@@ -776,12 +815,6 @@ export default function TrainingSetup({ profile, onComplete }) {
               Choose for me
             </button>
           </>
-        ) : (
-          <div className="ts-rolling-note">
-            Your split cycles automatically regardless of which day you start.
-            Each session follows the next in sequence — no fixed weekly pattern
-            needed.
-          </div>
         )}
 
         {/* Start date — shown in both modes */}
@@ -800,7 +833,7 @@ export default function TrainingSetup({ profile, onComplete }) {
         <div className="ts-nav">
           <button
             className="ts-btn ts-btn-ghost"
-            onClick={() => setStep(1)}
+            onClick={() => setStep(0)}
             disabled={saving}
           >
             ← Back
@@ -810,7 +843,7 @@ export default function TrainingSetup({ profile, onComplete }) {
             disabled={
               saving ||
               !selectedTemplate ||
-              (scheduleMode === "fixed" && selectedDays.length === 0)
+              (!isRollingTemplate && scheduleMode === "fixed" && selectedDays.length === 0)
             }
             onClick={handleCreate}
           >
@@ -831,7 +864,6 @@ export default function TrainingSetup({ profile, onComplete }) {
         <ProgressDots />
         {step === 0 && renderStep0()}
         {step === 1 && renderStep1()}
-        {step === 2 && renderStep2()}
       </div>
     </>
   );

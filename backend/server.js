@@ -1177,18 +1177,31 @@ const ensureDefaultMealPreset = async (user_id) => {
       })
       .select("id, name, is_default, created_at, updated_at")
       .single();
-    if (insertPresetErr) throw new Error(insertPresetErr.message);
 
-    const presetId = insertedPreset.id;
-    const segmentPayload = DEFAULT_MEAL_SEGMENTS.map((seg) => ({
-      preset_id: presetId,
-      segment_key: seg.key,
-      label: seg.label,
-      position: seg.position
-    }));
-    const { error: segErr } = await supabase.from("nutrition_meal_preset_segments").insert(segmentPayload);
-    if (segErr) throw new Error(segErr.message);
-    list = [insertedPreset];
+    // Race condition: another request already inserted the default — just re-fetch
+    if (insertPresetErr) {
+      if (insertPresetErr.code === "23505") {
+        const { data: retry } = await supabase
+          .from("nutrition_meal_presets")
+          .select("id, name, is_default, created_at, updated_at")
+          .eq("user_id", user_id)
+          .order("created_at", { ascending: true });
+        list = Array.isArray(retry) ? retry : [];
+      } else {
+        throw new Error(insertPresetErr.message);
+      }
+    } else {
+      const presetId = insertedPreset.id;
+      const segmentPayload = DEFAULT_MEAL_SEGMENTS.map((seg) => ({
+        preset_id: presetId,
+        segment_key: seg.key,
+        label: seg.label,
+        position: seg.position
+      }));
+      const { error: segErr } = await supabase.from("nutrition_meal_preset_segments").insert(segmentPayload);
+      if (segErr) throw new Error(segErr.message);
+      list = [insertedPreset];
+    }
   }
 
   const presetIds = list.map((p) => p.id).filter(Boolean);
@@ -3822,8 +3835,9 @@ app.post("/api/nutrition/init", authenticate, async (req, res) => {
 
   // Fall back to starting_weight_kg if current_weight_kg not yet set
   const weightKg = Number(profile?.current_weight_kg || profile?.starting_weight_kg || 0);
-    return res.status(400).json({ ok: false, error: "current_weight_kg missing in profiles" });
+  if (!weightKg) {
     return res.status(400).json({ ok: false, error: "Weight data missing — complete body metrics in onboarding." });
+  }
 
   const goalType = profile?.goal_type || "maintain";
   const weeklyRateKg = Number(profile?.weekly_weight_change_target_kg || 0);

@@ -56,7 +56,7 @@ export const TOUR_STEPS = [
     route: '/app/training',
     selector: '.app-content-inner',
     title: 'Training Hub',
-    body: 'Build your programme, log sessions, and track every set and rep. Your training block drives your nutrition targets automatically.',
+    body: 'Build your program, log sessions, and track every set and rep. Your training block drives your nutrition targets automatically.',
     tooltipPosition: 'center',
   },
   {
@@ -72,7 +72,7 @@ export const TOUR_STEPS = [
     route: '/app/dashboard',
     selector: null,
     title: "You're ready.",
-    body: "That's the full tour. Your programme is live and your targets are set. Go crush it.",
+    body: "That's the full tour. Your program is live and your targets are set. Go crush it.",
     tooltipPosition: 'center',
     isLast: true,
   },
