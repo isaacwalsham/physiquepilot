@@ -1817,22 +1817,50 @@ export default function Nutrition() {
     }
   };
 
-  const updateEditField = (dayType, field, value) => {
-    const maxCalories = 6000;
-    const minCalories = 800;
-
+  // ── Macro stepper — calories stay locked, macros compensate each other ───────
+  // step: protein/carbs = 5g, fat = 2g. Cap each macro at ±10% of its baseline.
+  // Compensation order: protein ↔ carbs; fat ↔ carbs.
+  const adjustMacro = (dayType, macro, dir) => {
     setEditTargets((prev) => {
       const cur = prev?.[dayType];
-      if (!cur) return prev;
-      const next = { ...cur };
+      const base = targets?.[dayType];          // original locked values
+      if (!cur || !base) return prev;
 
-      if (field === "calories") next.calories = clampInt(value, minCalories, maxCalories);
-      if (field === "protein_g") next.protein_g = clampInt(value, 0, 400);
-      if (field === "carbs_g") next.carbs_g = clampInt(value, 0, 800);
-      if (field === "fats_g") next.fats_g = clampInt(value, 0, 250);
-      if (field === "protein_g" || field === "carbs_g" || field === "fats_g") {
-        next.calories = clampInt(calcCalories(next.protein_g, next.carbs_g, next.fats_g), minCalories, maxCalories);
-      }
+      const STEP  = macro === "fats_g" ? 2 : 5; // grams per click
+      const delta = dir * STEP;                  // +ve = increase
+
+      // Enforce ±10% of baseline for the adjusted macro
+      const baseVal   = Number(base[macro] || 0);
+      const maxDelta  = Math.round(baseVal * 0.10);
+      const newVal    = Math.round(Number(cur[macro] || 0) + delta);
+      const baselineDiff = newVal - baseVal;
+      if (Math.abs(baselineDiff) > maxDelta) return prev; // already at limit
+      if (newVal < 0) return prev;
+
+      // Calorie impact of the change
+      const kcalPerG = macro === "fats_g" ? 9 : 4;
+      const kcalDelta = delta * kcalPerG;  // kcal gained by this macro
+
+      // Choose compensation macro
+      // protein ↔ carbs (both 4 kcal/g → 1:1 gram trade)
+      // fat     ↔ carbs (fat 9 kcal/g, carbs 4 kcal/g)
+      const compMacro = macro === "protein_g" ? "carbs_g"
+                      : macro === "carbs_g"   ? "protein_g"
+                      :                         "carbs_g"; // fat → compensate carbs
+      const compKcalPerG = compMacro === "fats_g" ? 9 : 4;
+      const compDeltaG   = -Math.round(kcalDelta / compKcalPerG);
+
+      const compBaseVal   = Number(base[compMacro] || 0);
+      const compNewVal    = Math.round(Number(cur[compMacro] || 0) + compDeltaG);
+      const compBaseDiff  = compNewVal - compBaseVal;
+      const compMaxDelta  = Math.round(compBaseVal * 0.10);
+      // If compensation macro would also exceed its ±10%, block the adjustment
+      if (Math.abs(compBaseDiff) > compMaxDelta) return prev;
+      if (compNewVal < 0) return prev;
+
+      const next = { ...cur, [macro]: newVal, [compMacro]: compNewVal };
+      // Recalculate calories from macros (should stay ~equal to base)
+      next.calories = calcCalories(next.protein_g, next.carbs_g, next.fats_g);
 
       return { ...prev, [dayType]: next };
     });
@@ -1846,12 +1874,12 @@ export default function Nutrition() {
       const rows = ["training", "rest", "high"].map((dayType) => ({
         user_id: userId,
         day_type: dayType,
+        // Preserve the locked calorie value from the baseline; macros may
+        // have small rounding drift so we keep calories authoritative.
+        calories: Number(targets?.[dayType]?.calories || editTargets?.[dayType]?.calories || 0),
         protein_g: Number(editTargets?.[dayType]?.protein_g || 0),
-        carbs_g: Number(editTargets?.[dayType]?.carbs_g || 0),
-        fats_g: Number(editTargets?.[dayType]?.fats_g || 0)
-      })).map((row) => ({
-        ...row,
-        calories: calcCalories(row.protein_g, row.carbs_g, row.fats_g)
+        carbs_g:   Number(editTargets?.[dayType]?.carbs_g   || 0),
+        fats_g:    Number(editTargets?.[dayType]?.fats_g    || 0),
       }));
       const { error: e } = await supabase.from("nutrition_day_targets").upsert(rows, { onConflict: "user_id,day_type" });
       if (e) throw e;
@@ -1859,6 +1887,7 @@ export default function Nutrition() {
       const mapped = mapTargets(rows);
       setTargets(mapped);
       setEditTargets({ training: { ...mapped.training }, rest: { ...mapped.rest }, high: { ...mapped.high } });
+      pushToast("Macro targets saved.");
     } catch (e) {
       setError(String(e?.message || e));
     } finally {
@@ -2229,6 +2258,61 @@ export default function Nutrition() {
     .nt-target-day--high { border-top:3px solid rgba(229,161,0,0.45); }
     .nt-target-day-name { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--text-3); margin-bottom:0.55rem; }
     .nt-target-field-label { font-size:0.76rem; color:var(--text-3); margin-bottom:0.16rem; }
+
+    /* ── Locked calories display ── */
+    .nt-cal-locked {
+      display:flex; align-items:center; justify-content:space-between;
+      background:rgba(181,21,60,0.07); border:1px solid rgba(181,21,60,0.2);
+      border-radius:var(--radius-sm); padding:0.5rem 0.75rem; margin-bottom:0.75rem;
+    }
+    .nt-cal-locked-label {
+      display:flex; align-items:center; gap:0.4rem;
+      font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.14em;
+      text-transform:uppercase; color:var(--text-3);
+    }
+    .nt-cal-locked-label svg { opacity:0.6; }
+    .nt-cal-locked-value {
+      font-family:var(--font-display); font-size:1rem; font-weight:700; color:var(--text-1);
+    }
+    .nt-cal-locked-unit { font-size:0.68rem; color:var(--text-3); margin-left:0.25rem; }
+
+    /* ── Macro stepper rows ── */
+    .nt-macro-row {
+      display:flex; align-items:center; gap:0.5rem;
+      padding:0.45rem 0; border-bottom:1px solid var(--line-1);
+    }
+    .nt-macro-row:last-child { border-bottom:none; }
+    .nt-macro-label {
+      flex:1; font-family:var(--font-display); font-size:0.68rem;
+      letter-spacing:0.1em; text-transform:uppercase; color:var(--text-2);
+    }
+    .nt-macro-pct {
+      font-size:0.68rem; color:var(--text-3); min-width:2.8rem; text-align:right;
+    }
+    .nt-macro-stepper {
+      display:flex; align-items:center; gap:0.35rem;
+    }
+    .nt-stepper-btn {
+      width:24px; height:24px; border-radius:var(--radius-sm);
+      border:1px solid var(--line-2); background:var(--surface-2);
+      color:var(--text-2); font-size:0.85rem; line-height:1;
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      transition:border-color 0.15s, background 0.15s;
+      flex-shrink:0;
+    }
+    .nt-stepper-btn:hover:not(:disabled) { border-color:var(--accent-2); background:rgba(181,21,60,0.12); color:var(--text-1); }
+    .nt-stepper-btn:disabled { opacity:0.3; cursor:not-allowed; }
+    .nt-stepper-val {
+      min-width:3rem; text-align:center;
+      font-family:var(--font-display); font-size:0.78rem; color:var(--text-1);
+    }
+    .nt-macro-drift {
+      font-size:0.62rem; min-width:2.8rem; text-align:right;
+      font-family:var(--font-display); letter-spacing:0.06em;
+    }
+    .nt-macro-drift--up   { color:var(--ok); }
+    .nt-macro-drift--down { color:var(--bad); }
+    .nt-macro-drift--zero { color:var(--text-3); }
 
     /* ── Responsive ── */
     @media (max-width:1100px) { .nt-log-split { grid-template-columns:3fr 2fr; } }
@@ -2983,27 +3067,83 @@ export default function Nutrition() {
           {/* Macro targets — full width */}
           <div className="nt-panel nt-settings-full">
             <div className="nt-section-label">◈ MACRO TARGETS</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-3)", marginBottom: "0.75rem", lineHeight: 1.5 }}>
+              Your calorie targets are set by The Physique Pilot and locked. You can adjust your macro split ±10% in either direction — calories will stay the same.
+            </div>
             <div className="nt-targets-grid">
               {["training", "rest", "high"].map((dayType) => {
-                const t = editTargets?.[dayType];
-                if (!t) return null;
+                const t    = editTargets?.[dayType];
+                const base = targets?.[dayType];
+                if (!t || !base) return null;
+
+                const totalKcal = Number(t.calories || 0);
+                const macros = [
+                  { key: "protein_g", label: "Protein", kcalPerG: 4, color: "#16a34a" },
+                  { key: "carbs_g",   label: "Carbs",   kcalPerG: 4, color: "#1d4ed8" },
+                  { key: "fats_g",    label: "Fat",     kcalPerG: 9, color: "#dc2626" },
+                ];
+
                 return (
                   <div key={dayType} className={`nt-target-day nt-target-day--${dayType}`}>
                     <div className="nt-target-day-name">{dayLabel[dayType]}</div>
-                    <div style={{ display: "grid", gap: "0.42rem" }}>
-                      {[["calories", "Calories"], ["protein_g", "Protein (g)"], ["carbs_g", "Carbs (g)"], ["fats_g", "Fats (g)"]].map(([f, lbl]) => (
-                        <div key={f}>
-                          <div className="nt-target-field-label">{lbl}</div>
-                          <input type="number" value={t[f]} onChange={(e) => updateEditField(dayType, f, e.target.value)} style={inp} />
-                        </div>
-                      ))}
+
+                    {/* Locked calories */}
+                    <div className="nt-cal-locked">
+                      <div className="nt-cal-locked-label">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        Calories
+                      </div>
+                      <div>
+                        <span className="nt-cal-locked-value">{totalKcal}</span>
+                        <span className="nt-cal-locked-unit">kcal</span>
+                      </div>
+                    </div>
+
+                    {/* Macro steppers */}
+                    <div>
+                      {macros.map(({ key, label, kcalPerG, color }) => {
+                        const grams      = Number(t[key] || 0);
+                        const baseGrams  = Number(base[key] || 0);
+                        const pct        = totalKcal > 0 ? Math.round((grams * kcalPerG / totalKcal) * 100) : 0;
+                        const drift      = grams - baseGrams;
+                        const maxDelta   = Math.round(baseGrams * 0.10);
+                        const atMax      = drift >= maxDelta;
+                        const atMin      = drift <= -maxDelta;
+
+                        return (
+                          <div key={key} className="nt-macro-row">
+                            <div className="nt-macro-label" style={{ color }}>{label}</div>
+                            <div className="nt-macro-pct">{pct}%</div>
+                            <div className="nt-macro-stepper">
+                              <button
+                                className="nt-stepper-btn"
+                                onClick={() => adjustMacro(dayType, key, -1)}
+                                disabled={atMin}
+                                title={`−${key === "fats_g" ? 2 : 5}g`}
+                              >−</button>
+                              <div className="nt-stepper-val">{grams}g</div>
+                              <button
+                                className="nt-stepper-btn"
+                                onClick={() => adjustMacro(dayType, key, +1)}
+                                disabled={atMax}
+                                title={`+${key === "fats_g" ? 2 : 5}g`}
+                              >+</button>
+                            </div>
+                            <div className={`nt-macro-drift ${drift > 0 ? "nt-macro-drift--up" : drift < 0 ? "nt-macro-drift--down" : "nt-macro-drift--zero"}`}>
+                              {drift > 0 ? `+${drift}g` : drift < 0 ? `${drift}g` : "—"}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
               })}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.75rem" }}>
-              <button className="nt-btn nt-btn--primary" onClick={saveTargets}>Save Targets</button>
+              <button className="nt-btn nt-btn--primary" onClick={saveTargets}>Save Macro Targets</button>
             </div>
           </div>
 
