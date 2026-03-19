@@ -686,6 +686,7 @@ export default function Dashboard() {
   const { profile, todayDayType, loading: profileLoading } = useProfile();
 
   const [loading,          setLoading]          = useState(true);
+  const [userId,           setUserId]           = useState(null);
   const [unit,             setUnit]             = useState("kg");
   const [unitDisplay,      setUnitDisplay]      = useState("kg");
   const [latest,           setLatest]           = useState(null);
@@ -711,6 +712,7 @@ export default function Dashboard() {
       const ud = { user: _s?.user };
       const user = ud?.user;
       if (!user) { navigate("/", { replace: true }); return; }
+      setUserId(user.id);
 
       const initUnit = profile?.unit_system === "imperial" ? "lb" : "kg";
       setUnit(initUnit);
@@ -840,6 +842,44 @@ export default function Dashboard() {
     };
     if (!profileLoading) load();
   }, [navigate, profile, todayDayType, profileLoading]);
+
+  // ── Realtime: re-fetch nutrition whenever daily_nutrition_items changes ──
+  useEffect(() => {
+    if (!userId) return;
+    const today = todayLocalISO();
+
+    const refetchNutrition = async () => {
+      const { data: items } = await supabase
+        .from("daily_nutrition_items")
+        .select("food_name, meal_name, calories, protein_g, carbs_g, fats_g")
+        .eq("user_id", userId)
+        .eq("log_date", today);
+      if (items?.length) {
+        setNutItems(items);
+        setNutLogged({
+          calories:  items.reduce((s, i) => s + Number(i.calories  || 0), 0),
+          protein_g: items.reduce((s, i) => s + Number(i.protein_g || 0), 0),
+          carbs_g:   items.reduce((s, i) => s + Number(i.carbs_g   || 0), 0),
+          fats_g:    items.reduce((s, i) => s + Number(i.fats_g    || 0), 0),
+        });
+      } else {
+        setNutItems([]);
+        setNutLogged({ calories: 0, protein_g: 0, carbs_g: 0, fats_g: 0 });
+      }
+    };
+
+    const channel = supabase
+      .channel(`db-nutrition-${userId}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "daily_nutrition_items",
+        filter: `user_id=eq.${userId}`,
+      }, refetchNutrition)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
 
   const dispW = (kg) => {
     const n = Number(kg);
