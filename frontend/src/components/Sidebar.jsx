@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { to: "/app/cardio-steps", label: "ACTIVITY"   },
   { to: "/app/habits",       label: "HABITS"     },
   { to: "/app/check-ins",    label: "CHECK-INS"  },
-  { to: "/app/coach",        label: "AI COACH"   },
+  { to: "/app/coach",        label: "THE PILOT"  },
 ];
 
 const SETTINGS_ITEM = { to: "/app/settings", label: "SETTINGS" };

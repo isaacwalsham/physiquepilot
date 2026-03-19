@@ -1583,8 +1583,7 @@ export default function CheckIns() {
               {[
                 { key: "week",   label: "This Week" },
                 { key: "report", label: "Report" },
-                { key: "photos", label: "Progress Photos" },
-                { key: "coach",  label: "The Physique Pilot" }
+                { key: "photos", label: "Progress Photos" }
               ].map(t => (
                 <button
                   key={t.key}
@@ -1899,72 +1898,6 @@ export default function CheckIns() {
           </>
         )}
 
-        {/* ── AI COACH ── */}
-        {tab === "coach" && (
-          <div className="ci-coach-layout">
-            <div className="ci-coach-header">
-              <div className="ci-coach-title-wrap">
-                <div className="ci-coach-dot" />
-                <div>
-                  <div className="ci-coach-name">The Physique Pilot</div>
-                  <div className="ci-coach-sub">AI Coach · Powered by GPT-4o Mini</div>
-                </div>
-              </div>
-              <button className="ci-coach-clear-btn" onClick={clearHistory}>Clear History</button>
-            </div>
-
-            <div className="ci-coach-messages">
-              {messages.length === 0 ? (
-                <div className="ci-coach-welcome">
-                  <div className="ci-coach-welcome-icon">◈</div>
-                  <div className="ci-coach-welcome-title">Start a Conversation</div>
-                  <div className="ci-coach-welcome-sub">Ask The Physique Pilot about your training, nutrition, recovery, or check-in data. The coach has access to your check-in history and adapts advice to your goal.</div>
-                </div>
-              ) : (
-                messages.map((msg, i) => (
-                  <div key={i} className={`ci-msg ${msg.role}`}>
-                    <div className="ci-msg-avatar">
-                      {msg.role === "user" ? "YOU" : "PP"}
-                    </div>
-                    <div className="ci-msg-bubble">{msg.content}</div>
-                  </div>
-                ))
-              )}
-              {sending && (
-                <div className="ci-coach-typing">
-                  <div className="ci-typing-dots">
-                    <span /><span /><span />
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            <div className="ci-coach-input-row">
-              <textarea
-                className="ci-coach-input"
-                placeholder="Ask The Physique Pilot anything about your training, nutrition, or check-in data…"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={handleChatKeyDown}
-                rows={1}
-                disabled={sending}
-              />
-              <button
-                className="ci-coach-send-btn"
-                onClick={sendMessage}
-                disabled={sending || !chatInput.trim()}
-                title="Send"
-              >
-                ➤
-              </button>
-            </div>
-
-            <div className="ci-coach-disclaimer">
-              The Physique Pilot provides general fitness guidance only. Always consult a qualified healthcare professional for medical advice. PED discussion is not supported.
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Photo viewer modal */}
