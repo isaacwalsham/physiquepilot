@@ -397,6 +397,39 @@ export default function HabitsTracker() {
     }
   }, [profile]);
 
+  // ── Reset all habit data ───────────────────────────────────────────────────
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const resetAllHabits = async () => {
+    if (!profile?.user_id) return;
+    setSaving(true);
+    try {
+      const uid = profile.user_id;
+      // Delete in dependency order: logs → habits → areas
+      await supabase.from("habit_logs").delete().eq("user_id", uid);
+      await supabase.from("habits").delete().eq("user_id", uid);
+      await supabase.from("habit_areas").delete().eq("user_id", uid);
+      // Clear setup flag so template picker re-appears
+      localStorage.removeItem(SETUP_KEY);
+      // Reset all local state
+      setHabits([]);
+      setAreas([]);
+      setLogs([]);
+      setTodayLogs({});
+      setCorrLoaded(false);
+      setWeightData([]);
+      setSessionsData([]);
+      setNutritionData([]);
+      setStepsData([]);
+      setShowResetConfirm(false);
+      setShowTemplates(true);
+    } catch (e) {
+      console.error("resetAllHabits error:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ── Lazy-load correlation data ─────────────────────────────────────────────
   const loadCorrelation = useCallback(async () => {
     if (corrLoaded || !profile?.user_id) return;
@@ -605,6 +638,15 @@ export default function HabitsTracker() {
     <>
       <style>{CSS}</style>
 
+      {/* ── Reset confirm overlay ──────────────────────────────────────────── */}
+      {showResetConfirm && (
+        <ResetConfirmModal
+          onConfirm={resetAllHabits}
+          onCancel={() => setShowResetConfirm(false)}
+          saving={saving}
+        />
+      )}
+
       {/* ── Template picker overlay ────────────────────────────────────────── */}
       {showTemplates && (
         <TemplatePicker
@@ -704,6 +746,14 @@ export default function HabitsTracker() {
                   onClick={() => { setEditingHabit(null); setShowModal(true); }}
                 >
                   + Add Habit
+                </button>
+
+                {/* Reset habits */}
+                <button
+                  className="ht-reset-btn"
+                  onClick={() => setShowResetConfirm(true)}
+                >
+                  Reset Habits
                 </button>
               </>
             )}
@@ -1293,6 +1343,37 @@ function HabitModal({ habit, areas, onSave, onClose, saving }) {
   );
 }
 
+/* ── Reset confirm modal ────────────────────────────────────────────────────── */
+function ResetConfirmModal({ onConfirm, onCancel, saving }) {
+  return (
+    <div className="ht-overlay" onClick={onCancel}>
+      <div className="ht-reset-modal" onClick={e => e.stopPropagation()}>
+        <div className="ht-reset-modal-icon">⚠</div>
+        <div className="ht-reset-modal-title">Reset All Habits?</div>
+        <div className="ht-reset-modal-body">
+          This will permanently delete all your habits, habit areas, and your
+          entire completion history. This cannot be undone.
+        </div>
+        <div className="ht-reset-modal-body ht-reset-modal-body--sub">
+          You'll be taken back to the setup screen to choose new habits.
+        </div>
+        <div className="ht-reset-modal-actions">
+          <button className="ht-btn" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+          <button
+            className="ht-btn ht-btn--danger"
+            onClick={onConfirm}
+            disabled={saving}
+          >
+            {saving ? "Resetting…" : "Yes, reset everything"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CSS
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -1363,6 +1444,8 @@ const CSS = `
   /* ── Add button ── */
   .ht-add-btn { display:flex; align-items:center; justify-content:center; gap:0.38rem; padding:0.55rem 0.9rem; background:transparent; border:1px dashed var(--line-2); border-radius:var(--radius-md); color:var(--text-3); cursor:pointer; font-size:0.82rem; width:100%; transition:all var(--motion-fast); }
   .ht-add-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.05); box-shadow:0 0 12px rgba(222,41,82,0.08); }
+  .ht-reset-btn { display:flex; align-items:center; justify-content:center; padding:0.38rem 0.9rem; background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.1em; width:100%; transition:color var(--motion-fast); opacity:0.6; }
+  .ht-reset-btn:hover { color:#f87171; opacity:1; }
 
   /* ── Buttons ── */
   .ht-btn { background:transparent; border:1px solid var(--line-1); color:var(--text-2); cursor:pointer; font-size:0.78rem; font-family:var(--font-display); letter-spacing:0.08em; padding:0.5rem 1rem; border-radius:var(--radius-sm); transition:all var(--motion-fast); }
@@ -1370,6 +1453,8 @@ const CSS = `
   .ht-btn:disabled { opacity:0.45; cursor:not-allowed; }
   .ht-btn--primary { background:rgba(222,41,82,0.12); border-color:var(--accent-2); color:var(--accent-3); }
   .ht-btn--primary:hover:not(:disabled) { background:rgba(222,41,82,0.22); box-shadow:0 0 14px rgba(222,41,82,0.25); }
+  .ht-btn--danger { background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.4); color:#f87171; }
+  .ht-btn--danger:hover:not(:disabled) { background:rgba(239,68,68,0.22); box-shadow:0 0 14px rgba(239,68,68,0.25); }
 
   /* ── Heatmap ── */
   .ht-heatmap-wrap { display:flex; flex-direction:column; gap:0.35rem; overflow-x:auto; padding-bottom:0.5rem; }
@@ -1476,4 +1561,12 @@ const CSS = `
   .ht-pill:hover { border-color:var(--line-2); color:var(--text-2); }
   .ht-pill--active { background:var(--surface-3); border-color:var(--accent-2); color:var(--text-1); box-shadow:inset 0 0 8px rgba(222,41,82,0.1); }
   .ht-pill--warn.ht-pill--active { border-color:var(--warn); color:var(--warn); }
+
+  /* ── Reset confirm modal ── */
+  .ht-reset-modal { background:var(--surface-2); border:1px solid rgba(239,68,68,0.35); border-top:2px solid #ef4444; border-radius:var(--radius-lg); width:100%; max-width:380px; padding:1.8rem 1.4rem 1.2rem; display:flex; flex-direction:column; align-items:center; gap:0.65rem; text-align:center; box-shadow:0 0 40px rgba(239,68,68,0.12); margin-top:14vh; }
+  .ht-reset-modal-icon { font-size:1.6rem; line-height:1; color:#f87171; }
+  .ht-reset-modal-title { font-family:var(--font-display); font-size:0.78rem; letter-spacing:0.18em; text-transform:uppercase; color:#f87171; }
+  .ht-reset-modal-body { font-size:0.85rem; color:var(--text-2); line-height:1.55; max-width:300px; }
+  .ht-reset-modal-body--sub { font-size:0.78rem; color:var(--text-3); margin-top:-0.2rem; }
+  .ht-reset-modal-actions { display:flex; gap:0.6rem; margin-top:0.4rem; width:100%; justify-content:center; }
 `;
