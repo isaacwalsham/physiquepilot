@@ -874,7 +874,6 @@ export default function Dashboard() {
         event: "*",
         schema: "public",
         table: "daily_nutrition_items",
-        filter: `user_id=eq.${userId}`,
       }, refetchNutrition)
       .subscribe();
 
