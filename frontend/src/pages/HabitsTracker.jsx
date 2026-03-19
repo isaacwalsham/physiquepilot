@@ -37,7 +37,7 @@ const TEMPLATES = [
   // Body
   { area:"Body",      name:"Mobility & Stretching",         habit_type:"quantified", target_value:15,   target_unit:"min",    time_of_day:"morning",   inherit_source:null },
   { area:"Body",      name:"Hit Daily Step Goal",            habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"steps_goal" },
-  { area:"Body",      name:"Hit Daily Training Session",     habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"workout_session" },
+  { area:"Body",      name:"Log Training Session",           habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"workout_session" },
   { area:"Body",      name:"Cardio Completed",               habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"cardio_logged" },
   // Nutrition
   { area:"Nutrition", name:"Drink 4L Water",                 habit_type:"quantified", target_value:4,    target_unit:"litres", time_of_day:"anytime",   inherit_source:null },
@@ -58,7 +58,7 @@ const TEMPLATES = [
   { area:"Recovery",  name:"Supplements Taken",              habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"morning",   inherit_source:null },
   { area:"Recovery",  name:"Morning Sunlight Exposure",      habit_type:"quantified", target_value:10,   target_unit:"min",    time_of_day:"morning",   inherit_source:null },
   { area:"Recovery",  name:"Additional Recovery Protocols",  habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:null },
-  { area:"Recovery",  name:"Log Weight",                     habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"morning",   inherit_source:"weight_logged" },
+  { area:"Body",      name:"Log Weight",                     habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"morning",   inherit_source:"weight_logged" },
 ];
 
 const TIME_GROUPS = ["morning", "afternoon", "evening", "anytime"];
@@ -316,14 +316,16 @@ export default function HabitsTracker() {
 
       switch (h.inherit_source) {
         case "steps_goal": {
+          // Steps are always tracked regardless of training/rest day
           const target = profile?.steps_target;
-          if (!target) { status = "skipped"; break; }
+          if (!target) { status = "incomplete"; break; } // no target set → always incomplete (not skipped)
           status = (iData.steps?.steps ?? 0) >= target ? "complete" : "incomplete";
           break;
         }
         case "workout_session": {
+          // Skip only on scheduled rest days; mark complete if any session exists today
           if (!isScheduledTrainingDay) { status = "skipped"; break; }
-          status = iData.workout?.completed_at ? "complete" : "incomplete";
+          status = iData.workout ? "complete" : "incomplete"; // session existence = logged
           break;
         }
         case "cardio_logged": {
@@ -940,8 +942,8 @@ function HabitRow({ habit, area, log, onToggle, onEdit }) {
     <div className={`ht-habit-row${isSkipped ? " ht-habit-row--skipped" : ""}`}>
       {isInherited ? (
         /* Sync indicator — read-only */
-        <div className="ht-sync-icon" title={INHERIT_LABELS[habit.inherit_source]}>
-          {isSkipped
+        <div className="ht-sync-icon" title={isSkipped ? (habit.inherit_source === "workout_session" ? "Rest day" : "Not tracked today") : INHERIT_LABELS[habit.inherit_source]}>
+          {isSkipped && habit.inherit_source === "workout_session"
             ? <span className="ht-sync-dash">—</span>
             : <SyncIcon color={isComplete ? color : "var(--text-3)"} glowing={isComplete} />
           }
@@ -966,7 +968,9 @@ function HabitRow({ habit, area, log, onToggle, onEdit }) {
           <span className="ht-habit-name" style={{ opacity: isIncomplete ? 0.45 : isSkipped ? 0.35 : 1 }}>{habit.name}</span>
           {isInherited && (
             <span className="ht-habit-inherit-label">
-              {isSkipped ? "Rest day" : INHERIT_LABELS[habit.inherit_source]}
+              {isSkipped
+                ? (habit.inherit_source === "workout_session" ? "Rest day" : "Not tracked today")
+                : INHERIT_LABELS[habit.inherit_source]}
             </span>
           )}
           {!isInherited && habit.habit_type === "quantified" && (
