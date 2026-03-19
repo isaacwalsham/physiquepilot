@@ -846,9 +846,9 @@ export default function Dashboard() {
   // ── Realtime: re-fetch nutrition whenever daily_nutrition_items changes ──
   useEffect(() => {
     if (!userId) return;
-    const today = todayLocalISO();
 
     const refetchNutrition = async () => {
+      const today = todayLocalISO();
       const { data: items } = await supabase
         .from("daily_nutrition_items")
         .select("food_name, meal_name, calories, protein_g, carbs_g, fats_g")
@@ -868,21 +868,30 @@ export default function Dashboard() {
       }
     };
 
-    const channel = supabase
-      .channel(`db-nutrition-${userId}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "daily_nutrition_items",
-      }, (payload) => {
-        console.log("[Realtime] nutrition change:", payload);
-        refetchNutrition();
-      })
-      .subscribe((status, err) => {
-        console.log("[Realtime] nutrition status:", status, err ?? "");
-      });
+    let channel;
 
-    return () => { supabase.removeChannel(channel); };
+    // Inject the user's JWT into the realtime client before subscribing,
+    // otherwise it defaults to the anon key and RLS blocks the subscription.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+      }
+      channel = supabase
+        .channel(`db-nutrition-${userId}`)
+        .on("postgres_changes", {
+          event: "*",
+          schema: "public",
+          table: "daily_nutrition_items",
+        }, (payload) => {
+          console.log("[Realtime] nutrition change:", payload);
+          refetchNutrition();
+        })
+        .subscribe((status, err) => {
+          console.log("[Realtime] nutrition status:", status, err ?? "");
+        });
+    });
+
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [userId]);
 
   const dispW = (kg) => {
