@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS public.habits (
   target_unit  TEXT,
   time_of_day  TEXT NOT NULL DEFAULT 'anytime'
                CHECK (time_of_day IN ('morning', 'afternoon', 'evening', 'anytime')),
+  inherit_source TEXT
+               CHECK (inherit_source IN (
+                 'steps_goal','workout_session','cardio_logged','macros_hit','micros_hit'
+               )),
   is_archived  BOOLEAN NOT NULL DEFAULT FALSE,
   sort_order   INT     NOT NULL DEFAULT 0,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -58,3 +62,10 @@ DROP POLICY IF EXISTS "owner" ON public.habit_logs;
 CREATE POLICY "owner" ON public.habit_logs
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+-- Migration: add inherit_source to existing habits table (safe to re-run)
+ALTER TABLE public.habits
+  ADD COLUMN IF NOT EXISTS inherit_source TEXT
+  CHECK (inherit_source IN (
+    'steps_goal','workout_session','cardio_logged','macros_hit','micros_hit'
+  ));

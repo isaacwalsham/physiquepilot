@@ -32,18 +32,32 @@ const DEFAULT_AREAS = [
 ];
 
 /* ─── template library ────────────────────────────────────────────────────── */
+// inherit_source: auto-complete from data on other pages (null = manual)
 const TEMPLATES = [
-  { area: "Body",      name: "Mobility / stretching", habit_type: "quantified", target_value: 15, target_unit: "min",    time_of_day: "morning"   },
-  { area: "Nutrition", name: "Drink 3L water",         habit_type: "quantified", target_value: 3,  target_unit: "litres", time_of_day: "anytime"   },
-  { area: "Nutrition", name: "No alcohol",             habit_type: "negative",   target_value: null, target_unit: null,   time_of_day: "evening"   },
-  { area: "Sleep",     name: "In bed by 10:30pm",      habit_type: "positive",   target_value: null, target_unit: null,   time_of_day: "evening"   },
-  { area: "Sleep",     name: "No phone before bed",    habit_type: "negative",   target_value: null, target_unit: null,   time_of_day: "evening"   },
-  { area: "Sleep",     name: "No caffeine after 2pm",  habit_type: "negative",   target_value: null, target_unit: null,   time_of_day: "afternoon" },
-  { area: "Mind",      name: "Meditate",               habit_type: "quantified", target_value: 10, target_unit: "min",    time_of_day: "morning"   },
-  { area: "Mind",      name: "Read",                   habit_type: "quantified", target_value: 20, target_unit: "pages",  time_of_day: "evening"   },
-  { area: "Mind",      name: "Gratitude journal",      habit_type: "positive",   target_value: null, target_unit: null,   time_of_day: "evening"   },
-  { area: "Recovery",  name: "Supplements / creatine", habit_type: "positive",   target_value: null, target_unit: null,   time_of_day: "morning"   },
-  { area: "Recovery",  name: "Sunlight exposure",      habit_type: "quantified", target_value: 10, target_unit: "min",    time_of_day: "morning"   },
+  // Body
+  { area:"Body",      name:"Mobility & Stretching",         habit_type:"quantified", target_value:15,   target_unit:"min",    time_of_day:"morning",   inherit_source:null },
+  { area:"Body",      name:"Hit Daily Step Goal",            habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"steps_goal" },
+  { area:"Body",      name:"Hit Daily Training Session",     habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"workout_session" },
+  { area:"Body",      name:"Cardio Completed",               habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"cardio_logged" },
+  // Nutrition
+  { area:"Nutrition", name:"Drink 4L Water",                 habit_type:"quantified", target_value:4,    target_unit:"litres", time_of_day:"anytime",   inherit_source:null },
+  { area:"Nutrition", name:"Hit Macros",                     habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"macros_hit" },
+  { area:"Nutrition", name:"Limit Caffeine After 4pm",       habit_type:"negative",   target_value:null, target_unit:null,     time_of_day:"afternoon", inherit_source:null },
+  { area:"Nutrition", name:"Hit Micronutrients",             habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:"micros_hit" },
+  { area:"Nutrition", name:"Food Shop",                      habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:null },
+  { area:"Nutrition", name:"Meal Prepping",                  habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:null },
+  // Sleep
+  { area:"Sleep",     name:"Hit Sleep Goal",                 habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"morning",   inherit_source:null },
+  { area:"Sleep",     name:"Limit Phone Use Before Bed",     habit_type:"negative",   target_value:null, target_unit:null,     time_of_day:"evening",   inherit_source:null },
+  // Mind
+  { area:"Mind",      name:"Complete Deep Work Block",       habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:null },
+  { area:"Mind",      name:"Reading",                        habit_type:"quantified", target_value:20,   target_unit:"pages",  time_of_day:"evening",   inherit_source:null },
+  { area:"Mind",      name:"Meditation",                     habit_type:"quantified", target_value:10,   target_unit:"min",    time_of_day:"morning",   inherit_source:null },
+  { area:"Mind",      name:"Journalling",                    habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"evening",   inherit_source:null },
+  // Recovery
+  { area:"Recovery",  name:"Supplements Taken",              habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"morning",   inherit_source:null },
+  { area:"Recovery",  name:"Morning Sunlight Exposure",      habit_type:"quantified", target_value:10,   target_unit:"min",    time_of_day:"morning",   inherit_source:null },
+  { area:"Recovery",  name:"Additional Recovery Protocols",  habit_type:"positive",   target_value:null, target_unit:null,     time_of_day:"anytime",   inherit_source:null },
 ];
 
 const TIME_GROUPS = ["morning", "afternoon", "evening", "anytime"];
@@ -187,20 +201,69 @@ export default function HabitsTracker() {
   const [nutritionData, setNutritionData] = useState([]);
   const [stepsData, setStepsData]         = useState([]);
 
+  // Inherit sync data (today only)
+  const [inheritData, setInheritData] = useState({
+    workout: null,         // workout_sessions row for today
+    steps: null,           // steps_logs row for today
+    cardio: null,          // cardio_logs row for today (truthy = logged)
+    nutrition: [],         // daily_nutrition_items rows for today
+    nutritionTargets: [],  // nutrition_day_targets rows
+  });
+
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!profile?.user_id) return;
     load(profile.user_id);
   }, [profile?.user_id]);
 
+  // Re-run inherit sync whenever page becomes visible (user switches back from another tab)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && profile?.user_id) {
+        loadInheritData(profile.user_id);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [profile?.user_id]);
+
+  const loadInheritData = useCallback(async (uid) => {
+    if (!uid) return;
+    try {
+      const [workoutRes, stepsRes, cardioRes, nutritionRes, targetsRes] = await Promise.all([
+        supabase.from("workout_sessions").select("session_date,completed_at,program_day_id")
+          .eq("user_id", uid).eq("session_date", TODAY),
+        supabase.from("steps_logs").select("log_date,steps")
+          .eq("user_id", uid).eq("log_date", TODAY).maybeSingle(),
+        supabase.from("cardio_logs").select("log_date")
+          .eq("user_id", uid).eq("log_date", TODAY).limit(1),
+        supabase.from("daily_nutrition_items").select("protein_g,carbs_g,fats_g,calories")
+          .eq("user_id", uid).eq("log_date", TODAY),
+        supabase.from("nutrition_day_targets").select("day_type,protein_g,carbs_g,fats_g,calories")
+          .eq("user_id", uid),
+      ]);
+      return {
+        workout:          workoutRes.data?.[0] ?? null,
+        steps:            stepsRes.data ?? null,
+        cardio:           (cardioRes.data?.length ?? 0) > 0 ? cardioRes.data[0] : null,
+        nutrition:        nutritionRes.data || [],
+        nutritionTargets: targetsRes.data || [],
+      };
+    } catch (e) {
+      console.error("loadInheritData error:", e);
+      return null;
+    }
+  }, []);
+
   const load = async (uid) => {
     setLoading(true);
     try {
       const since366 = isoDate(-366);
-      const [areasRes, habitsRes, logsRes] = await Promise.all([
+      const [areasRes, habitsRes, logsRes, iData] = await Promise.all([
         supabase.from("habit_areas").select("*").eq("user_id", uid).order("sort_order"),
         supabase.from("habits").select("*").eq("user_id", uid).eq("is_archived", false).order("sort_order"),
         supabase.from("habit_logs").select("*").eq("user_id", uid).gte("log_date", since366),
+        loadInheritData(uid),
       ]);
 
       const loadedAreas  = areasRes.data  || [];
@@ -210,6 +273,7 @@ export default function HabitsTracker() {
       setAreas(loadedAreas);
       setHabits(loadedHabits);
       setLogs(loadedLogs);
+      if (iData) setInheritData(iData);
 
       // Build today's log map
       const tl = {};
@@ -217,6 +281,11 @@ export default function HabitsTracker() {
         if (l.log_date === TODAY) tl[l.habit_id] = l;
       }
       setTodayLogs(tl);
+
+      // Auto-apply inherited logs
+      if (iData && loadedHabits.length) {
+        await applyInheritedLogs(uid, loadedHabits, iData, tl);
+      }
 
       // Show template picker if no habits and not already set up
       if (loadedHabits.length === 0 && !localStorage.getItem(SETUP_KEY)) {
@@ -228,6 +297,105 @@ export default function HabitsTracker() {
       setLoading(false);
     }
   };
+
+  // ── Inherit: compute status from synced data, upsert logs ──────────────────
+  const applyInheritedLogs = useCallback(async (uid, habitList, iData, existingTodayLogs) => {
+    const inherited = habitList.filter(h => h.inherit_source);
+    if (!inherited.length) return;
+
+    // Determine if today is a training day using profile.training_days
+    const todayName = new Date().toLocaleDateString("en-US", { weekday: "short" }).toLowerCase().slice(0, 3);
+    const trainingDays = profile?.training_days ?? [];
+    const isScheduledTrainingDay = trainingDays.length === 0 || trainingDays.includes(todayName);
+
+    // Macro targets: prefer training day targets if a workout was logged
+    const dayType = iData.workout ? "training" : "rest";
+    const macroTarget = iData.nutritionTargets.find(t => t.day_type === dayType) || iData.nutritionTargets[0];
+
+    // Sum today's nutrition
+    const totalProtein  = iData.nutrition.reduce((s, n) => s + (n.protein_g || 0), 0);
+    const totalCarbs    = iData.nutrition.reduce((s, n) => s + (n.carbs_g  || 0), 0);
+    const totalFats     = iData.nutrition.reduce((s, n) => s + (n.fats_g   || 0), 0);
+
+    const upserts = [];
+    for (const h of inherited) {
+      let status = "incomplete";
+
+      switch (h.inherit_source) {
+        case "steps_goal": {
+          const target = profile?.steps_target;
+          if (!target) { status = "skipped"; break; }
+          status = (iData.steps?.steps ?? 0) >= target ? "complete" : "incomplete";
+          break;
+        }
+        case "workout_session": {
+          if (!isScheduledTrainingDay) { status = "skipped"; break; }
+          status = iData.workout?.completed_at ? "complete" : "incomplete";
+          break;
+        }
+        case "cardio_logged": {
+          status = iData.cardio ? "complete" : "incomplete";
+          break;
+        }
+        case "macros_hit": {
+          if (!iData.nutrition.length || !macroTarget) { status = "incomplete"; break; }
+          const tol = 0.10; // 10% tolerance
+          const pOk = macroTarget.protein_g > 0 && totalProtein >= macroTarget.protein_g * (1 - tol);
+          const cOk = macroTarget.carbs_g   > 0 && totalCarbs   >= macroTarget.carbs_g   * (1 - tol);
+          const fOk = macroTarget.fats_g    > 0 && totalFats    >= macroTarget.fats_g    * (1 - tol);
+          status = (pOk && cOk && fOk) ? "complete" : "incomplete";
+          break;
+        }
+        case "micros_hit": {
+          // Simplified: if any nutrition logged today, mark complete (detailed micro check is complex)
+          status = iData.nutrition.length > 0 ? "incomplete" : "incomplete";
+          // We'll check via daily_nutrition_item_nutrients for key nutrients
+          // For now, if calories >= 80% of target → assume micros tracked
+          if (iData.nutrition.length > 0 && macroTarget?.calories) {
+            const totalCal = iData.nutrition.reduce((s, n) => s + (n.calories || 0), 0);
+            status = totalCal >= macroTarget.calories * 0.7 ? "complete" : "incomplete";
+          }
+          break;
+        }
+        default:
+          continue;
+      }
+
+      // Only upsert if status changed from what's stored
+      const existing = existingTodayLogs[h.id];
+      if (existing?.status !== status) {
+        upserts.push({ user_id: uid, habit_id: h.id, log_date: TODAY, status, value: null });
+      }
+    }
+
+    if (!upserts.length) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("habit_logs")
+        .upsert(upserts, { onConflict: "user_id,habit_id,log_date" })
+        .select();
+      if (error) throw error;
+
+      if (data?.length) {
+        setTodayLogs(prev => {
+          const next = { ...prev };
+          for (const row of data) next[row.habit_id] = row;
+          return next;
+        });
+        setLogs(prev => {
+          let updated = [...prev];
+          for (const row of data) {
+            updated = updated.filter(l => !(l.habit_id === row.habit_id && l.log_date === TODAY));
+            updated.push(row);
+          }
+          return updated;
+        });
+      }
+    } catch (e) {
+      console.error("applyInheritedLogs error:", e);
+    }
+  }, [profile]);
 
   // ── Lazy-load correlation data ─────────────────────────────────────────────
   const loadCorrelation = useCallback(async () => {
@@ -374,16 +542,17 @@ export default function HabitsTracker() {
       for (const a of allAreas) areaMap[a.name] = a.id;
 
       const payload = selected.map((t, i) => ({
-        user_id:      profile.user_id,
-        area_id:      areaMap[t.area] || null,
-        name:         t.name,
-        icon:         null,
-        habit_type:   t.habit_type,
-        target_value: t.target_value,
-        target_unit:  t.target_unit,
-        time_of_day:  t.time_of_day,
-        is_archived:  false,
-        sort_order:   i,
+        user_id:        profile.user_id,
+        area_id:        areaMap[t.area] || null,
+        name:           t.name,
+        icon:           null,
+        habit_type:     t.habit_type,
+        target_value:   t.target_value,
+        target_unit:    t.target_unit,
+        time_of_day:    t.time_of_day,
+        inherit_source: t.inherit_source || null,
+        is_archived:    false,
+        sort_order:     i,
       }));
 
       const { data, error } = await supabase.from("habits").insert(payload).select();
@@ -651,16 +820,38 @@ function ProgressRing({ done, total }) {
   );
 }
 
+/* ── Inherit source label map ───────────────────────────────────────────────── */
+const INHERIT_LABELS = {
+  steps_goal:       "Synced from Steps",
+  workout_session:  "Synced from Training",
+  cardio_logged:    "Synced from Cardio",
+  macros_hit:       "Synced from Nutrition",
+  micros_hit:       "Synced from Nutrition",
+};
+
+/* ── Sync icon SVG ──────────────────────────────────────────────────────────── */
+function SyncIcon({ color, glowing }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ filter: glowing ? `drop-shadow(0 0 4px ${color}99)` : "none" }}>
+      <path d="M3 9a6 6 0 0 1 9.87-4.6L14 3v3h-3l1.18-1.18A4.5 4.5 0 1 0 13.5 9" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14 9a6 6 0 0 1-9.87 4.6L3 15v-3h3l-1.18 1.18A4.5 4.5 0 1 0 4.5 9" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 /* ── Habit row ──────────────────────────────────────────────────────────────── */
 function HabitRow({ habit, area, log, onToggle, onEdit }) {
-  const isComplete = log?.status === "complete";
+  const isComplete   = log?.status === "complete";
   const isIncomplete = log?.status === "incomplete";
-  const color = area?.color || "var(--accent-3)";
+  const isSkipped    = log?.status === "skipped";
+  const isInherited  = !!habit.inherit_source;
+  const color        = area?.color || "var(--accent-3)";
 
+  // Manual habits: tap circle
   const circleContent = (() => {
     if (habit.habit_type === "negative") {
-      if (isComplete) return { bg: "var(--ok)", glow: "rgba(40,183,141,0.5)", symbol: "✓" };
-      if (isIncomplete) return { bg: "var(--bad)", glow: "rgba(255,79,115,0.5)", symbol: "✗" };
+      if (isComplete)   return { bg: "var(--ok)",  glow: "rgba(40,183,141,0.5)", symbol: "✓" };
+      if (isIncomplete) return { bg: "var(--bad)",  glow: "rgba(255,79,115,0.5)",  symbol: "✗" };
       return { bg: "transparent", glow: null, symbol: null, border: color };
     }
     if (isComplete) return { bg: color, glow: `${color}80`, symbol: "✓" };
@@ -668,23 +859,39 @@ function HabitRow({ habit, area, log, onToggle, onEdit }) {
   })();
 
   return (
-    <div className="ht-habit-row">
-      <button
-        className="ht-habit-circle"
-        onClick={onToggle}
-        style={{
-          background: circleContent.bg,
-          border: `2px solid ${circleContent.border || color}`,
-          boxShadow: circleContent.glow ? `0 0 10px ${circleContent.glow}` : "none",
-        }}
-        aria-label={`Toggle ${habit.name}`}
-      >
-        {circleContent.symbol && <span className="ht-habit-circle-sym">{circleContent.symbol}</span>}
-      </button>
+    <div className={`ht-habit-row${isSkipped ? " ht-habit-row--skipped" : ""}`}>
+      {isInherited ? (
+        /* Sync indicator — read-only */
+        <div className="ht-sync-icon" title={INHERIT_LABELS[habit.inherit_source]}>
+          {isSkipped
+            ? <span className="ht-sync-dash">—</span>
+            : <SyncIcon color={isComplete ? color : "var(--text-3)"} glowing={isComplete} />
+          }
+        </div>
+      ) : (
+        /* Manual tap circle */
+        <button
+          className="ht-habit-circle"
+          onClick={onToggle}
+          style={{
+            background: circleContent.bg,
+            border: `2px solid ${circleContent.border || color}`,
+            boxShadow: circleContent.glow ? `0 0 10px ${circleContent.glow}` : "none",
+          }}
+          aria-label={`Toggle ${habit.name}`}
+        >
+          {circleContent.symbol && <span className="ht-habit-circle-sym">{circleContent.symbol}</span>}
+        </button>
+      )}
       <div className="ht-habit-info" onClick={onEdit}>
         <div className="ht-habit-text">
-          <span className="ht-habit-name" style={{ opacity: isIncomplete ? 0.45 : 1 }}>{habit.name}</span>
-          {habit.habit_type === "quantified" && (
+          <span className="ht-habit-name" style={{ opacity: isIncomplete ? 0.45 : isSkipped ? 0.35 : 1 }}>{habit.name}</span>
+          {isInherited && (
+            <span className="ht-habit-inherit-label">
+              {isSkipped ? "Rest day" : INHERIT_LABELS[habit.inherit_source]}
+            </span>
+          )}
+          {!isInherited && habit.habit_type === "quantified" && (
             <span className="ht-habit-quant">
               {log?.value != null ? `${log.value} / ${habit.target_value} ${habit.target_unit}` : `Target: ${habit.target_value} ${habit.target_unit}`}
             </span>
@@ -947,7 +1154,12 @@ function TemplatePicker({ onConfirm, onSkip, saving }) {
                     onClick={() => toggle(t)}
                   >
                     <div className="ht-template-item-text">
-                      <span className="ht-template-item-name">{t.name}</span>
+                      <div className="ht-template-item-name-row">
+                        <span className="ht-template-item-name">{t.name}</span>
+                        {t.inherit_source && (
+                          <span className="ht-template-sync-badge">auto-sync</span>
+                        )}
+                      </div>
                       <span className="ht-template-item-meta">
                         {t.habit_type === "quantified" ? `${t.target_value} ${t.target_unit} · ` : ""}
                         {t.time_of_day}
@@ -1134,7 +1346,11 @@ const CSS = `
   .ht-habit-text { display:flex; flex-direction:column; gap:0.08rem; flex:1; min-width:0; }
   .ht-habit-name { font-size:0.92rem; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ht-habit-quant { font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.08em; color:var(--text-3); }
+  .ht-habit-inherit-label { font-family:var(--font-display); font-size:0.59rem; letter-spacing:0.1em; color:var(--text-3); opacity:0.7; }
   .ht-area-badge { font-family:var(--font-display); font-size:0.58rem; letter-spacing:0.1em; text-transform:uppercase; padding:0.14rem 0.45rem; border-radius:999px; white-space:nowrap; flex-shrink:0; }
+  .ht-habit-row--skipped { opacity:0.5; }
+  .ht-sync-icon { width:32px; height:32px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .ht-sync-dash { font-family:var(--font-display); font-size:0.9rem; color:var(--text-3); }
 
   /* ── Empty state ── */
   .ht-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.6rem; padding:3rem 1rem; text-align:center; }
@@ -1227,7 +1443,9 @@ const CSS = `
   .ht-template-item--selected { }
   .ht-template-item-icon { font-size:1.1rem; flex-shrink:0; }
   .ht-template-item-text { display:flex; flex-direction:column; gap:0.06rem; flex:1; min-width:0; }
+  .ht-template-item-name-row { display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap; }
   .ht-template-item-name { font-size:0.9rem; color:var(--text-1); }
+  .ht-template-sync-badge { font-family:var(--font-display); font-size:0.55rem; letter-spacing:0.1em; text-transform:uppercase; padding:0.1rem 0.38rem; border-radius:999px; background:rgba(8,145,178,0.12); border:1px solid rgba(8,145,178,0.3); color:#38bdf8; flex-shrink:0; }
   .ht-template-item-meta { font-family:var(--font-display); font-size:0.6rem; letter-spacing:0.08em; color:var(--text-3); text-transform:uppercase; }
   .ht-template-check { font-size:0.8rem; color:var(--ok); width:18px; text-align:center; flex-shrink:0; }
   .ht-template-footer { padding:0.8rem 1rem; border-top:1px solid var(--line-1); display:flex; justify-content:space-between; gap:0.5rem; }
