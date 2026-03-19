@@ -217,37 +217,6 @@ export default function HabitsTracker() {
     load(profile.user_id);
   }, [profile?.user_id]);
 
-  // Re-run inherit sync whenever page becomes visible (user switches back from another tab)
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible" && profile?.user_id) {
-        loadInheritData(profile.user_id).then(iData => {
-          if (iData) {
-            setInheritData(iData);
-            applyInheritedLogs(profile.user_id, habits, iData, todayLogs);
-          }
-        });
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [profile?.user_id, habits, todayLogs, loadInheritData, applyInheritedLogs]);
-
-  // Also re-sync immediately when Training or Weight pages fire a save event
-  useEffect(() => {
-    const onHabitsSync = () => {
-      if (!profile?.user_id) return;
-      loadInheritData(profile.user_id).then(iData => {
-        if (iData) {
-          setInheritData(iData);
-          applyInheritedLogs(profile.user_id, habits, iData, todayLogs);
-        }
-      });
-    };
-    window.addEventListener("pp_habits_sync", onHabitsSync);
-    return () => window.removeEventListener("pp_habits_sync", onHabitsSync);
-  }, [profile?.user_id, habits, todayLogs, loadInheritData, applyInheritedLogs]);
-
   const loadInheritData = useCallback(async (uid) => {
     if (!uid) return;
     try {
@@ -423,6 +392,37 @@ export default function HabitsTracker() {
       console.error("applyInheritedLogs error:", e);
     }
   }, [profile]);
+
+  // Re-run inherit sync whenever page becomes visible (user switches back from another tab)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && profile?.user_id) {
+        loadInheritData(profile.user_id).then(iData => {
+          if (iData) {
+            setInheritData(iData);
+            applyInheritedLogs(profile.user_id, habits, iData, todayLogs);
+          }
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [profile?.user_id, habits, todayLogs, loadInheritData, applyInheritedLogs]);
+
+  // Also re-sync immediately when Training or Weight pages fire a save event
+  useEffect(() => {
+    const onHabitsSync = () => {
+      if (!profile?.user_id) return;
+      loadInheritData(profile.user_id).then(iData => {
+        if (iData) {
+          setInheritData(iData);
+          applyInheritedLogs(profile.user_id, habits, iData, todayLogs);
+        }
+      });
+    };
+    window.addEventListener("pp_habits_sync", onHabitsSync);
+    return () => window.removeEventListener("pp_habits_sync", onHabitsSync);
+  }, [profile?.user_id, habits, todayLogs, loadInheritData, applyInheritedLogs]);
 
   // ── Reset all habit data ───────────────────────────────────────────────────
   const [showResetConfirm, setShowResetConfirm] = useState(false);
