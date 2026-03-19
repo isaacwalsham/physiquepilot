@@ -4597,6 +4597,105 @@ app.post("/api/checkins/reports/:reportId/send-email", authenticate, async (req,
   }
 });
 
+// ─── GET /api/user/export ─────────────────────────────────────────────────────
+app.get("/api/user/export", authenticate, async (req, res) => {
+  try {
+    const user_id = req.userId;
+
+    const [
+      profileRes,
+      weightRes,
+      workoutRes,
+      cardioRes,
+      stepsRes,
+      nutritionRes,
+      checkInsRes,
+      checkInReportsRes,
+      photosRes,
+      convoRes,
+    ] = await Promise.all([
+      supabase.from("profiles").select("*").eq("user_id", user_id).maybeSingle(),
+      supabase.from("weight_logs").select("*").eq("user_id", user_id),
+      supabase.from("workout_sessions").select("*").eq("user_id", user_id),
+      supabase.from("cardio_logs").select("*").eq("user_id", user_id),
+      supabase.from("steps_logs").select("*").eq("user_id", user_id),
+      supabase.from("daily_nutrition").select("*").eq("user_id", user_id),
+      supabase.from("weekly_check_ins").select("*").eq("user_id", user_id),
+      supabase.from("check_in_reports").select("*").eq("user_id", user_id),
+      supabase.from("progress_photos").select("*").eq("user_id", user_id),
+      supabase.from("coach_conversations").select("*").eq("user_id", user_id),
+    ]);
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      profile: profileRes.data || null,
+      weight_logs: weightRes.data || [],
+      workout_sessions: workoutRes.data || [],
+      cardio_logs: cardioRes.data || [],
+      steps_logs: stepsRes.data || [],
+      daily_nutrition: nutritionRes.data || [],
+      weekly_check_ins: checkInsRes.data || [],
+      check_in_reports: checkInReportsRes.data || [],
+      progress_photos: photosRes.data || [],
+      coach_conversations: convoRes.data || [],
+    };
+
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Disposition", `attachment; filename="physique-pilot-export-${date}.json"`);
+    res.setHeader("Content-Type", "application/json");
+    return res.send(JSON.stringify(exportData, null, 2));
+  } catch (e) {
+    console.error("export error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ─── DELETE /api/user/reset-progress ─────────────────────────────────────────
+app.delete("/api/user/reset-progress", authenticate, async (req, res) => {
+  try {
+    const user_id = req.userId;
+
+    const tables = [
+      "weight_logs",
+      "workout_sessions",
+      "cardio_logs",
+      "steps_logs",
+      "daily_nutrition",
+      "weekly_check_ins",
+      "check_in_reports",
+      "progress_photos",
+      "coach_conversations",
+    ];
+
+    for (const table of tables) {
+      const { error } = await supabase.from(table).delete().eq("user_id", user_id);
+      if (error) {
+        console.error(`reset-progress: error deleting ${table}:`, error.message);
+      }
+    }
+
+    return res.json({ ok: true, message: "All progress data cleared" });
+  } catch (e) {
+    console.error("reset-progress error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ─── DELETE /api/user/delete-account ─────────────────────────────────────────
+app.delete("/api/user/delete-account", authenticate, async (req, res) => {
+  try {
+    const user_id = req.userId;
+    const { error } = await supabase.auth.admin.deleteUser(user_id);
+    if (error) {
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("delete-account error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 // ─── Weekly cron: auto-generate reports on check-in day ──────────────────────
 // Runs every day at 08:00 server time; generates reports for users whose check-in day is today
 cron.schedule("0 8 * * *", async () => {
