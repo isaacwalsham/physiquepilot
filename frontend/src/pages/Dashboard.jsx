@@ -371,7 +371,7 @@ const CSS = `
     flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 0.6rem;
   }
   .db-bio-slide {
-    flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0.4rem 0;
+    flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding: 0.5rem 0 0 0;
     animation: bioFadeIn 0.25s ease;
   }
   @keyframes bioFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
@@ -985,8 +985,6 @@ export default function Dashboard() {
                 </div>
               );
             })()}
-
-            <div className="db-nav-hint">OPEN WEIGHT LOG →</div>
           </div>
 
           {/* ── COL 2 ROWS 1-2: MACRO GAUGES ── */}
