@@ -423,38 +423,50 @@ const CSS = `
     display: flex; align-items: center; justify-content: space-between;
     padding-top: 0.5rem; border-top: 1px solid var(--line-1); flex-shrink: 0; margin-top: 0.4rem;
   }
-  /* detail slide: gauge left, stats right */
-  .db-nut-detail-row {
-    display: flex; gap: 0.85rem; align-items: flex-start;
-    flex: 1; min-height: 0; overflow: hidden; padding-top: 0.15rem;
-  }
-  .db-nut-detail-left {
-    display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
-    flex-shrink: 0;
-  }
-  .db-nut-detail-right {
-    flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  /* centred gauge section at top of each detail slide */
+  .db-nut-center-gauge {
+    display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
+    flex-shrink: 0; padding-bottom: 0.5rem;
   }
   .db-macro-remaining {
-    font-family: var(--font-display); font-size: 0.72rem; letter-spacing: 0.08em;
-    padding: 0.28rem 0.6rem; border-radius: var(--radius-sm); text-align: center;
-    flex-shrink: 0; width: 100%; box-sizing: border-box;
+    font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.1em;
+    padding: 0.32rem 1rem; border-radius: var(--radius-sm); text-align: center; flex-shrink: 0;
+  }
+  /* 2×2 stats grid */
+  .db-nut-stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem;
+    width: 100%; flex-shrink: 0; margin-bottom: 0.55rem;
+  }
+  .db-nut-stat-box {
+    background: var(--surface-3); border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm); padding: 0.38rem 0.6rem;
+    display: flex; flex-direction: column; gap: 0.06rem;
+  }
+  .db-nut-stat-label {
+    font-family: var(--font-display); font-size: 0.57rem; letter-spacing: 0.13em;
+    color: var(--text-3); text-transform: uppercase;
+  }
+  .db-nut-stat-val {
+    font-family: var(--font-display); font-size: 1.05rem; font-weight: 700;
+    color: var(--text-1); line-height: 1.1;
+  }
+  /* sources list — flex:1 so it fills remaining space */
+  .db-nut-sources {
+    flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column;
   }
   .db-sources-label {
-    font-family: var(--font-display); font-size: 0.62rem; letter-spacing: 0.16em;
+    font-family: var(--font-display); font-size: 0.6rem; letter-spacing: 0.18em;
     color: var(--text-3); text-transform: uppercase; margin-bottom: 0.3rem; flex-shrink: 0;
   }
-  .db-gpkg {
-    display: flex; flex-direction: column; align-items: center; gap: 0.05rem;
-    font-family: var(--font-display); flex-shrink: 0;
+  /* overview bottom summary row */
+  .db-nut-summary-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.35rem;
+    flex-shrink: 0; margin-top: 0.4rem;
   }
-  .db-gpkg-val { font-size: 1.2rem; font-weight: 700; color: var(--text-1); line-height: 1; }
-  .db-gpkg-unit { font-size: 0.62rem; color: var(--text-3); }
-  .db-gpkg-target { font-size: 0.6rem; color: var(--text-3); }
-  .db-day-badge {
-    font-family: var(--font-display); font-size: 0.58rem; letter-spacing: 0.1em;
-    padding: 0.22rem 0.5rem; border-radius: var(--radius-sm);
-    flex-shrink: 0; text-align: center; width: 100%; box-sizing: border-box;
+  .db-nut-summary-cell {
+    background: var(--surface-3); border: 1px solid var(--line-1);
+    border-radius: var(--radius-sm); padding: 0.3rem 0.4rem; text-align: center;
+    display: flex; flex-direction: column; gap: 0.05rem;
   }
 
   /* ── Responsive ── */
@@ -1107,11 +1119,11 @@ export default function Dashboard() {
               const gpkg        = weightKg && weightKg > 0 ? (proLog / weightKg).toFixed(1) : null;
               const gpkgTarget  = weightKg && weightKg > 0 ? (proTarget / weightKg).toFixed(1) : null;
 
-              // Top food sources helpers
+              // Top food sources helpers (up to 6 items to fill space)
               const topSources = (macro) => [...nutItems]
                 .filter(i => Number(i[macro] || 0) > 0)
                 .sort((a, b) => Number(b[macro]) - Number(a[macro]))
-                .slice(0, 4)
+                .slice(0, 6)
                 .map(i => ({ name: i.food_name || i.meal_name || "Food item", value: Number(i[macro] || 0) }));
 
               const dayContextLabel = todayDayType === "training"
@@ -1138,94 +1150,160 @@ export default function Dashboard() {
                   : <div className="db-slide-sub">Nothing logged yet today.</div>;
               };
 
+              // derived stats
+              const pctOfCal = (kcal) => calLog > 0 ? Math.round((kcal / calLog) * 100) : 0;
+
               const slides = [
-                // 0: Overview — 4 gauges 2×2
+                // 0: Overview — 4 large gauges filling the panel + summary row
                 <div key="overview" className="db-nut-slide">
                   <div className="db-gauge-grid" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-                    <ArcGauge value={calLog}  max={calTarget}  label="CALORIES" color="var(--accent-3)" unit="kcal" size={148} />
-                    <ArcGauge value={proLog}  max={proTarget}  label="PROTEIN"  color="#22c55e"         unit="g"    size={148} />
-                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS"    color="#4d8eff"         unit="g"    size={148} />
-                    <ArcGauge value={fatLog}  max={fatTarget}  label="FATS"     color="#f59e0b"         unit="g"    size={148} />
+                    <ArcGauge value={calLog}  max={calTarget}  label="CALORIES" color="var(--accent-3)" unit="kcal" size={168} />
+                    <ArcGauge value={proLog}  max={proTarget}  label="PROTEIN"  color="#22c55e"         unit="g"    size={168} />
+                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS"    color="#4d8eff"         unit="g"    size={168} />
+                    <ArcGauge value={fatLog}  max={fatTarget}  label="FATS"     color="#f59e0b"         unit="g"    size={168} />
+                  </div>
+                  {/* logged / target summary + remaining */}
+                  <div className="db-nut-summary-row">
+                    {[
+                      { label: "CALORIES", logged: calLog, target: calTarget, unit: "kcal", color: "var(--accent-3)" },
+                      { label: "PROTEIN",  logged: proLog,  target: proTarget,  unit: "g",    color: "#22c55e" },
+                      { label: "CARBS",    logged: carbLog, target: carbTarget, unit: "g",    color: "#4d8eff" },
+                      { label: "FATS",     logged: fatLog,  target: fatTarget,  unit: "g",    color: "#f59e0b" },
+                    ].map(({ label, logged, target, unit, color }) => (
+                      <div key={label} className="db-nut-summary-cell">
+                        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.55rem", letterSpacing: "0.12em", color: "var(--text-3)" }}>{label}</span>
+                        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.9rem", fontWeight: 700, color, lineHeight: 1 }}>{logged}</span>
+                        <span style={{ fontFamily: "var(--font-display)", fontSize: "0.58rem", color: "var(--text-3)" }}>/ {target}{unit}</span>
+                      </div>
+                    ))}
                   </div>
                   {calRemaining !== null && (
                     <div className="db-cal-status" style={{
                       background: calRemaining >= 0 ? "rgba(26,74,54,0.25)" : "rgba(138,15,46,0.2)",
                       border: `1px solid ${calRemaining >= 0 ? "#1a4a36" : "var(--accent-1)"}`,
                       color: calRemaining >= 0 ? "var(--ok)" : "var(--bad)",
+                      marginTop: "0.4rem",
                     }}>
                       {calRemaining >= 0 ? `${calRemaining} kcal remaining` : `${Math.abs(calRemaining)} kcal over target`}
                     </div>
                   )}
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", letterSpacing: "0.14em", color: "var(--text-3)", textAlign: "center", marginTop: "0.3rem", flexShrink: 0 }}>
-                    {todayDayType === "training" ? "TRAINING DAY" : todayDayType === "high" ? "HIGH DAY" : "REST DAY"} TARGETS
-                  </div>
                 </div>,
 
-                // 1: Calories detail — gauge left, stats right
+                // 1: Calories — large centred gauge + macro split + stats grid + sources
                 <div key="cal" className="db-nut-slide">
-                  <div className="db-nut-detail-row">
-                    <div className="db-nut-detail-left">
-                      <ArcGauge value={calLog} max={calTarget} label="CALORIES" color="var(--accent-3)" unit="kcal" size={118} />
-                      <RemBadge remaining={calRemaining ?? (calTarget - calLog)} unit=" kcal" color="var(--accent-3)" />
+                  <div className="db-nut-center-gauge">
+                    <ArcGauge value={calLog} max={calTarget} label="CALORIES" color="var(--accent-3)" unit="kcal" size={210} />
+                    <RemBadge remaining={calRemaining ?? (calTarget - calLog)} unit=" kcal" />
+                  </div>
+                  <div className="db-sources-label">Macro split</div>
+                  <MacroSourceBar proteinKcal={proteinKcal} carbsKcal={carbsKcal} fatKcal={fatKcal} />
+                  <div className="db-nut-stats-grid" style={{ marginTop: "0.5rem" }}>
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">Protein</span>
+                      <span className="db-nut-stat-val" style={{ color: "#22c55e" }}>{proteinKcal} kcal</span>
                     </div>
-                    <div className="db-nut-detail-right">
-                      <div className="db-sources-label">Macro split</div>
-                      <MacroSourceBar proteinKcal={proteinKcal} carbsKcal={carbsKcal} fatKcal={fatKcal} />
-                      <div className="db-sources-label" style={{ marginTop: "0.55rem" }}>Top contributors</div>
-                      <SourceList macro="calories" unit=" kcal" color="var(--accent-3)" />
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">Carbs</span>
+                      <span className="db-nut-stat-val" style={{ color: "#4d8eff" }}>{carbsKcal} kcal</span>
                     </div>
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">Fats</span>
+                      <span className="db-nut-stat-val" style={{ color: "#f59e0b" }}>{fatKcal} kcal</span>
+                    </div>
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">Target</span>
+                      <span className="db-nut-stat-val">{calTarget} kcal</span>
+                    </div>
+                  </div>
+                  <div className="db-sources-label">Top contributors</div>
+                  <div className="db-nut-sources">
+                    <SourceList macro="calories" unit=" kcal" color="var(--accent-3)" />
                   </div>
                 </div>,
 
-                // 2: Protein detail — gauge left, stats right
+                // 2: Protein — large centred gauge + 4 stats + sources
                 <div key="pro" className="db-nut-slide">
-                  <div className="db-nut-detail-row">
-                    <div className="db-nut-detail-left">
-                      <ArcGauge value={proLog} max={proTarget} label="PROTEIN" color="#22c55e" unit="g" size={118} />
-                      <RemBadge remaining={proTarget - proLog} unit="g" color="#22c55e" />
-                      {gpkg && (
-                        <div className="db-gpkg">
-                          <span className="db-gpkg-val" style={{ color: "#22c55e" }}>{gpkg}</span>
-                          <span className="db-gpkg-unit">g / kg bw</span>
-                          <span className="db-gpkg-target">target {gpkgTarget}</span>
-                        </div>
-                      )}
+                  <div className="db-nut-center-gauge">
+                    <ArcGauge value={proLog} max={proTarget} label="PROTEIN" color="#22c55e" unit="g" size={210} />
+                    <RemBadge remaining={proTarget - proLog} unit="g" />
+                  </div>
+                  <div className="db-nut-stats-grid">
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">g / kg bodyweight</span>
+                      <span className="db-nut-stat-val" style={{ color: "#22c55e" }}>{gpkg ?? "—"}</span>
                     </div>
-                    <div className="db-nut-detail-right">
-                      <div className="db-sources-label">Top sources</div>
-                      <SourceList macro="protein_g" unit="g" color="#22c55e" />
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">Target g / kg</span>
+                      <span className="db-nut-stat-val">{gpkgTarget ?? "—"}</span>
                     </div>
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">As kcal</span>
+                      <span className="db-nut-stat-val">{proteinKcal}</span>
+                    </div>
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">% of kcal logged</span>
+                      <span className="db-nut-stat-val" style={{ color: "#22c55e" }}>{pctOfCal(proteinKcal)}%</span>
+                    </div>
+                  </div>
+                  <div className="db-sources-label">Top sources</div>
+                  <div className="db-nut-sources">
+                    <SourceList macro="protein_g" unit="g" color="#22c55e" />
                   </div>
                 </div>,
 
-                // 3: Carbs detail — gauge left, stats right
+                // 3: Carbs — large centred gauge + 4 stats + sources
                 <div key="carb" className="db-nut-slide">
-                  <div className="db-nut-detail-row">
-                    <div className="db-nut-detail-left">
-                      <ArcGauge value={carbLog} max={carbTarget} label="CARBS" color="#4d8eff" unit="g" size={118} />
-                      <RemBadge remaining={carbTarget - carbLog} unit="g" color="#4d8eff" />
-                      <div className="db-day-badge" style={{ background: dayContextLabel.bg, color: dayContextLabel.col, border: `1px solid ${dayContextLabel.col}33` }}>
-                        {todayDayType === "training" ? "TRAIN" : todayDayType === "high" ? "HIGH" : "REST"} DAY
-                      </div>
+                  <div className="db-nut-center-gauge">
+                    <ArcGauge value={carbLog} max={carbTarget} label="CARBS" color="#4d8eff" unit="g" size={210} />
+                    <RemBadge remaining={carbTarget - carbLog} unit="g" />
+                  </div>
+                  <div className="db-nut-stats-grid">
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">As kcal</span>
+                      <span className="db-nut-stat-val">{carbsKcal}</span>
                     </div>
-                    <div className="db-nut-detail-right">
-                      <div className="db-sources-label">Top sources</div>
-                      <SourceList macro="carbs_g" unit="g" color="#4d8eff" />
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">% of kcal logged</span>
+                      <span className="db-nut-stat-val" style={{ color: "#4d8eff" }}>{pctOfCal(carbsKcal)}%</span>
                     </div>
+                    <div className="db-nut-stat-box" style={{ gridColumn: "1 / -1", borderColor: `${dayContextLabel.col}44` }}>
+                      <span className="db-nut-stat-label">Day context</span>
+                      <span className="db-nut-stat-val" style={{ fontSize: "0.88rem", color: dayContextLabel.col }}>{dayContextLabel.text}</span>
+                    </div>
+                  </div>
+                  <div className="db-sources-label">Top sources</div>
+                  <div className="db-nut-sources">
+                    <SourceList macro="carbs_g" unit="g" color="#4d8eff" />
                   </div>
                 </div>,
 
-                // 4: Fats detail — gauge left, stats right
+                // 4: Fats — large centred gauge + 4 stats + sources
                 <div key="fat" className="db-nut-slide">
-                  <div className="db-nut-detail-row">
-                    <div className="db-nut-detail-left">
-                      <ArcGauge value={fatLog} max={fatTarget} label="FATS" color="#f59e0b" unit="g" size={118} />
-                      <RemBadge remaining={fatTarget - fatLog} unit="g" color="#f59e0b" />
+                  <div className="db-nut-center-gauge">
+                    <ArcGauge value={fatLog} max={fatTarget} label="FATS" color="#f59e0b" unit="g" size={210} />
+                    <RemBadge remaining={fatTarget - fatLog} unit="g" />
+                  </div>
+                  <div className="db-nut-stats-grid">
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">As kcal</span>
+                      <span className="db-nut-stat-val">{fatKcal}</span>
                     </div>
-                    <div className="db-nut-detail-right">
-                      <div className="db-sources-label">Top sources</div>
-                      <SourceList macro="fats_g" unit="g" color="#f59e0b" />
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">% of kcal logged</span>
+                      <span className="db-nut-stat-val" style={{ color: "#f59e0b" }}>{pctOfCal(fatKcal)}%</span>
                     </div>
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">Target</span>
+                      <span className="db-nut-stat-val">{fatTarget}g</span>
+                    </div>
+                    <div className="db-nut-stat-box">
+                      <span className="db-nut-stat-label">9 kcal per gram</span>
+                      <span className="db-nut-stat-val" style={{ color: "#f59e0b" }}>{fatLog}g logged</span>
+                    </div>
+                  </div>
+                  <div className="db-sources-label">Top sources</div>
+                  <div className="db-nut-sources">
+                    <SourceList macro="fats_g" unit="g" color="#f59e0b" />
                   </div>
                 </div>,
               ];
@@ -1257,7 +1335,6 @@ export default function Dashboard() {
                         aria-label="Next">›</button>
                     </div>
                   </div>
-                  <div className="db-nav-hint">OPEN NUTRITION →</div>
                 </>
               );
             })()}
