@@ -7,3 +7,4 @@ backend/.env.*
 # deps
 backend/node_modules/
 frontend/node_modules/
+.claude/worktrees/
