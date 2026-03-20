@@ -10,7 +10,7 @@ const API_URL = (
   (import.meta.env.DEV ? "http://localhost:4000" : "https://physiquepilot.onrender.com")
 ).replace(/\/$/, "");
 
-const TOTAL_STEPS = 15;
+const TOTAL_STEPS = 14;
 
 // ─── Default form state ───────────────────────────────────────────────────────
 
@@ -33,33 +33,35 @@ const defaultForm = {
   goalType: "maintain",
   // Step 7
   weeklyRateInput: "",
-  // Step 8
+  // Step 8 (experience)
+  experienceLevel: "beginner",
+  // Step 9 (reasons)
+  signingUpReasons: [],
+  // Step 10 (calories)
   calorieMode: "ai",
   customCalories: "",
-  // Step 9
-  activityLevel: "moderate",
-  // Step 10
+  // Step 11 (training schedule)
   splitMode: "fixed",
   trainingDaysSelected: [],
   trainingFrequencyRange: "2-4",
   rollingStartDate: "",
-  // Step 11
-  experienceLevel: "beginner",
-  gymType: "commercial",
-  gymChain: "",
-  // Step 12
+  // Step 12 (baselines)
   baselineStepsInput: "",
+  baselineStepsNotSure: false,
   baselineCardioMinutesInput: "",
+  baselineCardioType: "",
   baselineCardioHrInput: "",
-  defaultLissOptIn: true,
-  // Step 13
+  // Step 13 (nutrition + allergies)
   dietaryPreference: "omnivore",
   dietaryAdditional: "",
   dislikes: "",
-  // Step 14
   foodAllergies: "",
-  // Step 15
+  // Step 14 (disclaimer)
   disclaimerAccepted: false,
+  // Retained with defaults (not asked, used by backend)
+  activityLevel: "moderate",
+  gymType: "commercial",
+  gymChain: "",
 
   // ─── Computed metric values (derived, prefixed with _) ───────────────────
   // These are recalculated on change and passed to TDEE preview
@@ -133,25 +135,27 @@ export function useOnboardingForm() {
         bodyFatPctInput: p.body_fat_pct != null ? String(p.body_fat_pct) : "",
         goalType: p.goal_type || "maintain",
         weeklyRateInput: p.weekly_weight_change_target_kg ? kgToDisplay(p.weekly_weight_change_target_kg, unit, 2) : "",
+        experienceLevel: p.experience_level || "beginner",
+        signingUpReasons: p.signing_up_reasons || [],
         calorieMode: p.calorie_mode || "ai",
         customCalories: p.custom_calories ? String(p.custom_calories) : "",
-        activityLevel: p.activity_level || "moderate",
         splitMode: p.split_mode || "fixed",
         trainingDaysSelected: p.training_days || [],
         trainingFrequencyRange: p.training_frequency_range || "2-4",
         rollingStartDate: p.rolling_start_date ? String(p.rolling_start_date) : "",
-        experienceLevel: p.experience_level || "beginner",
-        gymType: p.gym_type || "commercial",
-        gymChain: p.gym_chain || "",
         baselineStepsInput: p.baseline_steps_per_day != null ? String(p.baseline_steps_per_day) : "",
+        baselineStepsNotSure: p.baseline_steps_not_sure ?? false,
         baselineCardioMinutesInput: p.baseline_cardio_minutes_per_week != null ? String(p.baseline_cardio_minutes_per_week) : "",
+        baselineCardioType: p.baseline_cardio_type || "",
         baselineCardioHrInput: p.baseline_cardio_avg_hr != null ? String(p.baseline_cardio_avg_hr) : "",
-        defaultLissOptIn: p.default_liss_opt_in ?? true,
         dietaryPreference: p.dietary_preference || "omnivore",
         dietaryAdditional: p.dietary_additional || "",
         dislikes: p.dislikes || "",
         foodAllergies: p.food_allergies || "",
         disclaimerAccepted: false,
+        activityLevel: p.activity_level || "moderate",
+        gymType: p.gym_type || "commercial",
+        gymChain: p.gym_chain || "",
 
         // Derived metric values
         _heightCm: p.height_cm || null,
@@ -227,21 +231,20 @@ export function useOnboardingForm() {
         goal_type: form.goalType,
         weekly_weight_change_target_kg: form.goalType === "maintain" ? null : form._weeklyRateKg,
         body_fat_pct: form._bodyFatPct,
+        experience_level: form.experienceLevel,
+        signing_up_reasons: form.signingUpReasons,
         calorie_mode: form.calorieMode,
         custom_calories: form.calorieMode === "custom" ? Number(form.customCalories) || null : null,
-        activity_level: form.activityLevel,
         split_mode: form.splitMode,
         training_days: form.splitMode === "fixed" ? form.trainingDaysSelected : null,
         training_days_per_week: form.splitMode === "fixed" ? form.trainingDaysSelected.length : null,
         training_frequency_range: form.splitMode === "rolling" ? form.trainingFrequencyRange : null,
         rolling_start_date: form.splitMode === "rolling" ? (form.rollingStartDate || new Date().toISOString().slice(0, 10)) : null,
-        experience_level: form.experienceLevel,
-        gym_type: form.gymType,
-        gym_chain: form.gymChain || null,
-        baseline_steps_per_day: form.baselineStepsInput !== "" ? Math.round(Number(form.baselineStepsInput)) || null : null,
+        baseline_steps_per_day: form.baselineStepsNotSure ? null : (form.baselineStepsInput !== "" ? Math.round(Number(form.baselineStepsInput)) || null : null),
+        baseline_steps_not_sure: form.baselineStepsNotSure,
         baseline_cardio_minutes_per_week: form.baselineCardioMinutesInput !== "" ? Math.round(Number(form.baselineCardioMinutesInput)) || null : null,
+        baseline_cardio_type: form.baselineCardioType || null,
         baseline_cardio_avg_hr: form.baselineCardioHrInput !== "" ? Math.round(Number(form.baselineCardioHrInput)) || null : null,
-        default_liss_opt_in: form.defaultLissOptIn,
         dietary_preference: form.dietaryPreference,
         dietary_additional: form.dietaryAdditional,
         dislikes: form.dislikes,
@@ -283,21 +286,20 @@ export function useOnboardingForm() {
       goal_type: form.goalType,
       weekly_weight_change_target_kg: form.goalType === "maintain" ? null : form._weeklyRateKg,
       body_fat_pct: form._bodyFatPct,
+      experience_level: form.experienceLevel,
+      signing_up_reasons: form.signingUpReasons,
       calorie_mode: form.calorieMode,
       custom_calories: form.calorieMode === "custom" ? Number(form.customCalories) || null : null,
-      activity_level: form.activityLevel,
       split_mode: form.splitMode,
       training_days: form.splitMode === "fixed" ? form.trainingDaysSelected : null,
       training_days_per_week: form.splitMode === "fixed" ? form.trainingDaysSelected.length : null,
       training_frequency_range: form.splitMode === "rolling" ? form.trainingFrequencyRange : null,
       rolling_start_date: form.splitMode === "rolling" ? (form.rollingStartDate || new Date().toISOString().slice(0, 10)) : null,
-      experience_level: form.experienceLevel,
-      gym_type: form.gymType,
-      gym_chain: form.gymChain || null,
-      baseline_steps_per_day: form.baselineStepsInput !== "" ? Math.round(Number(form.baselineStepsInput)) || null : null,
+      baseline_steps_per_day: form.baselineStepsNotSure ? null : (form.baselineStepsInput !== "" ? Math.round(Number(form.baselineStepsInput)) || null : null),
+      baseline_steps_not_sure: form.baselineStepsNotSure,
       baseline_cardio_minutes_per_week: form.baselineCardioMinutesInput !== "" ? Math.round(Number(form.baselineCardioMinutesInput)) || null : null,
+      baseline_cardio_type: form.baselineCardioType || null,
       baseline_cardio_avg_hr: form.baselineCardioHrInput !== "" ? Math.round(Number(form.baselineCardioHrInput)) || null : null,
-      default_liss_opt_in: form.defaultLissOptIn,
       dietary_preference: form.dietaryPreference,
       dietary_additional: form.dietaryAdditional,
       dislikes: form.dislikes,

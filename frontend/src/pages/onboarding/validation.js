@@ -129,7 +129,22 @@ export function validateWeeklyRate({ weeklyRateInput, goalType, unitSystem }) {
   return ok();
 }
 
-/** Step 8: Calorie mode */
+/** Step 8: Experience level */
+export function validateExperience({ experienceLevel }) {
+  const levels = ["beginner", "intermediate", "advanced"];
+  if (!levels.includes(experienceLevel)) return fail("experienceLevel", "Select an experience level.");
+  return ok();
+}
+
+/** Step 9: Signing up reasons */
+export function validateReasons({ signingUpReasons }) {
+  if (!signingUpReasons || signingUpReasons.length === 0) {
+    return fail("signingUpReasons", "Select at least one reason.");
+  }
+  return ok();
+}
+
+/** Step 10: Calorie mode */
 export function validateCalories({ calorieMode, customCalories }) {
   if (calorieMode === "custom") {
     const cal = Number(customCalories);
@@ -140,16 +155,7 @@ export function validateCalories({ calorieMode, customCalories }) {
   return ok();
 }
 
-/** Step 9: Activity level */
-export function validateActivityLevel({ activityLevel }) {
-  const valid = ["inactive", "light", "moderate", "heavy", "extreme"];
-  if (!valid.includes(activityLevel)) {
-    return fail("activityLevel", "Select an activity level.");
-  }
-  return ok();
-}
-
-/** Step 10: Training schedule */
+/** Step 11: Training schedule */
 export function validateTrainingSchedule({ splitMode, trainingDaysSelected, trainingFrequencyRange, rollingStartDate }) {
   // "not_sure" is a valid selection — no further validation required
   if (splitMode === "not_sure") return ok();
@@ -173,18 +179,12 @@ export function validateTrainingSchedule({ splitMode, trainingDaysSelected, trai
   return ok();
 }
 
-/** Step 11: Gym & experience */
-export function validateGymExperience({ experienceLevel, gymType }) {
-  const levels = ["beginner", "intermediate", "advanced"];
-  const types = ["home", "commercial", "independent", "other"];
-  if (!levels.includes(experienceLevel)) return fail("experienceLevel", "Select an experience level.");
-  if (!types.includes(gymType)) return fail("gymType", "Select a gym type.");
-  return ok();
-}
-
-/** Step 12: Baselines — all optional, just range-check if provided */
-export function validateBaselines({ baselineStepsInput, baselineCardioMinutesInput, baselineCardioHrInput }) {
-  if (baselineStepsInput !== "" && baselineStepsInput != null) {
+/** Step 12: Activity baselines — steps required (or not-sure), rest optional */
+export function validateBaselines({ baselineStepsInput, baselineStepsNotSure, baselineCardioMinutesInput, baselineCardioHrInput }) {
+  if (!baselineStepsNotSure && (baselineStepsInput === "" || baselineStepsInput == null)) {
+    return fail("baselineSteps", "Enter your average daily steps, or select 'Not sure'.");
+  }
+  if (!baselineStepsNotSure && baselineStepsInput !== "") {
     const n = Math.round(Number(baselineStepsInput));
     if (!Number.isFinite(n) || n < 0 || n > CAPS.steps_per_day.max) {
       return fail("baselineSteps", `Steps must be between 0–${CAPS.steps_per_day.max.toLocaleString()}.`);
@@ -205,20 +205,15 @@ export function validateBaselines({ baselineStepsInput, baselineCardioMinutesInp
   return ok();
 }
 
-/** Step 13: Nutrition preferences — always valid (all optional text) */
+/** Step 13: Nutrition preferences + allergies — always valid (all optional text) */
 export function validateNutritionPreferences() {
   return ok();
 }
 
-/** Step 14: Allergies — always valid (free text) */
-export function validateAllergies() {
-  return ok();
-}
-
-/** Step 15: Safety disclaimer */
+/** Step 14: Safety disclaimer */
 export function validateSafety({ disclaimerAccepted }) {
   if (!disclaimerAccepted) {
-    return fail("disclaimer", "You must accept the health disclaimer to continue.");
+    return fail("disclaimer", "You must accept the disclaimer to continue.");
   }
   return ok();
 }
@@ -234,19 +229,18 @@ const STEP_VALIDATORS = [
   validateBodyMetrics,         // 5
   validateGoal,                // 6
   validateWeeklyRate,          // 7
-  validateCalories,            // 8
-  validateActivityLevel,       // 9
-  validateTrainingSchedule,    // 10
-  validateGymExperience,       // 11
+  validateExperience,          // 8
+  validateReasons,             // 9
+  validateCalories,            // 10
+  validateTrainingSchedule,    // 11
   validateBaselines,           // 12
   validateNutritionPreferences,// 13
-  validateAllergies,           // 14
-  validateSafety,              // 15
+  validateSafety,              // 14
 ];
 
 /**
  * Validate a specific step against form state.
- * @param {number} step  1–15
+ * @param {number} step  1–14
  * @param {object} form  full form state object
  * @returns {{ valid: boolean, field: string|null, message: string|null }}
  */

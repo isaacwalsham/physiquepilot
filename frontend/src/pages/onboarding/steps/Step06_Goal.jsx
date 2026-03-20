@@ -60,7 +60,7 @@ const rowStyle = {
 const OPTIONS = [
   { value: "lose", label: "Lose weight", icon: "↓" },
   { value: "maintain", label: "Maintain", icon: "=" },
-  { value: "gain", label: "Build muscle", icon: "↑" },
+  { value: "gain", label: "Gain weight", icon: "↑" },
 ];
 
 export default function Step06_Goal({ form, setField, error, onAutoAdvance }) {
