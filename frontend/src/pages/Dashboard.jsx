@@ -1418,16 +1418,75 @@ export default function Dashboard() {
 
             <hr className="db-hr" />
 
-            <div className="db-stat">
-              <span className="db-stat-label">NUTRITION TARGET</span>
-              <span className="db-stat-val" style={{ fontSize: "1.1rem", marginTop: "0.2rem", color: "var(--text-2)" }}>
-                {todayDayType === "training" ? "Training day macros"
-                 : todayDayType === "high"   ? "High day macros"
-                 :                             "Rest day macros"}
-              </span>
-            </div>
+            {/* Macro targets block */}
+            {(() => {
+              const proT  = todayTargets?.protein_g || 0;
+              const carbT = todayTargets?.carbs_g   || 0;
+              const fatT  = todayTargets?.fats_g    || 0;
+              const calT  = todayTargets?.calories  || 0;
+              const proL  = Math.round(nutLogged.protein_g);
+              const carbL = Math.round(nutLogged.carbs_g);
+              const fatL  = Math.round(nutLogged.fats_g);
+              const calL  = Math.round(nutLogged.calories);
 
-            <div className="db-nav-hint">OPEN TRAINING →</div>
+              const dayColor = todayDayType === "training"
+                ? "var(--accent-3)"
+                : todayDayType === "high"
+                  ? "#fbbf24"
+                  : "#60a5fa";
+
+              const MacroRow = ({ label, logged, target, color, unit = "g" }) => {
+                const pct = target > 0 ? Math.min((logged / target) * 100, 100) : 0;
+                const over = target > 0 && logged > target;
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", letterSpacing: "0.08em", color: "var(--text-3)", textTransform: "uppercase" }}>{label}</span>
+                      <span style={{ fontFamily: "var(--font-display)", fontSize: "0.75rem", color: over ? "#f87171" : "var(--text-2)" }}>
+                        <span style={{ color: over ? "#f87171" : color, fontWeight: 700 }}>{logged}</span>
+                        <span style={{ color: "var(--text-3)" }}>/{target}{unit}</span>
+                      </span>
+                    </div>
+                    <div style={{ height: "5px", borderRadius: "3px", background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, borderRadius: "3px", background: over ? "#f87171" : color, transition: "width 0.5s ease" }} />
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.1rem" }}>
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", letterSpacing: "0.1em", color: "var(--text-3)" }}>NUTRITION TARGET</span>
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: "0.6rem", color: dayColor, letterSpacing: "0.06em" }}>
+                      {todayDayType === "training" ? "TRAINING" : todayDayType === "high" ? "HIGH" : "REST"} DAY
+                    </span>
+                  </div>
+
+                  {/* Calorie headline */}
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem", marginBottom: "0.2rem" }}>
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", fontWeight: 700, color: calT > 0 && calL > calT ? "#f87171" : "var(--text-1)", lineHeight: 1 }}>{calL}</span>
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: "0.85rem", color: "var(--text-3)" }}>/ {calT} kcal</span>
+                    {calT > 0 && calL < calT && (
+                      <span style={{ fontFamily: "var(--font-display)", fontSize: "0.65rem", color: dayColor, marginLeft: "auto", letterSpacing: "0.06em" }}>
+                        {calT - calL} left
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Calorie bar */}
+                  <div style={{ height: "6px", borderRadius: "3px", background: "rgba(255,255,255,0.07)", overflow: "hidden", marginBottom: "0.35rem" }}>
+                    <div style={{ height: "100%", width: `${calT > 0 ? Math.min((calL/calT)*100,100) : 0}%`, borderRadius: "3px", background: calT > 0 && calL > calT ? "#f87171" : dayColor, transition: "width 0.5s ease" }} />
+                  </div>
+
+                  <MacroRow label="Protein"  logged={proL}  target={proT}  color="#22c55e" />
+                  <MacroRow label="Carbs"    logged={carbL} target={carbT} color="#4d8eff" />
+                  <MacroRow label="Fat"      logged={fatL}  target={fatT}  color="#f59e0b" />
+                </div>
+              );
+            })()}
+
+            <div className="db-nav-hint" style={{ marginTop: "0.75rem" }}>OPEN TRAINING →</div>
           </div>
 
           {/* ── COL 4 ROW 1: MOVEMENT ── */}
