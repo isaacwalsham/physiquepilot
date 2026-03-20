@@ -11,21 +11,20 @@ import Step05_BodyMetrics from "./steps/Step05_BodyMetrics";
 import Step06_Goal from "./steps/Step06_Goal";
 import Step07_WeeklyRate from "./steps/Step07_WeeklyRate";
 import Step08_Calories from "./steps/Step08_Calories";
-import Step09_ActivityLevel from "./steps/Step09_ActivityLevel";
+import Step09_Reasons from "./steps/Step09_Reasons";
 import Step10_TrainingSchedule from "./steps/Step10_TrainingSchedule";
 import Step11_GymExperience from "./steps/Step11_GymExperience";
 import Step12_Baselines from "./steps/Step12_Baselines";
 import Step13_NutritionPrefs from "./steps/Step13_NutritionPrefs";
-import Step14_Allergies from "./steps/Step14_Allergies";
 import Step15_Safety from "./steps/Step15_Safety";
 
 // Steps that auto-advance on selection (no "Continue" button needed)
-const AUTO_ADVANCE_STEPS = new Set([3, 4, 6, 9]);
+const AUTO_ADVANCE_STEPS = new Set([3, 4, 6]);
 
 // Step 7 is skipped when goal is maintain
 const getSkippedSteps = (form) => (form.goalType === "maintain" ? new Set([7]) : new Set());
 
-const TOTAL_STEPS = 15;
+const TOTAL_STEPS = 14;
 
 function getEffectiveStep(rawStep, skipped) {
   let s = rawStep;
@@ -151,21 +150,20 @@ export default function Onboarding() {
   };
 
   const stepComponents = {
-    1: <Step01_Name {...stepProps} />,
-    2: <Step02_DateOfBirth {...stepProps} />,
-    3: <Step03_Sex {...stepProps} />,
-    4: <Step04_Units {...stepProps} />,
-    5: <Step05_BodyMetrics {...stepProps} />,
-    6: <Step06_Goal {...stepProps} />,
-    7: <Step07_WeeklyRate {...stepProps} />,
-    8: <Step08_Calories {...stepProps} preview={buildCaloriePreview(form)} />,
-    9: <Step09_ActivityLevel {...stepProps} />,
-    10: <Step10_TrainingSchedule {...stepProps} />,
-    11: <Step11_GymExperience {...stepProps} />,
+    1:  <Step01_Name {...stepProps} />,
+    2:  <Step02_DateOfBirth {...stepProps} />,
+    3:  <Step03_Sex {...stepProps} />,
+    4:  <Step04_Units {...stepProps} />,
+    5:  <Step05_BodyMetrics {...stepProps} />,
+    6:  <Step06_Goal {...stepProps} />,
+    7:  <Step07_WeeklyRate {...stepProps} />,
+    8:  <Step11_GymExperience {...stepProps} />,
+    9:  <Step09_Reasons {...stepProps} />,
+    10: <Step08_Calories {...stepProps} preview={buildCaloriePreview(form)} />,
+    11: <Step10_TrainingSchedule {...stepProps} />,
     12: <Step12_Baselines {...stepProps} />,
     13: <Step13_NutritionPrefs {...stepProps} />,
-    14: <Step14_Allergies {...stepProps} />,
-    15: <Step15_Safety {...stepProps} />,
+    14: <Step15_Safety {...stepProps} />,
   };
 
   const isLastStep = step === TOTAL_STEPS;
