@@ -52,8 +52,8 @@ const CSS = `
     left: 1.2rem;
     width: 28px;
     height: 28px;
-    border-top: 1px solid rgba(181,21,60,0.35);
-    border-left: 1px solid rgba(181,21,60,0.35);
+    border-top: 1px solid rgba(165,21,21,0.35);
+    border-left: 1px solid rgba(165,21,21,0.35);
     pointer-events: none;
     z-index: 0;
   }
@@ -65,8 +65,8 @@ const CSS = `
     right: 1.2rem;
     width: 28px;
     height: 28px;
-    border-bottom: 1px solid rgba(181,21,60,0.35);
-    border-right: 1px solid rgba(181,21,60,0.35);
+    border-bottom: 1px solid rgba(165,21,21,0.35);
+    border-right: 1px solid rgba(165,21,21,0.35);
     pointer-events: none;
     z-index: 0;
   }
@@ -82,7 +82,7 @@ const CSS = `
     border: 1px solid var(--line-1);
     border-radius: var(--radius-lg);
     box-shadow:
-      0 0 0 1px rgba(181,21,60,0.08),
+      0 0 0 1px rgba(165,21,21,0.08),
       0 24px 60px rgba(0,0,0,0.6);
     overflow: hidden;
   }
@@ -93,8 +93,8 @@ const CSS = `
     align-items: center;
     justify-content: space-between;
     padding: 0.7rem 1.2rem;
-    background: rgba(181,21,60,0.04);
-    border-bottom: 1px solid rgba(181,21,60,0.15);
+    background: rgba(165,21,21,0.04);
+    border-bottom: 1px solid rgba(165,21,21,0.15);
   }
 
   .register-topbar-left {
@@ -186,7 +186,7 @@ const CSS = `
 
   .register-input:focus {
     border-color: var(--accent-3);
-    box-shadow: 0 0 0 3px rgba(222,41,82,0.16);
+    box-shadow: 0 0 0 3px rgba(204,32,32,0.16);
   }
 
   /* ── Primary button ── */
@@ -203,13 +203,13 @@ const CSS = `
     letter-spacing: 0.1em;
     text-transform: uppercase;
     cursor: pointer;
-    box-shadow: 0 0 16px rgba(181,21,60,0.3);
+    box-shadow: 0 0 16px rgba(165,21,21,0.3);
     transition: box-shadow 0.18s, opacity 0.18s;
     margin-top: 0.4rem;
   }
 
   .register-btn-primary:hover:not(:disabled) {
-    box-shadow: 0 0 28px rgba(181,21,60,0.55);
+    box-shadow: 0 0 28px rgba(165,21,21,0.55);
   }
 
   .register-btn-primary:disabled {
@@ -224,8 +224,8 @@ const CSS = `
     gap: 0.45rem;
     margin-top: 1rem;
     padding: 0.65rem 0.85rem;
-    background: rgba(222,41,82,0.06);
-    border: 1px solid rgba(222,41,82,0.22);
+    background: rgba(204,32,32,0.06);
+    border: 1px solid rgba(204,32,32,0.22);
     border-radius: var(--radius-sm);
     color: var(--bad);
     font-size: 0.82rem;
@@ -279,8 +279,8 @@ const CSS = `
     border: 1px solid var(--accent-2);
     border-radius: var(--radius-lg);
     box-shadow:
-      0 0 0 1px rgba(181,21,60,0.1),
-      0 0 80px rgba(181,21,60,0.2),
+      0 0 0 1px rgba(165,21,21,0.1),
+      0 0 80px rgba(165,21,21,0.2),
       0 32px 80px rgba(0,0,0,0.75);
     padding: 2.25rem 2rem;
     text-align: center;
@@ -296,7 +296,7 @@ const CSS = `
     font-size: 3rem;
     display: block;
     margin-bottom: 1.1rem;
-    filter: drop-shadow(0 0 12px rgba(181,21,60,0.5));
+    filter: drop-shadow(0 0 12px rgba(165,21,21,0.5));
   }
 
   .email-confirm-title {
@@ -344,12 +344,12 @@ const CSS = `
     letter-spacing: 0.1em;
     text-transform: uppercase;
     cursor: pointer;
-    box-shadow: 0 0 20px rgba(181,21,60,0.3);
+    box-shadow: 0 0 20px rgba(165,21,21,0.3);
     transition: box-shadow 0.18s, opacity 0.18s;
   }
 
   .email-confirm-btn:hover {
-    box-shadow: 0 0 36px rgba(181,21,60,0.55);
+    box-shadow: 0 0 36px rgba(165,21,21,0.55);
   }
 
   .email-confirm-note {
@@ -417,7 +417,7 @@ const CSS = `
     gap: 1rem;
     margin-top: 1.4rem;
     padding-top: 1.1rem;
-    border-top: 1px solid rgba(181,21,60,0.1);
+    border-top: 1px solid rgba(165,21,21,0.1);
   }
 
   .register-link {

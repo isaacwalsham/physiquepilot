@@ -149,8 +149,8 @@ const CSS = `
     transition: border-color 150ms ease, box-shadow 250ms ease, transform 150ms ease;
   }
   .db-panel:hover, .db-panel:focus-visible {
-    border-color: rgba(181,21,60,0.5);
-    box-shadow: 0 0 0 1px rgba(181,21,60,0.15), 0 0 20px rgba(181,21,60,0.1), 0 8px 24px rgba(0,0,0,0.4);
+    border-color: rgba(165,21,21,0.5);
+    box-shadow: 0 0 0 1px rgba(165,21,21,0.15), 0 0 20px rgba(165,21,21,0.1), 0 8px 24px rgba(0,0,0,0.4);
     transform: translateY(-1px);
   }
   .db-panel:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; }
@@ -185,7 +185,7 @@ const CSS = `
     content: '';
     flex: 1;
     height: 1px;
-    background: linear-gradient(to right, rgba(181,21,60,0.4), transparent);
+    background: linear-gradient(to right, rgba(165,21,21,0.4), transparent);
   }
 
   /* ── Big number ── */
@@ -225,7 +225,7 @@ const CSS = `
     border-radius: 6px;
     text-transform: uppercase;
   }
-  .db-badge-training { color: var(--accent-3); border-color: var(--accent-1); background: rgba(138,15,46,0.18); }
+  .db-badge-training { color: var(--accent-3); border-color: var(--accent-1); background: rgba(122,13,13,0.18); }
   .db-badge-rest     { color: #60a5fa;         border-color: #1e3a5f;         background: rgba(30,58,95,0.25); }
   .db-badge-high     { color: #fbbf24;         border-color: #78450f;         background: rgba(120,69,15,0.2); }
   .db-badge-ok       { color: var(--ok);       border-color: #1a4a36;         background: rgba(26,74,54,0.25); }
@@ -285,7 +285,7 @@ const CSS = `
     transition: background 0.2s, border-color 0.2s;
     flex-shrink: 0;
   }
-  .db-toggle.on { background: rgba(181,21,60,0.25); border-color: var(--accent-2); }
+  .db-toggle.on { background: rgba(165,21,21,0.25); border-color: var(--accent-2); }
   .db-toggle-knob {
     width: 12px; height: 12px;
     background: var(--text-3);
@@ -385,7 +385,7 @@ const CSS = `
     justify-content: center; cursor: pointer; font-size: 0.75rem;
     transition: all 0.15s ease; flex-shrink: 0; line-height: 1;
   }
-  .db-bio-arrow:hover { border-color: var(--accent-2); color: var(--accent-3); background: rgba(181,21,60,0.12); }
+  .db-bio-arrow:hover { border-color: var(--accent-2); color: var(--accent-3); background: rgba(165,21,21,0.12); }
   .db-bio-dots { display: flex; gap: 5px; align-items: center; }
   .db-bio-dot {
     height: 5px; border-radius: 3px; background: var(--line-2);
@@ -1180,14 +1180,14 @@ export default function Dashboard() {
                 .map(i => ({ name: i.food_name || "Food item", value: Number(i[macro] || 0) }));
 
               const dayContextLabel = todayDayType === "training"
-                ? { text: "Training day — higher carbs recommended", bg: "rgba(138,15,46,0.15)", col: "var(--accent-3)" }
+                ? { text: "Training day — higher carbs recommended", bg: "rgba(122,13,13,0.15)", col: "var(--accent-3)" }
                 : todayDayType === "high"
                   ? { text: "High day — surplus carbs", bg: "rgba(120,69,15,0.15)", col: "#fbbf24" }
                   : { text: "Rest day — reduced carbs", bg: "rgba(30,58,95,0.15)", col: "#60a5fa" };
 
               const RemBadge = ({ remaining, unit, color }) => (
                 <div className="db-macro-remaining" style={{
-                  background: remaining >= 0 ? "rgba(26,74,54,0.2)" : "rgba(138,15,46,0.15)",
+                  background: remaining >= 0 ? "rgba(26,74,54,0.2)" : "rgba(122,13,13,0.15)",
                   border: `1px solid ${remaining >= 0 ? "#1a4a36" : "var(--accent-1)"}`,
                   color: remaining >= 0 ? "var(--ok)" : "var(--bad)",
                 }}>
@@ -1232,7 +1232,7 @@ export default function Dashboard() {
                   </div>
                   {calRemaining !== null && (
                     <div className="db-cal-status" style={{
-                      background: calRemaining >= 0 ? "rgba(26,74,54,0.25)" : "rgba(138,15,46,0.2)",
+                      background: calRemaining >= 0 ? "rgba(26,74,54,0.25)" : "rgba(122,13,13,0.2)",
                       border: `1px solid ${calRemaining >= 0 ? "#1a4a36" : "var(--accent-1)"}`,
                       color: calRemaining >= 0 ? "var(--ok)" : "var(--bad)",
                       marginTop: "0.4rem",

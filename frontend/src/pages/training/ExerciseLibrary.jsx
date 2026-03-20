@@ -99,7 +99,7 @@ const STYLES = `
 
   .el-group-pill.active {
     border-color: var(--accent-2);
-    background: rgba(181, 21, 60, 0.12);
+    background: rgba(165, 21, 21, 0.12);
     color: var(--text-1);
   }
 
@@ -244,9 +244,9 @@ const STYLES = `
   }
 
   .el-badge-advanced {
-    background: rgba(222, 41, 82, 0.12);
+    background: rgba(204, 32, 32, 0.12);
     color: var(--accent-3);
-    border: 1px solid rgba(222, 41, 82, 0.22);
+    border: 1px solid rgba(204, 32, 32, 0.22);
   }
 
   .el-loading {

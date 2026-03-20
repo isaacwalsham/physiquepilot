@@ -135,9 +135,9 @@ const TC_CSS = `
   border-radius: 99px;
   white-space: nowrap;
   flex-shrink: 0;
-  background: rgba(181,21,60,0.2);
+  background: rgba(165,21,21,0.2);
   color: var(--accent-3);
-  border: 1px solid rgba(181,21,60,0.35);
+  border: 1px solid rgba(165,21,21,0.35);
 }
 
 .tc-level-badge.intermediate {

@@ -30,7 +30,7 @@ const CSS = `
     overflow: hidden;
     background:
       radial-gradient(900px 400px at 20% -10%, rgba(40,183,141,0.08), transparent 70%),
-      radial-gradient(900px 400px at 80% 110%, rgba(181,21,60,0.1), transparent 70%),
+      radial-gradient(900px 400px at 80% 110%, rgba(165,21,21,0.1), transparent 70%),
       linear-gradient(180deg, var(--bg-1), var(--bg-0));
   }
 
@@ -159,11 +159,11 @@ const CSS = `
     letter-spacing: 0.1em;
     text-transform: uppercase;
     cursor: pointer;
-    box-shadow: 0 0 16px rgba(181,21,60,0.3);
+    box-shadow: 0 0 16px rgba(165,21,21,0.3);
     transition: box-shadow 0.18s;
     margin-bottom: 0.75rem;
   }
-  .vf-btn-primary:hover { box-shadow: 0 0 28px rgba(181,21,60,0.5); }
+  .vf-btn-primary:hover { box-shadow: 0 0 28px rgba(165,21,21,0.5); }
 
   .vf-btn-ghost {
     width: 100%;
@@ -193,8 +193,8 @@ const CSS = `
   .vf-error {
     color: var(--bad);
     font-size: 0.82rem;
-    background: rgba(222,41,82,0.06);
-    border: 1px solid rgba(222,41,82,0.2);
+    background: rgba(204,32,32,0.06);
+    border: 1px solid rgba(204,32,32,0.2);
     border-radius: var(--radius-sm);
     padding: 0.65rem 0.85rem;
     margin-bottom: 1rem;
@@ -293,9 +293,9 @@ export default function Verified() {
 
           {status === "error" && (
             <>
-              <div className="vf-icon-wrap" style={{ borderColor: "rgba(222,41,82,0.3)", background: "rgba(222,41,82,0.07)", animation: "none" }} aria-hidden="true">✕</div>
+              <div className="vf-icon-wrap" style={{ borderColor: "rgba(204,32,32,0.3)", background: "rgba(204,32,32,0.07)", animation: "none" }} aria-hidden="true">✕</div>
               <h1 className="vf-title" style={{ color: "var(--bad)" }}>Link expired.</h1>
-              <div className="vf-divider" style={{ background: "rgba(222,41,82,0.3)" }} aria-hidden="true" />
+              <div className="vf-divider" style={{ background: "rgba(204,32,32,0.3)" }} aria-hidden="true" />
               {errMsg && <div className="vf-error">{errMsg}</div>}
               <button className="vf-btn-primary" onClick={() => navigate("/register")}>
                 Try Again →

@@ -244,7 +244,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     background:
-      "radial-gradient(1200px 520px at 8% -20%, rgba(181,21,60,0.14), transparent 70%), radial-gradient(1100px 460px at 95% -15%, rgba(138,15,46,0.18), transparent 68%), linear-gradient(180deg, var(--bg-1), var(--bg-0))",
+      "radial-gradient(1200px 520px at 8% -20%, rgba(165,21,21,0.14), transparent 70%), radial-gradient(1100px 460px at 95% -15%, rgba(122,13,13,0.18), transparent 68%), linear-gradient(180deg, var(--bg-1), var(--bg-0))",
     position: "relative",
   },
 

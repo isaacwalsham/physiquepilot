@@ -58,7 +58,7 @@ const presetBtnStyle = (selected) => ({
   padding: "0.5rem 0.9rem",
   borderRadius: "var(--radius-sm)",
   border: `1.5px solid ${selected ? "var(--accent-2)" : "var(--line-1)"}`,
-  background: selected ? "rgba(181,21,60,0.15)" : "var(--surface-2)",
+  background: selected ? "rgba(165,21,21,0.15)" : "var(--surface-2)",
   color: selected ? "var(--accent-2)" : "var(--text-2)",
   cursor: "pointer",
   transition: "border-color var(--motion-fast) ease, background var(--motion-fast) ease",

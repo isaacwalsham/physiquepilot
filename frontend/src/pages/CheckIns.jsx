@@ -119,8 +119,8 @@ const CSS = `
   .ci-tab.active {
     border-color: var(--accent-2);
     color: var(--accent-3);
-    background: rgba(181,21,60,0.08);
-    box-shadow: inset 0 0 12px rgba(181,21,60,0.1);
+    background: rgba(165,21,21,0.08);
+    box-shadow: inset 0 0 12px rgba(165,21,21,0.1);
   }
 
   /* ── Week banner ── */
@@ -358,9 +358,9 @@ const CSS = `
     color: #fff;
     cursor: pointer;
     transition: all var(--motion-fast);
-    box-shadow: 0 0 18px rgba(181,21,60,0.28);
+    box-shadow: 0 0 18px rgba(165,21,21,0.28);
   }
-  .ci-btn-primary:hover { background: var(--accent-3); box-shadow: 0 0 24px rgba(222,41,82,0.4); }
+  .ci-btn-primary:hover { background: var(--accent-3); box-shadow: 0 0 24px rgba(204,32,32,0.4); }
   .ci-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
   .ci-btn-ghost {
@@ -416,7 +416,7 @@ const CSS = `
     transition: border-color var(--motion-fast), background var(--motion-fast);
   }
   .ci-report-row:hover { border-color: var(--line-2); background: var(--surface-3); }
-  .ci-report-row.active { border-color: var(--accent-2); background: rgba(181,21,60,0.06); }
+  .ci-report-row.active { border-color: var(--accent-2); background: rgba(165,21,21,0.06); }
 
   .ci-report-week {
     font-family: var(--font-display);
@@ -517,7 +517,7 @@ const CSS = `
   }
 
   .ci-info-banner {
-    background: rgba(181,21,60,0.06);
+    background: rgba(165,21,21,0.06);
     border: 1px solid var(--line-2);
     border-radius: var(--radius-sm);
     padding: 0.7rem 1rem;
@@ -529,7 +529,7 @@ const CSS = `
 
   /* ── Photos tab ── */
   .ci-disclaimer {
-    background: rgba(138,15,46,0.08);
+    background: rgba(122,13,13,0.08);
     border: 1px solid var(--accent-1);
     border-radius: var(--radius-sm);
     padding: 0.8rem 1rem;
@@ -572,7 +572,7 @@ const CSS = `
   .ci-preset-pill.active {
     border-color: var(--accent-2);
     color: var(--accent-3);
-    background: rgba(181,21,60,0.08);
+    background: rgba(165,21,21,0.08);
   }
 
   .ci-pose-grid {
@@ -750,7 +750,7 @@ const CSS = `
     top: 0; bottom: 0;
     width: 2px;
     background: var(--accent-3);
-    box-shadow: 0 0 8px rgba(222,41,82,0.6);
+    box-shadow: 0 0 8px rgba(204,32,32,0.6);
     pointer-events: none;
     transform: translateX(-50%);
   }
@@ -760,7 +760,7 @@ const CSS = `
     width: 32px; height: 32px;
     border-radius: 50%;
     background: var(--accent-3);
-    box-shadow: 0 0 12px rgba(222,41,82,0.5), 0 2px 8px rgba(0,0,0,0.4);
+    box-shadow: 0 0 12px rgba(204,32,32,0.5), 0 2px 8px rgba(0,0,0,0.4);
     display: flex; align-items: center; justify-content: center;
     pointer-events: none;
     color: #fff;
@@ -1014,7 +1014,7 @@ const CSS = `
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
     transition: all var(--motion-fast);
-    box-shadow: 0 0 12px rgba(181,21,60,0.3);
+    box-shadow: 0 0 12px rgba(165,21,21,0.3);
   }
   .ci-coach-send-btn:hover { background: var(--accent-3); }
   .ci-coach-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }

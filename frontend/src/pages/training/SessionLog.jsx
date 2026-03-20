@@ -245,7 +245,7 @@ const SL_CSS = `
   transition: background var(--motion-fast);
 }
 
-.sl-override-btn:hover { background: rgba(181,21,60,0.1); }
+.sl-override-btn:hover { background: rgba(165,21,21,0.1); }
 
 /* ── Exercise card ── */
 .sl-ex-card {

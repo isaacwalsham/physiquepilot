@@ -44,5 +44,5 @@ const CSS = `
   .ph-right { display:flex; gap:0.25rem; align-items:center; flex-wrap:wrap; }
   .ph-tab { background:transparent; border:1px solid var(--line-1); color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.1em; padding:0.4rem 0.9rem; border-radius:var(--radius-sm); transition:all var(--motion-fast); white-space:nowrap; }
   .ph-tab:hover { border-color:var(--line-2); color:var(--text-2); }
-  .ph-tab--active { background:var(--surface-3); border-color:var(--accent-2); color:var(--text-1); box-shadow:0 0 10px rgba(222,41,82,0.12); }
+  .ph-tab--active { background:var(--surface-3); border-color:var(--accent-2); color:var(--text-1); box-shadow:0 0 10px rgba(204,32,32,0.12); }
 `;

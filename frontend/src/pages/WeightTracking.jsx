@@ -93,7 +93,7 @@ const CSS = `
   justify-content: space-between;
   padding: 0.65rem 1rem;
   border-bottom: 1px solid var(--line-1);
-  background: linear-gradient(90deg, rgba(138,15,46,0.18), rgba(138,15,46,0.06));
+  background: linear-gradient(90deg, rgba(122,13,13,0.18), rgba(122,13,13,0.06));
 }
 .wt-card-topbar-title {
   font-family: var(--font-display);
@@ -294,7 +294,7 @@ const CSS = `
   background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
   border-color: var(--accent-2);
   color: #fff;
-  box-shadow: 0 0 10px rgba(181,21,60,0.35);
+  box-shadow: 0 0 10px rgba(165,21,21,0.35);
 }
 .wt-pill:hover:not(.active) { border-color: var(--line-2); color: var(--text-2); }
 
@@ -339,7 +339,7 @@ const CSS = `
   position: relative;
 }
 .wt-log-row:last-child { border-bottom: none; }
-.wt-log-row:hover { background: rgba(138,15,46,0.07); }
+.wt-log-row:hover { background: rgba(122,13,13,0.07); }
 .wt-log-date {
   font-family: var(--font-display);
   font-size: 0.62rem;
@@ -410,7 +410,7 @@ const CSS = `
   cursor: pointer;
   transition: background var(--motion-fast);
 }
-.wt-ctx-item:hover { background: rgba(138,15,46,0.12); color: var(--text-1); }
+.wt-ctx-item:hover { background: rgba(122,13,13,0.12); color: var(--text-1); }
 .wt-ctx-item.danger { color: var(--bad); }
 .wt-ctx-item.danger:hover { background: rgba(255,79,115,0.1); }
 
@@ -528,12 +528,12 @@ const CSS = `
   letter-spacing: 0.18em;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(181,21,60,0.35);
+  box-shadow: 0 4px 14px rgba(165,21,21,0.35);
   transition: all var(--motion-fast);
 }
 .wt-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .wt-btn-primary:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(222,41,82,0.45);
+  box-shadow: 0 6px 20px rgba(204,32,32,0.45);
   transform: translateY(-1px);
 }
 .wt-btn-ghost {
@@ -581,7 +581,7 @@ const CSS = `
 .wt-input:focus {
   outline: none !important;
   border-color: var(--accent-3) !important;
-  box-shadow: 0 0 0 2px rgba(222,41,82,0.28) !important;
+  box-shadow: 0 0 0 2px rgba(204,32,32,0.28) !important;
 }
 .wt-input-row {
   display: flex;
@@ -606,7 +606,7 @@ const CSS = `
   color: #fff;
   font-size: 1.55rem;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(181,21,60,0.5);
+  box-shadow: 0 6px 20px rgba(165,21,21,0.5);
   transition: all var(--motion-fast);
   display: flex;
   align-items: center;
@@ -615,7 +615,7 @@ const CSS = `
 }
 .wt-fab:hover {
   transform: scale(1.08);
-  box-shadow: 0 8px 28px rgba(222,41,82,0.6);
+  box-shadow: 0 8px 28px rgba(204,32,32,0.6);
 }
 
 /* ── Toast ── */

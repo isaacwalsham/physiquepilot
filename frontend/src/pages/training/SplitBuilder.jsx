@@ -524,7 +524,7 @@ const STYLE = `
 }
 
 .sb-add-ex-btn:hover {
-  background: rgba(138, 15, 46, 0.15);
+  background: rgba(122, 13, 13, 0.15);
   border-color: var(--accent-2);
 }
 
@@ -605,7 +605,7 @@ const STYLE = `
   text-transform: uppercase;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(138, 15, 46, 0.25);
+  background: rgba(122, 13, 13, 0.25);
   color: var(--accent-3);
   border: 1px solid var(--accent-1);
   white-space: nowrap;
@@ -645,7 +645,7 @@ const STYLE = `
 .sb-add-day-btn:hover {
   border-color: var(--accent-2);
   color: var(--text-1);
-  background: rgba(138, 15, 46, 0.08);
+  background: rgba(122, 13, 13, 0.08);
 }
 
 /* ── Settings section ── */
@@ -794,7 +794,7 @@ const STYLE = `
   white-space: nowrap;
 }
 .sb-pattern-choose-btn:hover {
-  background: rgba(222,41,82,0.1);
+  background: rgba(204,32,32,0.1);
 }
 .sb-pattern-exercises {
   display: flex;
@@ -814,7 +814,7 @@ const STYLE = `
 }
 .sb-pattern-ex-btn:hover {
   border-color: var(--accent-2);
-  background: rgba(222,41,82,0.08);
+  background: rgba(204,32,32,0.08);
 }
 .sb-pattern-cancel {
   font-size: 0.75rem;

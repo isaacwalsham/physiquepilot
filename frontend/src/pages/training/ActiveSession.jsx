@@ -123,7 +123,7 @@ const STYLES = `
     white-space: nowrap;
   }
   .as-badge-compound {
-    background: rgba(138, 15, 46, 0.3);
+    background: rgba(122, 13, 13, 0.3);
     color: var(--accent-3);
     border: 1px solid var(--accent-1);
   }
@@ -275,7 +275,7 @@ const STYLES = `
   }
 
   .as-add-set-btn {
-    background: rgba(138, 15, 46, 0.18);
+    background: rgba(122, 13, 13, 0.18);
     border: 1px solid var(--accent-1);
     border-radius: var(--radius-sm);
     color: var(--accent-3);
@@ -287,7 +287,7 @@ const STYLES = `
     transition: background 0.15s;
   }
   .as-add-set-btn:hover {
-    background: rgba(181, 21, 60, 0.28);
+    background: rgba(165, 21, 21, 0.28);
   }
 
   .as-fill-btn {
@@ -357,7 +357,7 @@ const STYLES = `
   }
   .as-complete-btn:hover {
     background: var(--accent-3);
-    box-shadow: 0 0 22px rgba(222, 41, 82, 0.55);
+    box-shadow: 0 0 22px rgba(204, 32, 32, 0.55);
   }
   .as-complete-btn:disabled {
     opacity: 0.5;

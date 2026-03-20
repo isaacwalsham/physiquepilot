@@ -46,7 +46,7 @@ export default function PhysiquePilotLoader({
           position: "absolute",
           inset: 0,
           background:
-            "radial-gradient(600px 320px at 50% 50%, rgba(181,21,60,0.13), transparent 70%)",
+            "radial-gradient(600px 320px at 50% 50%, rgba(165,21,21,0.13), transparent 70%)",
           pointerEvents: "none",
         }}
       />

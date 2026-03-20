@@ -874,7 +874,7 @@ function ProgressRing({ done, total }) {
           <circle cx="60" cy="60" r={R} fill="none"
             stroke="url(#htRingGrad)" strokeWidth="10" strokeLinecap="round"
             strokeDasharray={C} strokeDashoffset={C * (1 - pct)}
-            style={{ transition: "stroke-dashoffset 600ms cubic-bezier(.22,.68,0,1.2)", filter: `drop-shadow(0 0 6px ${isComplete ? "rgba(74,222,128,0.7)" : "rgba(222,41,82,0.6)"})` }}
+            style={{ transition: "stroke-dashoffset 600ms cubic-bezier(.22,.68,0,1.2)", filter: `drop-shadow(0 0 6px ${isComplete ? "rgba(74,222,128,0.7)" : "rgba(204,32,32,0.6)"})` }}
           />
           {[0,60,120,180,240,300].map(a => {
             const r1 = (a * Math.PI) / 180;
@@ -1059,10 +1059,10 @@ function HeatmapGrid({ data }) {
 
   const cellColor = (pct) => {
     if (pct < 0) return "var(--surface-3)";
-    if (pct === 0) return "rgba(222,41,82,0.06)";
-    if (pct < 0.26) return "rgba(222,41,82,0.25)";
-    if (pct < 0.51) return "rgba(222,41,82,0.45)";
-    if (pct < 0.76) return "rgba(222,41,82,0.68)";
+    if (pct === 0) return "rgba(204,32,32,0.06)";
+    if (pct < 0.26) return "rgba(204,32,32,0.25)";
+    if (pct < 0.51) return "rgba(204,32,32,0.45)";
+    if (pct < 0.76) return "rgba(204,32,32,0.68)";
     return "var(--accent-3)";
   };
 
@@ -1419,7 +1419,7 @@ const CSS = `
 
   /* ── Progress ring ── */
   .ht-ring-wrap { display:flex; align-items:center; gap:1.2rem; background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); padding:0.9rem 1.2rem; position:relative; overflow:hidden; }
-  .ht-ring-wrap::before { content:""; position:absolute; inset:0; background:radial-gradient(280px 160px at 50% 50%,rgba(181,21,60,0.08),transparent 70%); pointer-events:none; }
+  .ht-ring-wrap::before { content:""; position:absolute; inset:0; background:radial-gradient(280px 160px at 50% 50%,rgba(165,21,21,0.08),transparent 70%); pointer-events:none; }
   .ht-ring-svg-wrap { position:relative; width:120px; height:120px; flex-shrink:0; }
   .ht-ring-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .ht-ring-num { font-family:var(--font-display); font-size:2rem; font-weight:700; color:var(--text-1); line-height:1; letter-spacing:-0.03em; }
@@ -1458,7 +1458,7 @@ const CSS = `
 
   /* ── Add button ── */
   .ht-add-btn { display:flex; align-items:center; justify-content:center; gap:0.38rem; padding:0.55rem 0.9rem; background:transparent; border:1px dashed var(--line-2); border-radius:var(--radius-md); color:var(--text-3); cursor:pointer; font-size:0.82rem; width:100%; transition:all var(--motion-fast); }
-  .ht-add-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.05); box-shadow:0 0 12px rgba(222,41,82,0.08); }
+  .ht-add-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(204,32,32,0.05); box-shadow:0 0 12px rgba(204,32,32,0.08); }
   .ht-reset-btn { display:flex; align-items:center; justify-content:center; padding:0.38rem 0.9rem; background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.1em; width:100%; transition:color var(--motion-fast); opacity:0.6; }
   .ht-reset-btn:hover { color:#f87171; opacity:1; }
 
@@ -1466,8 +1466,8 @@ const CSS = `
   .ht-btn { background:transparent; border:1px solid var(--line-1); color:var(--text-2); cursor:pointer; font-size:0.78rem; font-family:var(--font-display); letter-spacing:0.08em; padding:0.5rem 1rem; border-radius:var(--radius-sm); transition:all var(--motion-fast); }
   .ht-btn:hover { border-color:var(--line-2); color:var(--text-1); }
   .ht-btn:disabled { opacity:0.45; cursor:not-allowed; }
-  .ht-btn--primary { background:rgba(222,41,82,0.12); border-color:var(--accent-2); color:var(--accent-3); }
-  .ht-btn--primary:hover:not(:disabled) { background:rgba(222,41,82,0.22); box-shadow:0 0 14px rgba(222,41,82,0.25); }
+  .ht-btn--primary { background:rgba(204,32,32,0.12); border-color:var(--accent-2); color:var(--accent-3); }
+  .ht-btn--primary:hover:not(:disabled) { background:rgba(204,32,32,0.22); box-shadow:0 0 14px rgba(204,32,32,0.25); }
   .ht-btn--danger { background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.4); color:#f87171; }
   .ht-btn--danger:hover:not(:disabled) { background:rgba(239,68,68,0.22); box-shadow:0 0 14px rgba(239,68,68,0.25); }
 
@@ -1516,7 +1516,7 @@ const CSS = `
   .ht-overlay { position:fixed; inset:0; background:rgba(9,5,6,0.88); z-index:200; display:flex; align-items:flex-start; justify-content:center; padding:4vh 1rem; backdrop-filter:blur(4px); overflow-y:auto; }
 
   /* ── Quantified input ── */
-  .ht-quant-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:340px; overflow:hidden; box-shadow:0 0 40px rgba(181,21,60,0.15); margin-top:10vh; }
+  .ht-quant-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:340px; overflow:hidden; box-shadow:0 0 40px rgba(165,21,21,0.15); margin-top:10vh; }
   .ht-quant-header { display:flex; justify-content:space-between; align-items:center; padding:0.8rem 1rem; border-bottom:1px solid var(--line-1); font-family:var(--font-display); font-size:0.8rem; color:var(--text-1); letter-spacing:0.06em; }
   .ht-quant-close { background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:0.9rem; padding:0.1rem 0.3rem; }
   .ht-quant-body { padding:1.2rem 1rem; display:flex; flex-direction:column; gap:0.9rem; align-items:center; }
@@ -1531,8 +1531,8 @@ const CSS = `
   .ht-quant-meta { font-family:var(--font-display); font-size:0.65rem; color:var(--text-3); letter-spacing:0.1em; }
 
   /* ── Template modal ── */
-  .ht-template-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:500px; max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 0 40px rgba(181,21,60,0.12); }
-  .ht-template-header { padding:1rem 1.2rem; border-bottom:1px solid var(--line-1); background:linear-gradient(135deg,rgba(138,15,46,0.18),rgba(181,21,60,0.04)); }
+  .ht-template-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:500px; max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 0 40px rgba(165,21,21,0.12); }
+  .ht-template-header { padding:1rem 1.2rem; border-bottom:1px solid var(--line-1); background:linear-gradient(135deg,rgba(122,13,13,0.18),rgba(165,21,21,0.04)); }
   .ht-template-title { font-family:var(--font-display); font-size:0.72rem; letter-spacing:0.24em; text-transform:uppercase; color:var(--accent-3); display:block; margin-bottom:0.3rem; }
   .ht-template-sub { font-size:0.82rem; color:var(--text-3); }
   .ht-template-body { flex:1; overflow-y:auto; padding:0.75rem 1rem; display:flex; flex-direction:column; gap:0.9rem; }
@@ -1551,7 +1551,7 @@ const CSS = `
   .ht-template-footer { padding:0.8rem 1rem; border-top:1px solid var(--line-1); display:flex; justify-content:space-between; gap:0.5rem; }
 
   /* ── Habit modal ── */
-  .ht-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:460px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 0 40px rgba(181,21,60,0.12); }
+  .ht-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:460px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 0 40px rgba(165,21,21,0.12); }
   .ht-modal-header { display:flex; justify-content:space-between; align-items:center; padding:0.8rem 1.1rem; border-bottom:1px solid var(--line-1); }
   .ht-modal-title { font-family:var(--font-display); font-size:0.66rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--text-2); }
   .ht-modal-close { background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:1rem; padding:0.1rem 0.3rem; }
@@ -1574,7 +1574,7 @@ const CSS = `
   .ht-pill-group { display:flex; gap:0.28rem; flex-wrap:wrap; }
   .ht-pill { background:transparent; border:1px solid var(--line-1); color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.06em; padding:0.32rem 0.72rem; border-radius:999px; transition:all var(--motion-fast); }
   .ht-pill:hover { border-color:var(--line-2); color:var(--text-2); }
-  .ht-pill--active { background:var(--surface-3); border-color:var(--accent-2); color:var(--text-1); box-shadow:inset 0 0 8px rgba(222,41,82,0.1); }
+  .ht-pill--active { background:var(--surface-3); border-color:var(--accent-2); color:var(--text-1); box-shadow:inset 0 0 8px rgba(204,32,32,0.1); }
   .ht-pill--warn.ht-pill--active { border-color:var(--warn); color:var(--warn); }
 
   /* ── Reset confirm modal ── */

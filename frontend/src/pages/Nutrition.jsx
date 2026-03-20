@@ -2029,7 +2029,7 @@ export default function Nutrition() {
     /* ── Animations ── */
     @keyframes nt-pulse      { 0%,100%{opacity:1} 50%{opacity:0.5} }
     @keyframes nt-glow-ok    { 0%,100%{box-shadow:0 0 5px rgba(40,183,141,0.25)} 50%{box-shadow:0 0 16px rgba(40,183,141,0.75),inset 0 0 6px rgba(40,183,141,0.1)} }
-    @keyframes nt-glow-bad   { 0%,100%{box-shadow:0 0 5px rgba(222,41,82,0.2)} 50%{box-shadow:0 0 18px rgba(222,41,82,0.7)} }
+    @keyframes nt-glow-bad   { 0%,100%{box-shadow:0 0 5px rgba(204,32,32,0.2)} 50%{box-shadow:0 0 18px rgba(204,32,32,0.7)} }
     @keyframes nt-flash-bad  { 0%,88%,100%{opacity:1} 94%{opacity:0.35} }
     @keyframes nt-toast-in   { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
     @keyframes nt-sweep      { 0%{background-position:200% center} 100%{background-position:-200% center} }
@@ -2054,13 +2054,13 @@ export default function Nutrition() {
     .nt-day-bar { display:flex; justify-content:space-between; align-items:flex-start; gap:0.65rem; flex-wrap:wrap; }
     .nt-day-date { font-family:var(--font-display); font-size:0.92rem; color:var(--text-1); letter-spacing:0.06em; margin-bottom:0.28rem; }
     .nt-day-type-badge { font-family:var(--font-display); font-size:0.64rem; letter-spacing:0.18em; padding:0.18rem 0.58rem; border-radius:999px; text-transform:uppercase; display:inline-block; }
-    .nt-day-type-badge--training { background:rgba(222,41,82,0.1); border:1px solid var(--accent-1); color:var(--accent-3); animation:nt-glow-bad 2.5s ease-in-out infinite; }
+    .nt-day-type-badge--training { background:rgba(204,32,32,0.1); border:1px solid var(--accent-1); color:var(--accent-3); animation:nt-glow-bad 2.5s ease-in-out infinite; }
     .nt-day-type-badge--rest { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); animation:nt-glow-ok 3s ease-in-out infinite; }
     .nt-day-type-badge--high { background:rgba(229,161,0,0.1); border:1px solid rgba(229,161,0,0.3); color:var(--warn); }
     .nt-day-controls { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; }
 
     /* ── Calorie HUD ── */
-    .nt-calorie-hud { background:var(--surface-2); border:1px solid rgba(181,21,60,0.32); border-radius:var(--radius-md); overflow:hidden; box-shadow:0 0 24px rgba(181,21,60,0.07); position:relative; display:grid; grid-template-columns:1fr 1px 1fr; }
+    .nt-calorie-hud { background:var(--surface-2); border:1px solid rgba(165,21,21,0.32); border-radius:var(--radius-md); overflow:hidden; box-shadow:0 0 24px rgba(165,21,21,0.07); position:relative; display:grid; grid-template-columns:1fr 1px 1fr; }
     .nt-calorie-hud::before { content:""; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent-3) 50%,transparent); pointer-events:none; z-index:1; }
     .nt-hud-left { display:flex; flex-direction:column; min-height:0; }
     .nt-hud-divider { background:var(--line-1); }
@@ -2074,16 +2074,16 @@ export default function Nutrition() {
     .nt-plan-macro { display:flex; flex-direction:column; gap:0.06rem; }
     .nt-plan-macro-val { font-family:var(--font-display); font-size:0.88rem; font-weight:600; color:var(--text-1); }
     .nt-plan-macro-lbl { font-family:var(--font-display); font-size:0.58rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-3); }
-    .nt-hud-header { display:flex; justify-content:space-between; align-items:center; padding:0.45rem 0.85rem; border-bottom:1px solid var(--line-1); background:linear-gradient(135deg,rgba(138,15,46,0.22),rgba(181,21,60,0.06)); }
+    .nt-hud-header { display:flex; justify-content:space-between; align-items:center; padding:0.45rem 0.85rem; border-bottom:1px solid var(--line-1); background:linear-gradient(135deg,rgba(122,13,13,0.22),rgba(165,21,21,0.06)); }
     .nt-hud-label { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--accent-3); }
     .nt-hud-nav { display:flex; align-items:center; gap:0.3rem; }
     .nt-hud-nav-dot { display:flex; gap:0.28rem; align-items:center; }
     .nt-hud-dot { width:5px; height:5px; border-radius:50%; background:var(--line-2); transition:all var(--motion-fast); }
-    .nt-hud-dot--active { background:var(--accent-3); box-shadow:0 0 8px rgba(222,41,82,0.9); animation:nt-pulse 2s ease-in-out infinite; }
+    .nt-hud-dot--active { background:var(--accent-3); box-shadow:0 0 8px rgba(204,32,32,0.9); animation:nt-pulse 2s ease-in-out infinite; }
     .nt-hud-arrow { background:transparent; border:1px solid var(--line-1); color:var(--text-3); cursor:pointer; width:22px; height:22px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:0.58rem; padding:0; transition:all var(--motion-fast); flex-shrink:0; }
-    .nt-hud-arrow:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.1); box-shadow:0 0 10px rgba(222,41,82,0.25); }
+    .nt-hud-arrow:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(204,32,32,0.1); box-shadow:0 0 10px rgba(204,32,32,0.25); }
     .nt-hud-body { padding:0.6rem 0.85rem; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.35rem; flex:1; }
-    .nt-hud-body::before { content:""; position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(222,41,82,0.012) 4px); pointer-events:none; }
+    .nt-hud-body::before { content:""; position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(204,32,32,0.012) 4px); pointer-events:none; }
     .nt-calorie-big { font-family:var(--font-display); font-size:3.2rem; font-weight:700; color:var(--text-1); line-height:1; letter-spacing:-0.03em; }
     .nt-calorie-unit { font-family:var(--font-display); font-size:0.82rem; color:var(--text-3); }
     .nt-calorie-sub { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-3); }
@@ -2114,7 +2114,7 @@ export default function Nutrition() {
     .nt-segment-pills { display:flex; gap:0.25rem; flex-wrap:wrap; margin-bottom:0.65rem; }
     .nt-seg-pill { padding:0.26rem 0.62rem; border-radius:999px; border:1px solid var(--line-1); background:transparent; color:var(--text-3); cursor:pointer; font-size:0.72rem; font-family:var(--font-display); letter-spacing:0.06em; transition:all var(--motion-fast); }
     .nt-seg-pill:hover { border-color:var(--line-2); color:var(--text-2); }
-    .nt-seg-pill--active { background:var(--surface-3); border-color:var(--line-2); color:var(--text-1); box-shadow:inset 0 0 8px rgba(222,41,82,0.08); }
+    .nt-seg-pill--active { background:var(--surface-3); border-color:var(--line-2); color:var(--text-1); box-shadow:inset 0 0 8px rgba(204,32,32,0.08); }
 
     /* ── Macro bars ── */
     .nt-macro-bars { display:grid; gap:0.42rem; }
@@ -2142,8 +2142,8 @@ export default function Nutrition() {
     .nt-meal-card--breakfast:hover { box-shadow:0 0 14px rgba(229,161,0,0.12); }
     .nt-meal-card--lunch { border-top:3px solid rgba(74,158,255,0.75); }
     .nt-meal-card--lunch:hover { box-shadow:0 0 14px rgba(74,158,255,0.12); }
-    .nt-meal-card--dinner { border-top:3px solid rgba(222,41,82,0.85); }
-    .nt-meal-card--dinner:hover { box-shadow:0 0 14px rgba(222,41,82,0.14); }
+    .nt-meal-card--dinner { border-top:3px solid rgba(204,32,32,0.85); }
+    .nt-meal-card--dinner:hover { box-shadow:0 0 14px rgba(204,32,32,0.14); }
     .nt-meal-card--snacks { border-top:3px solid rgba(40,183,141,0.75); }
     .nt-meal-card--snacks:hover { box-shadow:0 0 14px rgba(40,183,141,0.12); }
     .nt-meal-card--default { border-top:2px solid var(--line-2); }
@@ -2165,7 +2165,7 @@ export default function Nutrition() {
     .nt-meal-group-hdr { display:flex; justify-content:space-between; align-items:center; padding:0.3rem 0.5rem; background:var(--surface-1); border-radius:var(--radius-sm); cursor:pointer; transition:background var(--motion-fast); }
     .nt-meal-group-hdr:hover { background:var(--surface-3); }
     .nt-add-food-btn { display:flex; align-items:center; gap:0.38rem; padding:0.46rem 0.7rem; background:transparent; border:1px dashed var(--line-2); border-radius:var(--radius-sm); color:var(--text-3); cursor:pointer; font-size:0.8rem; width:100%; justify-content:center; transition:all var(--motion-fast); margin-top:0.32rem; box-sizing:border-box; }
-    .nt-add-food-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(222,41,82,0.06); box-shadow:0 0 12px rgba(222,41,82,0.1); }
+    .nt-add-food-btn:hover { border-color:var(--accent-2); color:var(--accent-3); background:rgba(204,32,32,0.06); box-shadow:0 0 12px rgba(204,32,32,0.1); }
 
     /* ── Micronutrients ── */
     .nt-micro-toggle { display:flex; justify-content:space-between; align-items:center; padding:0.74rem 0.9rem; background:var(--surface-2); border:1px solid var(--line-1); border-radius:var(--radius-md); cursor:pointer; transition:all var(--motion-fast); }
@@ -2184,7 +2184,7 @@ export default function Nutrition() {
 
     /* ── Modal ── */
     .nt-modal-overlay { position:fixed; inset:0; background:rgba(9,5,6,0.88); z-index:200; display:flex; align-items:flex-start; justify-content:center; padding:5vh 1rem; backdrop-filter:blur(4px); }
-    .nt-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:540px; max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-soft),0 0 40px rgba(181,21,60,0.1); }
+    .nt-modal { background:var(--surface-2); border:1px solid var(--line-1); border-top:2px solid var(--accent-2); border-radius:var(--radius-lg); width:100%; max-width:540px; max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-soft),0 0 40px rgba(165,21,21,0.1); }
     .nt-modal-header { padding:0.86rem 1.1rem; border-bottom:1px solid var(--line-1); display:flex; justify-content:space-between; align-items:center; }
     .nt-modal-title { font-family:var(--font-display); font-size:0.66rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--text-2); }
     .nt-modal-close { background:transparent; border:none; color:var(--text-3); cursor:pointer; font-size:1rem; padding:0.18rem 0.38rem; border-radius:4px; transition:all var(--motion-fast); }
@@ -2200,7 +2200,7 @@ export default function Nutrition() {
     .nt-source-badge { font-size:0.56rem; font-family:var(--font-display); letter-spacing:0.1em; text-transform:uppercase; padding:0.1rem 0.38rem; border-radius:999px; flex-shrink:0; margin-top:0.16rem; }
     .nt-source-usda { background:rgba(74,158,255,0.1); border:1px solid rgba(74,158,255,0.3); color:#4a9eff; }
     .nt-source-off { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
-    .nt-source-mine { background:rgba(222,41,82,0.1); border:1px solid var(--accent-1); color:var(--accent-3); }
+    .nt-source-mine { background:rgba(204,32,32,0.1); border:1px solid var(--accent-1); color:var(--accent-3); }
     .nt-allergen-badge { font-size:0.56rem; font-family:var(--font-display); letter-spacing:0.05em; text-transform:uppercase; padding:0.1rem 0.36rem; border-radius:999px; background:rgba(255,184,107,0.1); border:1px solid rgba(255,184,107,0.3); color:#ffb86b; flex-shrink:0; }
     .nt-modal-footer { padding:0.78rem 0.95rem; border-top:1px solid var(--line-1); display:grid; gap:0.42rem; }
     .nt-modal-add-row { display:grid; grid-template-columns:1fr 100px 120px auto; gap:0.42rem; align-items:center; }
@@ -2210,7 +2210,7 @@ export default function Nutrition() {
     .nt-btn:hover:not(:disabled) { border-color:var(--line-2); color:var(--text-1); }
     .nt-btn:disabled { opacity:0.38; cursor:default; }
     .nt-btn--primary { background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); border-color:var(--accent-2); color:#fff; }
-    .nt-btn--primary:hover:not(:disabled) { background:linear-gradient(135deg,var(--accent-2),var(--accent-3)); border-color:var(--accent-3); box-shadow:0 0 18px rgba(222,41,82,0.4); }
+    .nt-btn--primary:hover:not(:disabled) { background:linear-gradient(135deg,var(--accent-2),var(--accent-3)); border-color:var(--accent-3); box-shadow:0 0 18px rgba(204,32,32,0.4); }
     .nt-btn--sm { padding:0.3rem 0.6rem; font-size:0.63rem; }
     .nt-btn--danger { border-color:rgba(255,79,115,0.25); color:var(--bad); }
     .nt-btn--danger:hover:not(:disabled) { background:rgba(255,79,115,0.08); border-color:var(--bad); }
@@ -2239,7 +2239,7 @@ export default function Nutrition() {
     .nt-plan-meal-header { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; margin-bottom:0.28rem; }
     .nt-plan-meal-name { font-family:var(--font-display); font-size:0.64rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-2); }
     .nt-plan-timing-chip { font-size:0.57rem; font-family:var(--font-display); letter-spacing:0.08em; text-transform:uppercase; padding:0.09rem 0.36rem; border-radius:999px; margin-left:0.28rem; }
-    .nt-plan-timing-chip--pre { background:rgba(181,21,60,0.12); border:1px solid var(--accent-1); color:var(--accent-3); }
+    .nt-plan-timing-chip--pre { background:rgba(165,21,21,0.12); border:1px solid var(--accent-1); color:var(--accent-3); }
     .nt-plan-timing-chip--post { background:rgba(40,183,141,0.1); border:1px solid rgba(40,183,141,0.3); color:var(--ok); }
     .nt-plan-food { font-size:0.84rem; color:var(--text-2); }
     .nt-plan-meal-macros { font-size:0.72rem; color:var(--text-3); margin-top:0.24rem; font-family:var(--font-display); }
@@ -2253,7 +2253,7 @@ export default function Nutrition() {
     .nt-settings-full { grid-column:1/-1; }
     .nt-targets-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0.55rem; }
     .nt-target-day { background:var(--surface-3); border:1px solid var(--line-1); border-radius:var(--radius-sm); padding:0.78rem; }
-    .nt-target-day--training { border-top:3px solid rgba(222,41,82,0.55); }
+    .nt-target-day--training { border-top:3px solid rgba(204,32,32,0.55); }
     .nt-target-day--rest { border-top:3px solid rgba(40,183,141,0.45); }
     .nt-target-day--high { border-top:3px solid rgba(229,161,0,0.45); }
     .nt-target-day-name { font-family:var(--font-display); font-size:0.63rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--text-3); margin-bottom:0.55rem; }
@@ -2262,7 +2262,7 @@ export default function Nutrition() {
     /* ── Locked calories display ── */
     .nt-cal-locked {
       display:flex; align-items:center; justify-content:space-between;
-      background:rgba(181,21,60,0.07); border:1px solid rgba(181,21,60,0.2);
+      background:rgba(165,21,21,0.07); border:1px solid rgba(165,21,21,0.2);
       border-radius:var(--radius-sm); padding:0.5rem 0.75rem; margin-bottom:0.75rem;
     }
     .nt-cal-locked-label {
@@ -2300,7 +2300,7 @@ export default function Nutrition() {
       transition:border-color 0.15s, background 0.15s;
       flex-shrink:0;
     }
-    .nt-stepper-btn:hover:not(:disabled) { border-color:var(--accent-2); background:rgba(181,21,60,0.12); color:var(--text-1); }
+    .nt-stepper-btn:hover:not(:disabled) { border-color:var(--accent-2); background:rgba(165,21,21,0.12); color:var(--text-1); }
     .nt-stepper-btn:disabled { opacity:0.3; cursor:not-allowed; }
     .nt-stepper-val {
       min-width:3rem; text-align:center;
@@ -2581,12 +2581,12 @@ export default function Nutrition() {
                                 <stop offset="100%" stopColor={isOver ? "#ff7c96" : "var(--accent-3)"} />
                               </linearGradient>
                             </defs>
-                            <circle cx="52" cy="52" r="48" fill="none" stroke="rgba(222,41,82,0.06)" strokeWidth="1" />
+                            <circle cx="52" cy="52" r="48" fill="none" stroke="rgba(204,32,32,0.06)" strokeWidth="1" />
                             <circle cx="52" cy="52" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
                             <circle cx="52" cy="52" r={R} fill="none"
                               stroke="url(#calGrad2)" strokeWidth="10" strokeLinecap="round"
                               strokeDasharray={C} strokeDashoffset={C * (1 - fillPct / 100)}
-                              style={{ transition:"stroke-dashoffset 700ms cubic-bezier(.22,.68,0,1.2)", filter:`drop-shadow(0 0 ${isOver?'8px rgba(255,58,92,0.85)':'5px rgba(222,41,82,0.65)'})` }}
+                              style={{ transition:"stroke-dashoffset 700ms cubic-bezier(.22,.68,0,1.2)", filter:`drop-shadow(0 0 ${isOver?'8px rgba(255,58,92,0.85)':'5px rgba(204,32,32,0.65)'})` }}
                             />
                             {[0,45,90,135,180,225,270,315].map(a => {
                               const r1=(a*Math.PI)/180, x1=52+(R-6)*Math.cos(r1), y1=52+(R-6)*Math.sin(r1), x2=52+(R+6)*Math.cos(r1), y2=52+(R+6)*Math.sin(r1);
@@ -2594,7 +2594,7 @@ export default function Nutrition() {
                             })}
                           </svg>
                           <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"0.04rem" }}>
-                            <span className="nt-calorie-big" style={{ fontSize:"1.4rem", color:isOver?"var(--bad)":"var(--text-1)", textShadow:isOver?"0 0 18px rgba(255,58,92,0.55)":"0 0 18px rgba(222,41,82,0.25)" }}>{cals.toLocaleString()}</span>
+                            <span className="nt-calorie-big" style={{ fontSize:"1.4rem", color:isOver?"var(--bad)":"var(--text-1)", textShadow:isOver?"0 0 18px rgba(255,58,92,0.55)":"0 0 18px rgba(204,32,32,0.25)" }}>{cals.toLocaleString()}</span>
                             <span className="nt-calorie-unit" style={{ fontSize:"0.56rem" }}>kcal</span>
                           </div>
                         </div>
@@ -3005,7 +3005,7 @@ export default function Nutrition() {
                         <span className="nt-plan-day-name">{dayName.toUpperCase()} {dateStr}</span>
                         <span className={`nt-day-type-badge nt-day-type-badge--${dt}`} style={{ fontSize: "0.54rem" }}>{dt.toUpperCase()}</span>
                         {isToday && (
-                          <span style={{ fontSize: "0.54rem", fontFamily: "var(--font-display)", letterSpacing: "0.1em", padding: "0.08rem 0.4rem", borderRadius: "999px", background: "rgba(222,41,82,0.14)", border: "1px solid var(--accent-2)", color: "var(--accent-3)" }}>
+                          <span style={{ fontSize: "0.54rem", fontFamily: "var(--font-display)", letterSpacing: "0.1em", padding: "0.08rem 0.4rem", borderRadius: "999px", background: "rgba(204,32,32,0.14)", border: "1px solid var(--accent-2)", color: "var(--accent-3)" }}>
                             TODAY
                           </span>
                         )}

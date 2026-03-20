@@ -231,7 +231,7 @@ const STYLES = `
   color: var(--text-2);
 }
 .ts-filter-pill.active {
-  background: rgba(222,41,82,0.15);
+  background: rgba(204,32,32,0.15);
   border-color: var(--accent-2);
   color: var(--text-1);
 }
@@ -299,7 +299,7 @@ const STYLES = `
   color: var(--text-2);
 }
 .ts-day-btn.selected {
-  background: rgba(222,41,82,0.15);
+  background: rgba(204,32,32,0.15);
   border-color: var(--accent-2);
   color: var(--text-1);
 }
@@ -320,7 +320,7 @@ const STYLES = `
   margin-bottom: 1.5rem;
 }
 .ts-choose-btn:hover {
-  background: rgba(222,41,82,0.1);
+  background: rgba(204,32,32,0.1);
 }
 
 .ts-rolling-note {

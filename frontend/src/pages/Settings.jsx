@@ -102,12 +102,12 @@ const CSS = `
 }
 .st-nav-btn:hover {
   color: var(--text-1);
-  background: rgba(181,21,60,0.04);
+  background: rgba(165,21,21,0.04);
 }
 .st-nav-btn.active {
   border-left-color: var(--accent-2, #b5153c);
   color: var(--accent-2, #b5153c);
-  background: rgba(181,21,60,0.08);
+  background: rgba(165,21,21,0.08);
 }
 .st-nav-icon {
   font-family: var(--font-display);
@@ -232,12 +232,12 @@ const CSS = `
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 .st-pill:hover {
-  border-color: rgba(181,21,60,0.4);
+  border-color: rgba(165,21,21,0.4);
   color: var(--text-1);
 }
 .st-pill.active {
-  border-color: rgba(181,21,60,0.6);
-  background: rgba(181,21,60,0.12);
+  border-color: rgba(165,21,21,0.6);
+  background: rgba(165,21,21,0.12);
   color: var(--text-1);
 }
 .st-num-btn-group {
@@ -261,8 +261,8 @@ const CSS = `
   justify-content: center;
 }
 .st-num-btn.active {
-  border-color: rgba(181,21,60,0.6);
-  background: rgba(181,21,60,0.12);
+  border-color: rgba(165,21,21,0.6);
+  background: rgba(165,21,21,0.12);
   color: var(--text-1);
 }
 .st-toggle-row {
@@ -304,8 +304,8 @@ const CSS = `
   transition: background 0.2s, border-color 0.2s;
 }
 .st-toggle input:checked + .st-toggle-track {
-  background: rgba(181,21,60,0.35);
-  border-color: rgba(181,21,60,0.5);
+  background: rgba(165,21,21,0.35);
+  border-color: rgba(165,21,21,0.5);
 }
 .st-toggle-track::after {
   content: "";
@@ -327,8 +327,8 @@ const CSS = `
   align-items: center;
   gap: 0.5rem;
   padding: 0.55rem 1.2rem;
-  background: linear-gradient(135deg, rgba(181,21,60,0.8), rgba(130,10,40,0.9));
-  border: 1px solid rgba(181,21,60,0.5);
+  background: linear-gradient(135deg, rgba(165,21,21,0.8), rgba(130,10,40,0.9));
+  border: 1px solid rgba(165,21,21,0.5);
   border-radius: var(--radius-sm);
   color: var(--text-1);
   font-family: var(--font-display);
@@ -349,8 +349,8 @@ const CSS = `
   cursor: not-allowed;
 }
 .st-danger-card {
-  background: rgba(181,21,60,0.04);
-  border: 1px solid rgba(181,21,60,0.3);
+  background: rgba(165,21,21,0.04);
+  border: 1px solid rgba(165,21,21,0.3);
   border-radius: var(--radius-md);
   padding: 1.25rem;
   margin-bottom: 0.75rem;

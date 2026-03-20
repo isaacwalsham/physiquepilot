@@ -89,7 +89,7 @@ export function TourOverlay({ active, step, stepIndex, totalSteps, spotlightRect
           width: sW,
           height: sH,
           border: '2px solid var(--accent-3, #b5153c)',
-          boxShadow: '0 0 0 1px var(--accent-2, #8b1030), 0 0 24px rgba(181,21,60,0.35)',
+          boxShadow: '0 0 0 1px var(--accent-2, #8b1030), 0 0 24px rgba(165,21,21,0.35)',
           borderRadius: 6,
           zIndex: 9998,
           pointerEvents: 'none',
@@ -136,7 +136,7 @@ function TourCard({ step, stepIndex, totalSteps, next, prev, skip, style = {} })
         border: '1px solid #2a1118',
         borderRadius: 6,
         padding: '1.25rem 1.5rem',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(181,21,60,0.15)',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(165,21,21,0.15)',
         fontFamily: 'var(--font-body, sans-serif)',
         ...style,
       }}

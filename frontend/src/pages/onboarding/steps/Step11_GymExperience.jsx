@@ -11,7 +11,7 @@ const titleStyle = {
 const cardStyle = (selected) => ({
   border: `2px solid ${selected ? "var(--accent-2)" : "var(--line-1)"}`,
   borderRadius: "var(--radius-md)",
-  background: selected ? "rgba(181,21,60,0.12)" : "var(--surface-2)",
+  background: selected ? "rgba(165,21,21,0.12)" : "var(--surface-2)",
   padding: "1.25rem 1.5rem",
   cursor: "pointer",
   transition: "border-color var(--motion-fast) ease, background var(--motion-fast) ease",

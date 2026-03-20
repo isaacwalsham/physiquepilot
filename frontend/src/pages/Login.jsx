@@ -51,8 +51,8 @@ const CSS = `
     left: 1.2rem;
     width: 28px;
     height: 28px;
-    border-top: 1px solid rgba(181,21,60,0.35);
-    border-left: 1px solid rgba(181,21,60,0.35);
+    border-top: 1px solid rgba(165,21,21,0.35);
+    border-left: 1px solid rgba(165,21,21,0.35);
     pointer-events: none;
     z-index: 0;
   }
@@ -68,7 +68,7 @@ const CSS = `
     border: 1px solid var(--line-1);
     border-radius: var(--radius-lg);
     box-shadow:
-      0 0 0 1px rgba(181,21,60,0.08),
+      0 0 0 1px rgba(165,21,21,0.08),
       0 24px 60px rgba(0,0,0,0.6);
     overflow: hidden;
   }
@@ -79,8 +79,8 @@ const CSS = `
     align-items: center;
     justify-content: space-between;
     padding: 0.7rem 1.2rem;
-    background: rgba(181,21,60,0.04);
-    border-bottom: 1px solid rgba(181,21,60,0.15);
+    background: rgba(165,21,21,0.04);
+    border-bottom: 1px solid rgba(165,21,21,0.15);
   }
 
   .login-topbar-left {
@@ -172,7 +172,7 @@ const CSS = `
 
   .login-input:focus {
     border-color: var(--accent-3);
-    box-shadow: 0 0 0 3px rgba(222,41,82,0.16);
+    box-shadow: 0 0 0 3px rgba(204,32,32,0.16);
   }
 
   /* ── Primary button ── */
@@ -189,13 +189,13 @@ const CSS = `
     letter-spacing: 0.1em;
     text-transform: uppercase;
     cursor: pointer;
-    box-shadow: 0 0 16px rgba(181,21,60,0.3);
+    box-shadow: 0 0 16px rgba(165,21,21,0.3);
     transition: box-shadow 0.18s, opacity 0.18s;
     margin-top: 0.4rem;
   }
 
   .login-btn-primary:hover:not(:disabled) {
-    box-shadow: 0 0 28px rgba(181,21,60,0.55);
+    box-shadow: 0 0 28px rgba(165,21,21,0.55);
   }
 
   .login-btn-primary:disabled {
@@ -210,8 +210,8 @@ const CSS = `
     gap: 0.45rem;
     margin-top: 1rem;
     padding: 0.65rem 0.85rem;
-    background: rgba(222,41,82,0.06);
-    border: 1px solid rgba(222,41,82,0.22);
+    background: rgba(204,32,32,0.06);
+    border: 1px solid rgba(204,32,32,0.22);
     border-radius: var(--radius-sm);
     color: var(--bad);
     font-size: 0.82rem;
@@ -231,7 +231,7 @@ const CSS = `
     gap: 1rem;
     margin-top: 1.4rem;
     padding-top: 1.1rem;
-    border-top: 1px solid rgba(181,21,60,0.1);
+    border-top: 1px solid rgba(165,21,21,0.1);
   }
 
   .login-link {
@@ -258,8 +258,8 @@ const CSS = `
     right: 1.2rem;
     width: 28px;
     height: 28px;
-    border-bottom: 1px solid rgba(181,21,60,0.35);
-    border-right: 1px solid rgba(181,21,60,0.35);
+    border-bottom: 1px solid rgba(165,21,21,0.35);
+    border-right: 1px solid rgba(165,21,21,0.35);
     pointer-events: none;
     z-index: 0;
   }

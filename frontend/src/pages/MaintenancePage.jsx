@@ -195,8 +195,8 @@ const s = {
     justifyContent: "center",
     padding: "3rem 1.5rem",
     background:
-      "radial-gradient(1200px 520px at 8% -20%, rgba(181,21,60,0.16), transparent 70%), " +
-      "radial-gradient(1100px 460px at 95% -15%, rgba(138,15,46,0.22), transparent 68%), " +
+      "radial-gradient(1200px 520px at 8% -20%, rgba(165,21,21,0.16), transparent 70%), " +
+      "radial-gradient(1100px 460px at 95% -15%, rgba(122,13,13,0.22), transparent 68%), " +
       "linear-gradient(180deg, var(--bg-1), var(--bg-0))",
     textAlign: "center",
     boxSizing: "border-box",
@@ -228,8 +228,8 @@ const s = {
     fontFamily: "var(--font-body)",
     fontSize: "0.9rem",
     color: "var(--text-2)",
-    background: "rgba(181,21,60,0.12)",
-    border: "1px solid rgba(181,21,60,0.3)",
+    background: "rgba(165,21,21,0.12)",
+    border: "1px solid rgba(165,21,21,0.3)",
     borderRadius: "100px",
     padding: "0.55rem 1.1rem",
     marginBottom: "2rem",

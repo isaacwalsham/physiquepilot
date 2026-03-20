@@ -216,8 +216,8 @@ const CSS = `
   .pilot-send-btn {
     width: 44px; height: 44px;
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(181,21,60,0.4);
-    background: linear-gradient(135deg, rgba(181,21,60,0.3), rgba(138,15,46,0.2));
+    border: 1px solid rgba(165,21,21,0.4);
+    background: linear-gradient(135deg, rgba(165,21,21,0.3), rgba(122,13,13,0.2));
     color: var(--text-1);
     font-size: 1rem;
     cursor: pointer;
@@ -226,8 +226,8 @@ const CSS = `
     flex-shrink: 0;
   }
   .pilot-send-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, rgba(181,21,60,0.45), rgba(138,15,46,0.35));
-    border-color: rgba(181,21,60,0.65);
+    background: linear-gradient(135deg, rgba(165,21,21,0.45), rgba(122,13,13,0.35));
+    border-color: rgba(165,21,21,0.65);
   }
   .pilot-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -244,8 +244,8 @@ const CSS = `
   }
 
   .pilot-error {
-    background: rgba(181,21,60,0.1);
-    border: 1px solid rgba(181,21,60,0.35);
+    background: rgba(165,21,21,0.1);
+    border: 1px solid rgba(165,21,21,0.35);
     border-radius: var(--radius-md);
     color: var(--bad);
     font-family: var(--font-display);

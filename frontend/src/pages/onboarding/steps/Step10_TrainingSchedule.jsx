@@ -11,7 +11,7 @@ const titleStyle = {
 const cardStyle = (selected) => ({
   border: `2px solid ${selected ? "var(--accent-2)" : "var(--line-1)"}`,
   borderRadius: "var(--radius-md)",
-  background: selected ? "rgba(181,21,60,0.12)" : "var(--surface-2)",
+  background: selected ? "rgba(165,21,21,0.12)" : "var(--surface-2)",
   padding: "1.25rem 1.5rem",
   cursor: "pointer",
   transition: "border-color var(--motion-fast) ease, background var(--motion-fast) ease",
@@ -172,7 +172,7 @@ export default function Step10_TrainingSchedule({ form, setField, error }) {
                     padding: "0.75rem 0",
                     border: `2px solid ${selected ? "var(--accent-2)" : "var(--line-1)"}`,
                     borderRadius: "var(--radius-sm)",
-                    background: selected ? "rgba(181,21,60,0.12)" : "var(--surface-2)",
+                    background: selected ? "rgba(165,21,21,0.12)" : "var(--surface-2)",
                     color: selected ? "var(--accent-2)" : "var(--text-2)",
                     fontFamily: "var(--font-display)",
                     fontSize: "0.8rem",
@@ -207,7 +207,7 @@ export default function Step10_TrainingSchedule({ form, setField, error }) {
                 cursor: "pointer",
                 transition: "background var(--motion-fast) ease",
               }}
-              onMouseOver={(e) => { e.currentTarget.style.background = "rgba(222,41,82,0.1)"; }}
+              onMouseOver={(e) => { e.currentTarget.style.background = "rgba(204,32,32,0.1)"; }}
               onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
               Pick for me

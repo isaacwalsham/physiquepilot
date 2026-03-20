@@ -89,7 +89,7 @@ const CSS = `
     background: rgba(8, 3, 5, 0.92);
     box-shadow:
       0 24px 60px rgba(0, 0, 0, 0.6),
-      0 0 0 1px rgba(181, 21, 60, 0.08);
+      0 0 0 1px rgba(165, 21, 21, 0.08);
     overflow: hidden;
   }
 
@@ -179,7 +179,7 @@ const CSS = `
   }
   .ob-input:focus {
     border-color: var(--accent-3);
-    box-shadow: 0 0 0 3px rgba(222, 41, 82, 0.16);
+    box-shadow: 0 0 0 3px rgba(204, 32, 32, 0.16);
   }
   .ob-input::placeholder {
     color: var(--text-3);
@@ -228,7 +228,7 @@ const CSS = `
     line-height: 1.3;
   }
   .ob-pill.active {
-    background: linear-gradient(135deg, rgba(181,21,60,0.3), rgba(138,15,46,0.2));
+    background: linear-gradient(135deg, rgba(165,21,21,0.3), rgba(122,13,13,0.2));
     border-color: var(--accent-2);
     color: var(--text-1);
   }
@@ -251,7 +251,7 @@ const CSS = `
     transition: background 0.18s, border-color 0.18s, color 0.18s;
   }
   .ob-day-pill.active {
-    background: linear-gradient(135deg, rgba(181,21,60,0.3), rgba(138,15,46,0.2));
+    background: linear-gradient(135deg, rgba(165,21,21,0.3), rgba(122,13,13,0.2));
     border-color: var(--accent-2);
     color: var(--text-1);
   }
@@ -297,7 +297,7 @@ const CSS = `
     transition: opacity 0.18s, box-shadow 0.18s;
   }
   .ob-btn-primary:hover:not(:disabled) {
-    box-shadow: 0 0 18px rgba(181, 21, 60, 0.45);
+    box-shadow: 0 0 18px rgba(165, 21, 21, 0.45);
   }
   .ob-btn-primary:disabled {
     opacity: 0.55;
@@ -410,7 +410,7 @@ const CSS = `
     transition: opacity 0.18s, box-shadow 0.18s;
   }
   .ob-mission-btn:hover:not(:disabled) {
-    box-shadow: 0 0 24px rgba(181, 21, 60, 0.55);
+    box-shadow: 0 0 24px rgba(165, 21, 21, 0.55);
   }
   .ob-mission-btn:disabled {
     opacity: 0.55;

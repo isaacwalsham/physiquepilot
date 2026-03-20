@@ -388,7 +388,7 @@ const SH_CSS = `
 
 .sh-badge-up   { background: rgba(40,183,141,0.15); color: #28b78d; border: 1px solid rgba(40,183,141,0.3); }
 .sh-badge-maintain { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--line-2); }
-.sh-badge-down { background: rgba(181,21,60,0.15); color: var(--accent-3); border: 1px solid rgba(181,21,60,0.3); }
+.sh-badge-down { background: rgba(165,21,21,0.15); color: var(--accent-3); border: 1px solid rgba(165,21,21,0.3); }
 
 /* ── Mini history table ── */
 .sh-mini-table {
