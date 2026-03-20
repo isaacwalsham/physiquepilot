@@ -11,8 +11,8 @@
 
   /* ── Text — warm-neutral, not pink-tinted ── */
   --text-1: #f5eeee;
-  --text-2: #c4b6b6;
-  --text-3: #8a7474;
+  --text-2: #d0c4c4;
+  --text-3: #a89898;
 
   /* ── Borders ── */
   --line-1: #261414;
@@ -41,8 +41,8 @@
 
 :root[data-contrast="high"] {
   --text-1: #fff4f4;
-  --text-2: #eed8d8;
-  --text-3: #c4a0a0;
+  --text-2: #f0e0e0;
+  --text-3: #d0b8b8;
   --line-1: #4e2020;
   --line-2: #622828;
   --accent-1: #9a1414;
