@@ -297,7 +297,7 @@ function CinematicScreen({ type, next, skip }) {
           {[
             { label: 'Dashboard live',                color: '#cc2020' },
             { label: 'Nutrition targets set',         color: '#4d8eff' },
-            { label: 'Training programme loaded',     color: '#cc2020' },
+            { label: 'Training program loaded',     color: '#cc2020' },
             { label: 'Movement & habit tracking on',  color: '#f59e0b' },
             { label: 'Weekly check-ins scheduled',    color: '#14b8a6' },
             { label: 'AI Coach ready',                color: '#fbbf24' },

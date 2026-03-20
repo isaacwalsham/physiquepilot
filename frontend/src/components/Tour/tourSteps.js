@@ -35,7 +35,7 @@ export const TOUR_STEPS = [
     selector: '.db-grid',
     tooltipPosition: 'center',
     title: 'Your command centre',
-    body: 'Everything in one view. Each panel is a live snapshot of a different part of your programme — tap any of them to go straight in.',
+    body: 'Everything in one view. Each panel is a live snapshot of a different part of your program — tap any of them to go straight in.',
   },
   {
     id: 'db-weight',
@@ -62,7 +62,7 @@ export const TOUR_STEPS = [
     selector: '#tour-training-panel',
     tooltipPosition: 'left',
     title: 'Today\'s training',
-    body: 'Your programme tells you what to train today. Training days and rest days automatically adjust your nutrition targets — the whole system is connected.',
+    body: 'Your program tells you what to train today. Training days and rest days automatically adjust your nutrition targets — the whole system is connected.',
   },
   {
     id: 'db-movement',
@@ -113,7 +113,7 @@ export const TOUR_STEPS = [
     selector: null,
     tooltipPosition: 'center',
     title: 'Training Hub',
-    body: 'Build your programme, log every session, and track each set and rep over time. Your training block is what drives rest day vs. training day nutrition — get this set up right and everything else follows.',
+    body: 'Build your program, log every session, and track each set and rep over time. Your training block is what drives rest day vs. training day nutrition — get this set up right and everything else follows.',
   },
 
   // ── 10 · Movement ─────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ export const TOUR_STEPS = [
     selector: '.ac-grid',
     tooltipPosition: 'center',
     title: 'Movement & Cardio',
-    body: 'Track your daily step count and log cardio sessions. Hit your step target consistently and it quietly adds up to hundreds of extra calories burned per week — without touching your programme.',
+    body: 'Track your daily step count and log cardio sessions. Hit your step target consistently and it quietly adds up to hundreds of extra calories burned per week — without touching your program.',
   },
 
   // ── 11 · Habits ───────────────────────────────────────────────────────────────

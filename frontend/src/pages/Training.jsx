@@ -39,14 +39,14 @@ const TRAINING_CSS = `
 `;
 
 const TABS = [
-  { id: 'programme', label: 'Program' },
+  { id: 'program', label: 'Program' },
   { id: 'log', label: 'Log' },
   { id: 'history', label: 'History' },
 ];
 
 export default function Training() {
   const { profile } = useProfile();
-  const [activeTab, setActiveTab] = useState('programme');
+  const [activeTab, setActiveTab] = useState('program');
   const [logDate, setLogDate] = useState(null);
 
   // Program sub-state
@@ -162,7 +162,7 @@ export default function Training() {
         />
 
         {/* Tab content */}
-        {activeTab === 'programme' && renderProgram()}
+        {activeTab === 'program' && renderProgram()}
         {activeTab === 'log' && <SessionLog initialDate={logDate} />}
         {activeTab === 'history' && <SessionHistory />}
 
