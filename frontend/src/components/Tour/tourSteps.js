@@ -1,79 +1,169 @@
-// ─── Product tour step definitions ────────────────────────────────────────────
-// selector: CSS selector for the element to spotlight (null = centred modal, no spotlight)
-// tooltipPosition: 'right' | 'bottom' | 'top' | 'left' | 'center'
+// ─── Section definitions ───────────────────────────────────────────────────────
+// Each section groups one or more steps and carries its own colour identity.
+
+export const SECTIONS = [
+  { key: 'dashboard', label: 'Dashboard', color: '#cc2020' },
+  { key: 'weight',    label: 'Weight',    color: '#22c55e' },
+  { key: 'nutrition', label: 'Nutrition', color: '#4d8eff' },
+  { key: 'training',  label: 'Training',  color: '#cc2020' },
+  { key: 'movement',  label: 'Movement',  color: '#f59e0b' },
+  { key: 'habits',    label: 'Habits',    color: '#a78bfa' },
+  { key: 'checkins',  label: 'Check-ins', color: '#14b8a6' },
+  { key: 'coach',     label: 'Coach',     color: '#fbbf24' },
+];
+
+// ─── Tour step definitions ─────────────────────────────────────────────────────
+// isCinematic: 'welcome' | 'finish'  →  full-screen takeover, no card
+// section: key from SECTIONS         →  drives colour + progress
+// selector: CSS selector to spotlight (null = centred modal)
+// tooltipPosition: 'right' | 'left' | 'bottom' | 'top' | 'center'
 
 export const TOUR_STEPS = [
+
+  // ── 0 · Welcome ─────────────────────────────────────────────────────────────
   {
     id: 'welcome',
+    isCinematic: 'welcome',
     route: '/app/dashboard',
-    selector: null,
-    title: 'Welcome to Physique Pilot.',
-    body: "You're all set up. Let's take 60 seconds to show you around — you can skip at any time.",
-    tooltipPosition: 'center',
   },
+
+  // ── 1–5 · Dashboard ─────────────────────────────────────────────────────────
   {
-    id: 'sidebar',
-    route: '/app/dashboard',
-    selector: '.app-sidebar',
-    title: 'Your Control Panel',
-    body: 'Every tool lives here. Dashboard, weight, nutrition, training, activity, check-ins, and your AI coach — one click away.',
-    tooltipPosition: 'right',
-  },
-  {
-    id: 'dashboard-panels',
+    id: 'db-overview',
+    section: 'dashboard',
     route: '/app/dashboard',
     selector: '.db-grid',
-    title: 'Live Dashboard',
-    body: "Your daily stats at a glance — weight trend, movement, and training status. Tap any panel to dive straight in.",
-    tooltipPosition: 'bottom',
+    tooltipPosition: 'center',
+    title: 'Your command centre',
+    body: 'Everything in one view. Each panel is a live snapshot of a different part of your programme — tap any of them to go straight in.',
   },
   {
-    id: 'dashboard-nutrition',
+    id: 'db-weight',
+    section: 'dashboard',
     route: '/app/dashboard',
-    selector: '.db-nutrition',
-    title: 'Nutrition Overview',
-    body: 'Calorie and macro targets for today, updated in real time as you log meals. Targets shift automatically on training vs. rest days.',
-    tooltipPosition: 'top',
+    selector: '#tour-weight-panel',
+    tooltipPosition: 'right',
+    title: 'Weight trend',
+    body: 'Your latest weight and a smoothed 7-day trend. Log daily — the trend line cuts through fluctuations so you can see what\'s actually happening, not just noise.',
   },
+  {
+    id: 'db-nutrition',
+    section: 'dashboard',
+    route: '/app/dashboard',
+    selector: '#tour-nutrition-panel',
+    tooltipPosition: 'right',
+    title: 'Macro snapshot',
+    body: 'Today\'s calories and macros logged vs. target. Updates in real time as you log food — so you always know exactly where you stand.',
+  },
+  {
+    id: 'db-training',
+    section: 'dashboard',
+    route: '/app/dashboard',
+    selector: '#tour-training-panel',
+    tooltipPosition: 'left',
+    title: 'Today\'s training',
+    body: 'Your programme tells you what to train today. Training days and rest days automatically adjust your nutrition targets — the whole system is connected.',
+  },
+  {
+    id: 'db-movement',
+    section: 'dashboard',
+    route: '/app/dashboard',
+    selector: '#tour-movement-panel',
+    tooltipPosition: 'left',
+    title: 'Daily movement',
+    body: 'Steps and cardio tracked against your daily target. Small habits compounded — this panel keeps it honest.',
+  },
+
+  // ── 6 · Weight page ──────────────────────────────────────────────────────────
   {
     id: 'weight',
+    section: 'weight',
     route: '/app/weight',
-    selector: '.app-content-inner',
-    title: 'Weight Tracking',
-    body: 'Log your weight daily. The trend chart smooths out fluctuations so you can see real progress — not just noise.',
+    selector: null,
     tooltipPosition: 'center',
+    title: 'Weight Tracking',
+    body: 'Log your weight daily and watch the trend chart smooth out water weight and fluctuations. Set a goal weight and track real progress over time — not just what the scale says on a given morning.',
+  },
+
+  // ── 7–8 · Nutrition ──────────────────────────────────────────────────────────
+  {
+    id: 'nutrition-hud',
+    section: 'nutrition',
+    route: '/app/nutrition',
+    selector: '.nt-calorie-hud',
+    tooltipPosition: 'right',
+    title: 'Macro command centre',
+    body: 'Calories, protein, carbs, and fat — all tracked against your targets in real time. Targets shift automatically between training days, rest days, and high days because your body isn\'t the same every day.',
   },
   {
-    id: 'nutrition',
+    id: 'nutrition-log',
+    section: 'nutrition',
     route: '/app/nutrition',
-    selector: '.app-content-inner',
-    title: 'Nutrition Engine',
-    body: 'Log meals, generate AI meal plans, and track every macro. Everything your diet needs in one place.',
+    selector: null,
     tooltipPosition: 'center',
+    title: 'Log food in plain English',
+    body: 'Type what you ate — "200g chicken breast and rice" — and the AI figures out the macros. No barcodes, no hunting through databases. Head to the Meal Plans tab to generate a full day\'s eating based on your exact targets.',
   },
+
+  // ── 9 · Training ──────────────────────────────────────────────────────────────
   {
     id: 'training',
+    section: 'training',
     route: '/app/training',
-    selector: '.app-content-inner',
-    title: 'Training Hub',
-    body: 'Build your program, log sessions, and track every set and rep. Your training block drives your nutrition targets automatically.',
+    selector: null,
     tooltipPosition: 'center',
+    title: 'Training Hub',
+    body: 'Build your programme, log every session, and track each set and rep over time. Your training block is what drives rest day vs. training day nutrition — get this set up right and everything else follows.',
   },
+
+  // ── 10 · Movement ─────────────────────────────────────────────────────────────
+  {
+    id: 'movement',
+    section: 'movement',
+    route: '/app/cardio-steps',
+    selector: '.ac-grid',
+    tooltipPosition: 'center',
+    title: 'Movement & Cardio',
+    body: 'Track your daily step count and log cardio sessions. Hit your step target consistently and it quietly adds up to hundreds of extra calories burned per week — without touching your programme.',
+  },
+
+  // ── 11 · Habits ───────────────────────────────────────────────────────────────
+  {
+    id: 'habits',
+    section: 'habits',
+    route: '/app/habits',
+    selector: null,
+    tooltipPosition: 'center',
+    title: 'Habit Tracker',
+    body: 'Create habits and track them daily — sleep, water, stress, whatever matters for your goals. The analytics tab shows streaks, completion rates, and how your habits correlate with your progress metrics over time.',
+  },
+
+  // ── 12 · Check-ins ────────────────────────────────────────────────────────────
+  {
+    id: 'checkins',
+    section: 'checkins',
+    route: '/app/check-ins',
+    selector: null,
+    tooltipPosition: 'center',
+    title: 'Weekly Check-ins',
+    body: 'Every week, submit your weight, measurements, progress photos, and how you\'ve been feeling. Your Pilot reviews it all, spots what\'s working, and adjusts your targets. This feedback loop is what separates real coaching from just logging data.',
+  },
+
+  // ── 13 · Coach ────────────────────────────────────────────────────────────────
   {
     id: 'coach',
+    section: 'coach',
     route: '/app/coach',
-    selector: '.app-content-inner',
+    selector: '.pilot-input-row',
+    tooltipPosition: 'top',
     title: 'Your AI Coach',
-    body: "Ask anything — macros, training advice, recovery, plateau-busting. Your coach knows your full stats and history.",
-    tooltipPosition: 'center',
+    body: 'Ask anything. Why has your weight stalled? Should you increase calories? How does your training load look this month? Your Pilot has access to your full data history and gives you answers grounded in your actual numbers — not generic advice.',
   },
+
+  // ── 14 · Finish ───────────────────────────────────────────────────────────────
   {
     id: 'finish',
+    isCinematic: 'finish',
     route: '/app/dashboard',
-    selector: null,
-    title: "You're ready.",
-    body: "That's the full tour. Your program is live and your targets are set. Go crush it.",
-    tooltipPosition: 'center',
-    isLast: true,
   },
 ];

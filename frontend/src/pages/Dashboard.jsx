@@ -966,7 +966,7 @@ export default function Dashboard() {
         <div className="db-grid">
 
           {/* ── COL 1 ROW 1: BIOMETRICS ── */}
-          <div className="db-panel" onClick={nav("/app/weight")} role="button"
+          <div id="tour-weight-panel" className="db-panel" onClick={nav("/app/weight")} role="button"
             tabIndex={0} onKeyDown={onKey("/app/weight")} aria-label="Open weight tracking">
 
             <div className="db-mfd">
@@ -1147,7 +1147,7 @@ export default function Dashboard() {
           </div>
 
           {/* ── COL 2 ROWS 1-2: NUTRITION CAROUSEL ── */}
-          <div className="db-panel db-macro-panel" onClick={nav("/app/nutrition")} role="button"
+          <div id="tour-nutrition-panel" className="db-panel db-macro-panel" onClick={nav("/app/nutrition")} role="button"
             tabIndex={0} onKeyDown={onKey("/app/nutrition")} aria-label="Open nutrition">
 
             {(() => {
@@ -1394,7 +1394,7 @@ export default function Dashboard() {
           </div>
 
           {/* ── COL 3 ROW 1: TRAINING TODAY ── */}
-          <div className="db-panel" onClick={nav("/app/training")} role="button"
+          <div id="tour-training-panel" className="db-panel" onClick={nav("/app/training")} role="button"
             tabIndex={0} onKeyDown={onKey("/app/training")} aria-label="Open training">
 
             <div className="db-mfd">
@@ -1490,7 +1490,7 @@ export default function Dashboard() {
           </div>
 
           {/* ── COL 4 ROW 1: MOVEMENT ── */}
-          <div className="db-panel" onClick={nav("/app/cardio-steps")} role="button"
+          <div id="tour-movement-panel" className="db-panel" onClick={nav("/app/cardio-steps")} role="button"
             tabIndex={0} onKeyDown={onKey("/app/cardio-steps")} aria-label="Open movement">
 
             <div className="db-mfd">
