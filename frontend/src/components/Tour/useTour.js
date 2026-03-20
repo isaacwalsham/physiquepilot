@@ -71,18 +71,6 @@ export function useTour(profile) {
     return () => window.removeEventListener('resize', measureTarget);
   }, [active, measureTarget]);
 
-  // Keyboard navigation: ← → navigate, Escape = skip
-  useEffect(() => {
-    if (!active) return;
-    const handleKey = (e) => {
-      if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
-      if (e.key === 'ArrowLeft')  { e.preventDefault(); prev(); }
-      if (e.key === 'Escape')     { e.preventDefault(); skip(); }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [active, next, prev, skip]);
-
   // ── Persist tour completion to Supabase ───────────────────────────────────
   const markComplete = useCallback(async () => {
     if (!profile?.user_id) return;
@@ -111,6 +99,18 @@ export function useTour(profile) {
     setActive(false);
     markComplete();
   }, [markComplete]);
+
+  // Keyboard navigation: ← → navigate, Escape = skip
+  useEffect(() => {
+    if (!active) return;
+    const handleKey = (e) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); prev(); }
+      if (e.key === 'Escape')     { e.preventDefault(); skip(); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [active, next, prev, skip]);
 
   // Called from Settings "Replay Tour" button
   const restart = useCallback(() => {
